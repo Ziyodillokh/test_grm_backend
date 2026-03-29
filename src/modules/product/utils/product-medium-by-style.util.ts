@@ -1,0 +1,23 @@
+const query = () => `
+WITH ranked_products AS (
+  SELECT DISTINCT
+price,
+  LOWER(s.title) AS normalized_style,
+  ROW_NUMBER() OVER (PARTITION BY LOWER(s.title) ORDER BY price) AS row_num,
+COUNT(*) OVER (PARTITION BY LOWER(s.title)) AS total_rows
+FROM
+product
+left join qrbase as qr on product."barCodeId" = qr.id
+left join style s on qr."styleId" = s.id
+where "isInternetShop" = true
+)
+SELECT
+price,
+  UPPER(normalized_style) AS style
+FROM
+ranked_products
+WHERE
+row_num = CEIL(total_rows / 2.0);
+`;
+
+export default query;

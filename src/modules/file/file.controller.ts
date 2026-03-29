@@ -1,0 +1,104 @@
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  HttpException,
+  HttpStatus,
+  Param,
+  Post,
+  Query,
+} from '@nestjs/common';
+import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { FileService } from './file.service';
+import { Route } from 'src/infra/shared/decorators/route.decorator';
+import { PaginationDto } from 'src/infra/shared/dto';
+import { CreateFileDto } from './dto';
+import { File } from './file.entity';
+import { Public } from '../auth/decorators/public.decorator';
+
+@ApiTags('File')
+@Controller('file')
+export class FileController {
+  constructor(private readonly fileService: FileService) {}
+
+  @Get('/')
+  @ApiOperation({ summary: 'Method: returns all File' })
+  @ApiOkResponse({
+    description: 'The File were returned successfully',
+  })
+  @HttpCode(HttpStatus.OK)
+  async getData(@Route() route: string, @Query() query: PaginationDto) {
+    try {
+      return await this.fileService.getAll({ ...query, route });
+    } catch (err) {
+      throw new HttpException(err.message, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  @Public()
+  @Get('/by-model')
+  @ApiOperation({ summary: 'Method: returns all model' })
+  @ApiOkResponse({
+    description: 'The File were returned successfully',
+  })
+  @HttpCode(HttpStatus.OK)
+  async get(@Query('model') model: string) {
+    return await this.fileService.getByModel(model);
+  }
+
+  // @Get('/:url')
+  // @ApiOperation({ summary: 'Method: returns single Shape by id' })
+  // @ApiOkResponse({
+  //   description: 'The Shape was returned successfully',
+  // })
+  // @HttpCode(HttpStatus.OK)
+  // async getMe(@Param('url') url: string): Promise<File> {
+  //   return this.fileService.getByUrl(url);
+  // }
+
+  @Public()
+  @Post('/')
+  @ApiOperation({ summary: 'Method: create file' })
+  @ApiOkResponse({
+    description: 'The File were create successfully',
+  })
+  @HttpCode(HttpStatus.OK)
+  async create(@Body() data: CreateFileDto) {
+    return await this.fileService.createOrUpdate(data);
+  }
+
+  // @Patch('/:id')
+  // @ApiOperation({ summary: 'Method: update file' })
+  // @ApiOkResponse({
+  //   description: 'The File were update successfully',
+  // })
+  // @HttpCode(HttpStatus.OK)
+  // async update(
+  //   @Body() data: UpdateFileDto,
+  //   @Param('id') id: string,
+  // ): Promise<UpdateResult> {
+  //   return await this.fileService.update(data, id);
+  // }
+
+  @Delete('/:id')
+  @ApiOperation({ summary: 'Method: delete file' })
+  @ApiOkResponse({
+    description: 'The File were deleted successfully',
+  })
+  @HttpCode(HttpStatus.OK)
+  async name(@Param('id') id: string) {
+    return await this.fileService.delete(id);
+  }
+
+  @Delete('/:url')
+  @ApiOperation({ summary: 'Method: delete file' })
+  @ApiOkResponse({
+    description: 'The File were deleted successfully',
+  })
+  @HttpCode(HttpStatus.OK)
+  async deleteByUrl(@Param('url') url: string) {
+    return await this.fileService.deleteByUrl(url);
+  }
+}

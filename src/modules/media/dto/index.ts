@@ -1,0 +1,1 @@
+export { default as CreateMediaDto } from './create-media.dto';

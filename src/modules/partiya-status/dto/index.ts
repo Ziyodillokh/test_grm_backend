@@ -1,0 +1,1 @@
+export { default as CreatePartiyaStatusDto } from './create-partiya-status.dto'
