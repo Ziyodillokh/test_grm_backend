@@ -31,7 +31,9 @@ export class KassaReportsAliasController {
     @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit: number,
     @Req() req,
   ) {
-    return this.kassaService.getReport({ page, limit }, req.user, req.where || {});
+    const user = req['user'];
+    if (!user?.filial?.id) return { items: [], meta: { totalItems: 0 } };
+    return this.kassaService.getReport({ page, limit }, user, req.where || {});
   }
 
   @Get('current')
@@ -52,7 +54,9 @@ export class KassaReportsAliasController {
   @ApiOperation({ summary: 'Alias: get kassa totals (was kassa-reports/total)' })
   @HttpCode(HttpStatus.OK)
   async getTotal(@Query() query, @Req() req) {
-    return this.kassaService.getReport({ page: 1, limit: 1000 }, req.user, req.where || {});
+    const user = req['user'];
+    if (!user?.filial?.id) return { items: [], meta: { totalItems: 0 } };
+    return this.kassaService.getReport({ page: 1, limit: 1000 }, user, req.where || {});
   }
 
   @Get(':id')
