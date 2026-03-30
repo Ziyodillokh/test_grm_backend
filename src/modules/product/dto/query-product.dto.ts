@@ -18,6 +18,11 @@ export class QueryProductDto {
   @IsString()
   readonly filial?: string;
 
+  @ApiPropertyOptional({ description: 'Filter by branch ID (alias)' })
+  @IsOptional()
+  @IsString()
+  readonly filialId?: string;
+
   @ApiPropertyOptional({ description: 'Filter by bar code ID' })
   @IsOptional()
   @IsString()

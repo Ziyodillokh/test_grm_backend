@@ -71,8 +71,9 @@ export class UserController {
   @Get('managers-accountants')
   @ApiOperation({ summary: 'Get managers and accountants' })
   @HttpCode(HttpStatus.OK)
-  async getManagersAccountants(@Query() query): Promise<any> {
-    return this.userService.findAll({ page: query.page || 1, limit: query.limit || 50, route: '' }, { role: [9, 10] } as any);
+  async getManagersAccountants(): Promise<any> {
+    const users = await this.userService.findManagersAccountants();
+    return { items: users };
   }
 
   @Get(':id')

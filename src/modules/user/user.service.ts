@@ -122,6 +122,17 @@ export class UserService {
     return user;
   }
 
+  async findManagersAccountants(): Promise<User[]> {
+    return this.userRepository.find({
+      where: [
+        { position: { role: 9 }, isActive: true },
+        { position: { role: 10 }, isActive: true },
+      ],
+      relations: { position: true, avatar: true, filial: true },
+      order: { firstName: 'ASC' },
+    });
+  }
+
   /** Find a user by phone where position role is CLIENT (iMarket) */
   async getImarketuserbyPhone(phone: string): Promise<User | null> {
     return this.userRepository.findOne({
