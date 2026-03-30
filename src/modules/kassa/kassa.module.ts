@@ -5,6 +5,7 @@ import { Kassa } from './kassa.entity';
 import { KassaService } from './kassa.service';
 import { KassaController } from './kassa.controller';
 import { KassaReportsAliasController } from './kassa-reports-alias.controller';
+import { KassaCashflowController } from './kassa-cashflow.controller';
 import { KassaQueryParserMiddleware } from '../../infra/middleware';
 import { FilialModule } from '../filial/filial.module';
 import { ActionModule } from '../action/action.module';
@@ -23,7 +24,7 @@ import { CashflowType } from '../cashflow-type/cashflow-type.entity';
     forwardRef(() => FilialModule),
     forwardRef(() => ReportsModule),
   ],
-  controllers: [KassaController, KassaReportsAliasController],
+  controllers: [KassaController, KassaReportsAliasController, KassaCashflowController],
   providers: [KassaService],
   exports: [KassaService],
 })
