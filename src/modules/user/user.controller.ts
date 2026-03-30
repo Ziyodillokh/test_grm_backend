@@ -68,6 +68,13 @@ export class UserController {
     return this.userService.getOne(userId);
   }
 
+  @Get('managers-accountants')
+  @ApiOperation({ summary: 'Get managers and accountants' })
+  @HttpCode(HttpStatus.OK)
+  async getManagersAccountants(@Query() query): Promise<any> {
+    return this.userService.findAll({ page: query.page || 1, limit: query.limit || 50, route: '' }, { role: [9, 10] } as any);
+  }
+
   @Get(':id')
   @Roles(Role.BOSS, Role.M_MANAGER, Role.ACCOUNTANT, Role.HR, Role.F_MANAGER)
   @ApiOperation({ summary: 'Get a user by ID' })

@@ -19,4 +19,18 @@ export class QueryTransferDto {
   @IsOptional()
   @IsString()
   search?: string;
+
+  @ApiPropertyOptional({ description: 'From filial ID' })
+  @IsOptional()
+  @IsString()
+  from?: string;
+
+  @ApiPropertyOptional({ description: 'To filial ID' })
+  @IsOptional()
+  @IsString()
+  to?: string;
+
+  @ApiPropertyOptional({ description: 'Progress status filter' })
+  @IsOptional()
+  progress?: string | string[];
 }
