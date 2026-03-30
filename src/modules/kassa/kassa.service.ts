@@ -93,7 +93,8 @@ export class KassaService {
     return paginate<Kassa>(this.kassaRepository, options, {
       relations: {
         filial: {
-          users: true,
+          users: { position: true },
+          manager: { position: true },
         },
       },
       where: {
