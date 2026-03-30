@@ -58,14 +58,14 @@ export class UserController {
   @ApiOkResponse({ description: 'Current user returned successfully' })
   @HttpCode(HttpStatus.OK)
   async getProfile(@CurrentUser('id') userId: string): Promise<User> {
-    return this.userService.findOne(userId);
+    return this.userService.getOne(userId);
   }
 
   @Get('info/me')
   @ApiOperation({ summary: 'Get current user profile (alias)' })
   @HttpCode(HttpStatus.OK)
   async getProfileAlias(@CurrentUser('id') userId: string): Promise<User> {
-    return this.userService.findOne(userId);
+    return this.userService.getOne(userId);
   }
 
   @Get(':id')
