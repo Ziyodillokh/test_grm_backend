@@ -40,7 +40,6 @@ export class ProductController {
     Role.F_MANAGER,
     Role.W_MANAGER,
     Role.SELLER,
-    Role.CASHIER,
     Role.D_MANAGER,
     Role.DEALER,
     Role.I_MANAGER,
@@ -66,7 +65,6 @@ export class ProductController {
     Role.F_MANAGER,
     Role.W_MANAGER,
     Role.SELLER,
-    Role.CASHIER,
   )
   @ApiOperation({ summary: 'Get a product by ID' })
   @ApiOkResponse({ description: 'Product returned successfully' })

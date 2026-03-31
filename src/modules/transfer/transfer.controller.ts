@@ -75,7 +75,7 @@ export class TransferController {
     return this.transferService.create(data, userId);
   }
 
-  @Roles(Role.CASHIER, Role.M_MANAGER, Role.BOSS, Role.F_MANAGER, Role.W_MANAGER, Role.I_MANAGER)
+  @Roles(Role.M_MANAGER, Role.BOSS, Role.F_MANAGER, Role.W_MANAGER, Role.I_MANAGER)
   @Put('/accept')
   @ApiOperation({ summary: 'Accept transfers' })
   @ApiOkResponse({ description: 'Transfers accepted' })
@@ -98,7 +98,7 @@ export class TransferController {
     return this.transferService.changeProgress(from, to);
   }
 
-  @Roles(Role.CASHIER, Role.M_MANAGER, Role.BOSS, Role.F_MANAGER, Role.W_MANAGER)
+  @Roles(Role.M_MANAGER, Role.BOSS, Role.F_MANAGER, Role.W_MANAGER)
   @Patch('/reject/:id')
   @ApiOperation({ summary: 'Reject transfer' })
   @ApiOkResponse({ description: 'Transfer rejected' })

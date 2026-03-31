@@ -37,7 +37,6 @@ export class QrBaseController {
     Role.W_MANAGER,
     Role.F_MANAGER,
     Role.SELLER,
-    Role.CASHIER,
     Role.I_MANAGER,
   )
   @ApiOperation({ summary: 'Get all QR bases with pagination' })

@@ -183,7 +183,6 @@ export class OrderController {
   @Patch('/isActive/:id')
   @Roles(
     UserRoleEnum.BOSS,
-    UserRoleEnum.CASHIER,
     UserRoleEnum.M_MANAGER,
     UserRoleEnum.W_MANAGER,
     UserRoleEnum.F_MANAGER,
@@ -202,7 +201,6 @@ export class OrderController {
   @Post('/accept')
   @Roles(
     UserRoleEnum.BOSS,
-    UserRoleEnum.CASHIER,
     UserRoleEnum.M_MANAGER,
     UserRoleEnum.W_MANAGER,
     UserRoleEnum.F_MANAGER,

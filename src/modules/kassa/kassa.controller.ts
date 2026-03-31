@@ -95,7 +95,7 @@ export class KassaController {
     return await this.kassaService.getAllKassaByFIlialId({ ...query, route }, req.where);
   }
 
-  @Roles(UserRoleEnum.CASHIER, UserRoleEnum.F_MANAGER, UserRoleEnum.BOSS, UserRoleEnum.I_MANAGER)
+  @Roles(UserRoleEnum.F_MANAGER, UserRoleEnum.BOSS, UserRoleEnum.I_MANAGER)
   @Get('/report')
   @ApiOperation({ summary: 'Method: returns single kassa' })
   @ApiOkResponse({
@@ -121,7 +121,6 @@ export class KassaController {
   }
 
   @Roles(
-    UserRoleEnum.CASHIER,
     UserRoleEnum.BOSS,
     UserRoleEnum.M_MANAGER,
     UserRoleEnum.W_MANAGER,
@@ -167,7 +166,6 @@ export class KassaController {
   }
 
   @Roles(
-    UserRoleEnum.CASHIER,
     UserRoleEnum.BOSS,
     UserRoleEnum.M_MANAGER,
     UserRoleEnum.W_MANAGER,
@@ -187,12 +185,12 @@ export class KassaController {
       throw new BadRequestException("You don't have filial!");
     }
 
-    if (![UserRoleEnum.F_MANAGER, UserRoleEnum.M_MANAGER, UserRoleEnum.CASHIER].includes(req.user.position.role)) {
+    if (![UserRoleEnum.F_MANAGER, UserRoleEnum.M_MANAGER].includes(req.user.position.role)) {
       throw new BadRequestException('You can not close kassa!');
     }
 
     const closedKassas = await this.kassaService.closeKassas(data.ids, req.user);
-    if ([UserRoleEnum.CASHIER].includes(req.user.position.role)) {
+    if ([UserRoleEnum.F_MANAGER].includes(req.user.position.role)) {
       await this.kassaService.create({ filial: user.filial.id });
       await this.kassaService.moveKassaOrders(closedKassas);
     }

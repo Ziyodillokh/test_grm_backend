@@ -45,7 +45,6 @@ export class ScopeGuard implements CanActivate {
         return Scope.GLOBAL;
       case Role.F_MANAGER:
       case Role.SELLER:
-      case Role.CASHIER:
         return Scope.BRANCH;
       case Role.W_MANAGER:
         return Scope.WAREHOUSE;

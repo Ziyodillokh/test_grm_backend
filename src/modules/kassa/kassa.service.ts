@@ -102,11 +102,11 @@ export class KassaService {
         ...(endDate && { endDate: LessThanOrEqual(endDate) }),
         isActive: false,
         ...(where.filial
-          ? { filial: where.filial, users: { position: { role: Equal(UserRoleEnum.CASHIER) } } }
+          ? { filial: where.filial, users: { position: { role: Equal(UserRoleEnum.F_MANAGER) } } }
           : {
               filial: {
                 id: user.filial.id,
-                users: { position: { role: Equal(UserRoleEnum.CASHIER) } },
+                users: { position: { role: Equal(UserRoleEnum.F_MANAGER) } },
               },
             }),
       },
@@ -178,7 +178,6 @@ export class KassaService {
 
   async closeKassas(ids: string[], user) {
     const roleStatusMap = {
-      [UserRoleEnum.CASHIER]: KassaProgresEnum.CLOSED_BY_C,
       [UserRoleEnum.F_MANAGER]: KassaProgresEnum.ACCEPTED,
     };
 
@@ -198,20 +197,7 @@ export class KassaService {
 
       if (!kassa) continue;
 
-      if (userRole === UserRoleEnum.CASHIER) {
-        if (kassa.status !== KassaProgresEnum.OPEN) {
-          throw new BadRequestException(`Kassa ${kassa.id} already closed!`);
-        }
-
-        Object.assign(kassa, {
-          isActive: false,
-          endDate,
-          closer: user.id,
-          status: KassaProgresEnum.CLOSED_BY_C,
-        });
-        await this.kassaRepository.save(kassa);
-      } else if (userRole === UserRoleEnum.F_MANAGER) {
-
+      if (userRole === UserRoleEnum.F_MANAGER) {
         await this.kassaRepository.update({ id: kassa.id }, {
           isActive: false,
           status: KassaProgresEnum.ACCEPTED,

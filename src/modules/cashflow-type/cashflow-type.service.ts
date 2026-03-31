@@ -110,7 +110,7 @@ export class CashflowTypeService {
       where: {
         ...(type && { type: In([CashflowTypeEnum.BOTH, type]) }),
         positions: {
-          role: UserRoleEnum.CASHIER,
+          role: UserRoleEnum.F_MANAGER,
         },
       },
       relations: {
