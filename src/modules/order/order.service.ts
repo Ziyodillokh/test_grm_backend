@@ -1091,7 +1091,7 @@ export class OrderService {
       const availableBasket = basket.isMetric ? basket.x / 100 : basket.x;
 
       if (available < availableBasket) {
-        throw new BadRequestException(`Insufficient stock for product ${product.code}`);
+        throw new BadRequestException(`Mahsulot omborda yetarli emas: ${product.code || product.id} (mavjud: ${available}, kerak: ${availableBasket})`);
       }
     }
   }
