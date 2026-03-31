@@ -155,6 +155,11 @@ export class CashflowController {
     return await this.cashflowService.updatecosts(kassa_id);
   }
 
+  @Patch(':id/accept')
+  async acceptCashflow(@Param('id') id: string, @Req() req) {
+    return this.cashflowService.approveCashflow(id, req.user?.id);
+  }
+
   @Patch(':id/cancel')
   cancelCashflow(@Param('id') id: string, @Req() req) {
     const userId = req.user.id;
