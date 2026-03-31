@@ -500,16 +500,20 @@ export class OrderService {
       });
 
       const cashflow_type = await this.cashFlowTypeService.getOneBySlug('order');
+      const cashflowRepository = manager.getRepository(Cashflow);
       for (const savedOrder of savedOrders) {
-        await this.cashFlowService.createPending({
+        const cashflow = cashflowRepository.create({
           tip: CashflowTipEnum.ORDER,
-          order: (savedOrder as any).id,
-          cashflow_type: cashflow_type.id,
-          kassa: kassa.id,
+          order: { id: (savedOrder as any).id },
+          cashflow_type: cashflow_type ? { id: cashflow_type.id } : null,
+          kassa: { id: kassa.id },
           type: CashFlowEnum.InCome,
           price: (savedOrder as any).price + ((savedOrder as any).plasticSum || 0),
-          seller: user.id,
-        }, user.id);
+          seller: { id: user.id },
+          casher: { id: user.id },
+          status: CashflowStatusEnum.PENDING,
+        });
+        await cashflowRepository.save(cashflow);
       }
 
       await this.orderBasketService.bulkDelete(user.id);
