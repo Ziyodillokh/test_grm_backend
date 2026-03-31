@@ -26,6 +26,11 @@ export class CashflowTypeController {
     return this.cashflowTypeService.getForSeller(type);
   }
 
+  @Get('/for/branch-manager')
+  async getAllForBranchManager(@Query('type') type: CashflowTypeEnum): Promise<CashflowType[]> {
+    return this.cashflowTypeService.getForSeller(type);
+  }
+
   @ApiResponse({ status: 200, description: 'List of cashflow types', type: createCashflowTypeDto })
   @ApiQuery({ name: 'type', type: String, enum: CashflowTypeEnum })
   @Get('/for/f-manager')
