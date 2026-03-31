@@ -34,9 +34,16 @@ export class ProductService {
       where.code = ILike(`%${query.search}%`);
     }
 
+    if (query.filialId) {
+      where.filial = { id: query.filialId };
+    } else if (query.filial) {
+      where.filial = { id: query.filial };
+    }
+
     return paginate<Product>(this.productRepository, options, {
       order: { date: 'DESC' },
       where,
+      relations: { filial: true, bar_code: true },
     });
   }
 
