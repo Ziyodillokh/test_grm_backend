@@ -43,7 +43,16 @@ export class ProductService {
     return paginate<Product>(this.productRepository, options, {
       order: { date: 'DESC' },
       where,
-      relations: { filial: true, bar_code: true },
+      relations: {
+        filial: true,
+        bar_code: {
+          size: true,
+          color: true,
+          style: true,
+          model: { collection: true },
+          collection: { collection_prices: true },
+        },
+      },
     });
   }
 
