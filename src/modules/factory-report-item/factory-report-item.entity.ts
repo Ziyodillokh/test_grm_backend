@@ -6,7 +6,7 @@ import { Collection } from '../collection/collection.entity';
 import { BaseEntity } from '../../common/database/base.entity';
 import { Factory } from '../factory/factory.entity';
 
-@Entity('factory_report_item')
+@Entity('factory-report-item')
 export class FactoryReportItem extends BaseEntity {
   @Column({ type: 'int' })
   year: number;

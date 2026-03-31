@@ -3,7 +3,7 @@ import { BaseEntity } from '../../common/database/base.entity';
 import { ColumnNumericTransformer } from 'src/infra/helpers';
 import { Filial } from '@modules/filial/filial.entity';
 
-@Entity('paper_report')
+@Entity('paper-report')
 export class PaperReport extends BaseEntity {
   @Column({ type: 'varchar' })
   title: string;

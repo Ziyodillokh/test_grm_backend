@@ -5,7 +5,7 @@ import { Order } from '../order/order.entity';
 import { SellerReport } from '../seller-report/seller-report.entity';
 import { BaseEntity } from '../../common/database/base.entity';
 
-@Entity('seller_report_item')
+@Entity('seller-report-item')
 export class SellerReportItem extends BaseEntity {
   @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
   date: string;

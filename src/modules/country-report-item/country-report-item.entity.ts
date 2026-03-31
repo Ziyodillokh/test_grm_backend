@@ -5,7 +5,7 @@ import { Order } from '../order/order.entity';
 import { Country } from '../country/country.entity';
 import { BaseEntity } from '../../common/database/base.entity';
 
-@Entity('country_report_item')
+@Entity('country-report-item')
 export class CountryReportItem extends BaseEntity {
   @Column({ type: 'int' })
   year: number;

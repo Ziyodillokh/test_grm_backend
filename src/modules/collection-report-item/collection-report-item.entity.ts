@@ -5,7 +5,7 @@ import { Order } from '../order/order.entity';
 import { Collection } from '../collection/collection.entity';
 import { BaseEntity } from '../../common/database/base.entity';
 
-@Entity('collection_report_item')
+@Entity('collection-report-item')
 export class CollectionReportItem extends BaseEntity {
   @Column({ type: 'int' })
   year: number;

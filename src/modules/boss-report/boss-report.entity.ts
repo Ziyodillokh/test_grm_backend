@@ -4,7 +4,7 @@ import { Report } from '../report/report.entity';
 import { BaseEntity } from '../../common/database/base.entity';
 import { IReportAggregates } from '../../common/interfaces/report-aggregates.interface';
 
-@Entity('boss_report')
+@Entity('boss-report')
 export class BossReport extends BaseEntity implements IReportAggregates {
   @Column({ type: 'int' })
   year: number;

@@ -5,7 +5,7 @@ import { Filial } from '../filial/filial.entity';
 import { User } from '../user/user.entity';
 import { BaseEntity } from '../../common/database/base.entity';
 
-@Entity('plan_year')
+@Entity('plan-year')
 export class PlanYear extends BaseEntity {
   @Column({ type: 'int' })
   year: number;

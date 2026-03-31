@@ -16,7 +16,7 @@ import { CollectionPriceEnum } from '../../infra/shared/enum';
 import { Discount } from '../discount/discount.entity';
 import { BaseEntity } from '../../common/database/base.entity';
 
-@Entity('collection_price')
+@Entity('collection-price')
 export class CollectionPrice extends BaseEntity {
   @Column('numeric', {
     precision: 20,
