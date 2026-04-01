@@ -3,7 +3,8 @@ enum media_busket {
   avatar = 'avatar',
   hikvision = 'hikvision',
   cashflow_type = 'cashflow-type',
-  backup = 'backup'
+  backup = 'backup',
+  video_messages = 'video-messages'
 }
 
 export default media_busket;
