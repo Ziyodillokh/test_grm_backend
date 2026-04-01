@@ -7,8 +7,8 @@ export class ElevenLabsService {
   private readonly apiKey = process.env.ELEVENLABS_API_KEY;
   private readonly baseUrl = 'https://api.elevenlabs.io/v1';
 
-  // Rachel voice — clear, works well with multilingual models for Uzbek
-  private readonly voiceId = '21m00Tcm4TlvDq8ikWAM';
+  // Sarah (premade) — works with free plan, multilingual support for Uzbek
+  private readonly voiceId = 'EXAVITQu4vr4xnSDxMaL';
 
   /**
    * Text to Speech — converts text to audio buffer

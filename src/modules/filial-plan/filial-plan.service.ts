@@ -165,7 +165,7 @@ export class FilialPlanService {
     const totalsQb = baseQb.clone();
 
     totalsQb.select([
-      'COALESCE(SUM(k.plan_price), 0) AS "plan_price"',
+      'COALESCE(SUM(kr.plan_price), 0) AS "plan_price"',
       'COALESCE(SUM(kr.sale), 0) AS "earn"',
     ]);
 
