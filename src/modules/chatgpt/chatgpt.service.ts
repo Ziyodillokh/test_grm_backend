@@ -121,10 +121,25 @@ KUNLIK HISOBOT: Kun yakunida qisqacha hisobot tayyorla — nechta sotildi, qanch
     res.setHeader('Connection', 'keep-alive');
     res.flushHeaders();
 
+    // Oldingi suhbat tarixini DB dan olish (oxirgi 10 ta)
+    const history = await this.chatRepo.find({
+      where: { user: { id: user.id } },
+      order: { createdAt: 'DESC' },
+      take: 10,
+    });
+
     const messages: ChatCompletionMessageParam[] = [
       { role: 'system', content: this.getSystemPrompt(user) },
-      { role: 'user', content: prompt },
     ];
+
+    // Tarixni teskari tartibda qo'shish (eskidan yangiga)
+    for (const h of history.reverse()) {
+      if (h.prompt) messages.push({ role: 'user', content: h.prompt });
+      if (h.response) messages.push({ role: 'assistant', content: h.response });
+    }
+
+    // Hozirgi savolni qo'shish
+    messages.push({ role: 'user', content: prompt });
 
     let fullResponse = '';
 

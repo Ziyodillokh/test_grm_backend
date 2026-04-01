@@ -93,6 +93,33 @@ function preprocessUzbek(text: string): string {
     return isNaN(n) ? match : numberToUzbek(n);
   });
 
+  // ═══════════════════════════════════════════════════════
+  // FONETIK ALMASHTIRISHLAR — o'zbek talaffuzi uchun
+  // ElevenLabs "x" ni "iks" deb o'qiydi — fonetik yozuv bilan tuzatamiz
+  // ═══════════════════════════════════════════════════════
+
+  // "x" harfini "kh" ga almashtirish (ElevenLabs uchun "kh" = o'zbek "x" tovushi)
+  t = t.replace(/X/g, 'Kh');
+  t = t.replace(/x/g, 'kh');
+
+  // "sh" to'g'ri o'qiladi — o'zgartirish kerak emas
+  // "ch" to'g'ri o'qiladi
+
+  // "o'" (o turon) — "o'" sifatida qoldirish, agar muammo bo'lsa "ö" ga almashtirish
+  // t = t.replace(/o'/g, 'ö'); // agar kerak bo'lsa
+
+  // "g'" (g' turon) — "gh" ga almashtirish
+  t = t.replace(/g'/g, 'gh');
+  t = t.replace(/G'/g, 'Gh');
+
+  // "ng" (nasal n) — to'g'ri o'qiladi
+
+  // Qisqartmalar
+  t = t.replace(/\bva\s+h\.k\./gi, 'va hokazo');
+  t = t.replace(/\bh\.k\./gi, 'hokazo');
+  t = t.replace(/\bm-n\b/gi, 'masalan');
+  t = t.replace(/\bya'ni\b/gi, "ya'ni");
+
   // Ko'p bo'shliqlarni tozalash
   t = t.replace(/\s{2,}/g, ' ');
   t = t.replace(/\.\.\./g, ', ');
