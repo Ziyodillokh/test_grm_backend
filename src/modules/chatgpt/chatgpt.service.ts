@@ -9,6 +9,7 @@ import { ChatInteraction } from './chatgpt.entity';
 import { User } from '../user/user.entity';
 import { IPaginationOptions, paginate, Pagination } from 'nestjs-typeorm-paginate';
 import { ChatGptToolsService } from './chatgpt-tools.service';
+import { ElevenLabsService } from './elevenlabs.service';
 
 @Injectable()
 export class ChatGptService {
@@ -18,6 +19,7 @@ export class ChatGptService {
     @InjectRepository(ChatInteraction)
     private chatRepo: Repository<ChatInteraction>,
     private readonly toolsService: ChatGptToolsService,
+    private readonly elevenLabs: ElevenLabsService,
   ) {
     this.openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
   }
@@ -212,38 +214,22 @@ KUNLIK HISOBOT: Kun yakunida qisqacha hisobot tayyorla — nechta sotildi, qanch
     }
   }
 
-  // ─── Whisper transcription ────────────────────────────────────────────────
+  // ─── ElevenLabs STT (Scribe v2) ──────────────────────────────────────────
 
   async transcribeAudio(file: Express.Multer.File): Promise<{ text: string; language: string }> {
-    const audioFile = new File([new Uint8Array(file.buffer)], 'audio.webm', {
-      type: file.mimetype || 'audio/webm',
-    });
+    const text = await this.elevenLabs.speechToText(
+      file.buffer,
+      file.mimetype || 'audio/webm',
+    );
 
-    const transcription = await this.openai.audio.transcriptions.create({
-      file: audioFile,
-      model: 'whisper-1',
-      prompt:
-        "Gilam, gilam savdosi, ombor, filial, savdogar, kassa, to'lov, narx, chakana, ulgurji, kolleksiya, carpet, GRM, savdo, hisobot, qarzdorlik, mijoz, mahsulot, sotish, kirim, chiqim, balans",
-    });
-
-    return {
-      text: transcription.text,
-      language: (transcription as any).language || 'uz',
-    };
+    return { text, language: 'uz' };
   }
 
-  // ─── TTS ──────────────────────────────────────────────────────────────────
+  // ─── ElevenLabs TTS (Flash v2.5) ─────────────────────────────────────────
 
   async textToSpeech(text: string, res: Response): Promise<void> {
-    const mp3 = await this.openai.audio.speech.create({
-      model: 'tts-1-hd',
-      voice: 'onyx',
-      input: text,
-      speed: 1.0,
-    });
-
+    const buffer = await this.elevenLabs.textToSpeech(text);
     res.setHeader('Content-Type', 'audio/mpeg');
-    const buffer = Buffer.from(await mp3.arrayBuffer());
     res.send(buffer);
   }
 
