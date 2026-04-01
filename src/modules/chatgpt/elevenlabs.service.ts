@@ -138,8 +138,7 @@ export class ElevenLabsService {
         },
         body: JSON.stringify({
           text: cleanedText,
-          model_id: 'eleven_flash_v2_5',
-          language_code: 'uz',
+          model_id: 'eleven_multilingual_v2',
           voice_settings: {
             stability: 0.80,
             similarity_boost: 0.90,
@@ -169,7 +168,7 @@ export class ElevenLabsService {
     mimetype: string = 'audio/webm',
   ): Promise<string> {
     const formData = new FormData();
-    const blob = new Blob([audioBuffer], { type: mimetype });
+    const blob = new Blob([audioBuffer as any], { type: mimetype });
     formData.append('file', blob, 'audio.webm');
     formData.append('model_id', 'scribe_v2');
     formData.append('language_code', 'uz');
