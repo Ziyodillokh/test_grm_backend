@@ -12,8 +12,10 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
         const MinIO = configService.getOrThrow('minIO');
         return {
           endPoint: MinIO.ENDPOINT,
+          port: MinIO.PORT || 9000,
           accessKey: MinIO.ACCESSKEY,
           secretKey: MinIO.SECRETKEY,
+          useSSL: MinIO.useSSL === 'true' || MinIO.useSSL === true,
         };
       },
     }),

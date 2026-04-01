@@ -27,9 +27,18 @@ export class UserService {
       where.firstName = ILike(`%${query.search}%`);
     }
 
+    if (query.role) {
+      where.position = { role: Number(query.role) };
+    }
+
+    if (query.filial) {
+      where.filial = { id: query.filial };
+    }
+
     return paginate<User>(this.userRepository, options, {
       order: { firstName: 'ASC' },
       where,
+      relations: { position: true, filial: true, avatar: true },
     });
   }
 
