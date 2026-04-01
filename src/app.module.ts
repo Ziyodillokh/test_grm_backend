@@ -79,6 +79,7 @@ import { TransferModule } from './modules/transfer/transfer.module';
 import { TransferCacheModule } from './modules/transfer-cache/transfer-cache.module';
 import { UserModule } from './modules/user/user.module';
 import { UserTimeLogModule } from './modules/user-time-log/user-time-log.module';
+import { VideoMessageModule } from './modules/video-message/video-message.module';
 
 @Module({
   imports: [
@@ -191,6 +192,9 @@ import { UserTimeLogModule } from './modules/user-time-log/user-time-log.module'
     CronTaskModule,
     RestoreModule,
     StorageModule,
+
+    // ─── Messaging ────────────────────────────────────────────────
+    VideoMessageModule,
   ],
   providers: [IsUniqueConstraint, RedisProvider],
   exports: [RedisProvider],
