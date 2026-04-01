@@ -536,6 +536,11 @@ export class KassaService {
       const today = dayjs();
 
       for (const kassa of activeKassas) {
+        // Skip kassas without filial (orphaned data)
+        if (!kassa.filial) {
+          continue;
+        }
+
         const kassaDate = dayjs(kassa.startDate);
         const kassaEndDate = dayjs(kassa.startDate).endOf('month').hour(23).minute(0).second(0).millisecond(0);
         const nextMonthStart = kassaDate.add(1, 'month').startOf('month').toDate();
