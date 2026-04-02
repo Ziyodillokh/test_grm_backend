@@ -10,21 +10,25 @@ import {
   DefaultValuePipe,
   ParseIntPipe,
 } from '@nestjs/common';
-import { ApiOperation, ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { KassaService } from './kassa.service';
+import { ReportService } from '../report/report.service';
 
 /**
- * Alias controller — frontend eski `/kassa-reports` endpointlarini
- * yangi Kassa servisga yo'naltiradi. KassaReport entity o'chirilgan,
- * lekin frontend hali eski URL lardan foydalanadi.
+ * Ежемесячный отчет:
+ * - GET /kassa-reports/total → Report totallari (yuqori qism)
+ * - GET /kassa-reports → Kassa ro'yxati (pastdagi jadval)
  */
 @ApiTags('Kassa Reports (Alias)')
 @Controller('kassa-reports')
 export class KassaReportsAliasController {
-  constructor(private readonly kassaService: KassaService) {}
+  constructor(
+    private readonly kassaService: KassaService,
+    private readonly reportService: ReportService,
+  ) {}
 
   @Get()
-  @ApiOperation({ summary: 'Alias: get kassas filtered (was kassa-reports)' })
+  @ApiOperation({ summary: 'Kassa list by filial (monthly report table)' })
   @HttpCode(HttpStatus.OK)
   async getAll(
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
@@ -44,7 +48,7 @@ export class KassaReportsAliasController {
   }
 
   @Get('current')
-  @ApiOperation({ summary: 'Alias: get current month kassa (was kassa-reports/current)' })
+  @ApiOperation({ summary: 'Get current month kassa' })
   @HttpCode(HttpStatus.OK)
   async getCurrent(@Req() req) {
     const user = req['user'];
@@ -58,24 +62,24 @@ export class KassaReportsAliasController {
   }
 
   @Get('total')
-  @ApiOperation({ summary: 'Alias: get kassa totals (was kassa-reports/total)' })
+  @ApiOperation({ summary: 'Report totals for filial (top cards)' })
   @HttpCode(HttpStatus.OK)
   async getTotal(@Query('filialId') filialId: string, @Req() req) {
     const user = req['user'];
     const fId = filialId || user?.filial?.id;
     if (!fId) return {};
-    return this.kassaService.getReportTotals(fId);
+    return this.reportService.getReportTotalsByFilial(fId);
   }
 
   @Get(':id')
-  @ApiOperation({ summary: 'Alias: get single kassa (was kassa-reports/:id)' })
+  @ApiOperation({ summary: 'Get single kassa by id' })
   @HttpCode(HttpStatus.OK)
   async getOne(@Param('id') id: string) {
     return this.kassaService.getById(id);
   }
 
   @Patch(':id')
-  @ApiOperation({ summary: 'Alias: confirm/close kassa (was kassa-reports/:id PATCH)' })
+  @ApiOperation({ summary: 'Close/confirm kassa' })
   @HttpCode(HttpStatus.OK)
   async close(@Param('id') id: string, @Req() req) {
     return this.kassaService.closeKassa(id, req.user);

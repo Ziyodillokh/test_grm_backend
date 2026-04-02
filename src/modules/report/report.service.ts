@@ -3833,4 +3833,38 @@ export class ReportService {
 
     return { data, message: 'calced data', report, d_report };
   }
+
+  /**
+   * Filial bo'yicha barcha Report larning yig'indisi (Ежемесячный отчет yuqori qismi).
+   */
+  async getReportTotalsByFilial(filialId: string) {
+    const reports = await this.reportRepo.find({
+      where: { filial: { id: filialId } },
+    });
+
+    if (!reports.length) return {};
+
+    return reports.reduce(
+      (acc, r) => ({
+        totalIncome: +(acc.totalIncome + (r.totalIncome || 0)).toFixed(2),
+        totalSale: +(acc.totalSale + (r.totalSale || 0)).toFixed(2),
+        totalPlasticSum: +(acc.totalPlasticSum + (r.totalPlasticSum || 0)).toFixed(2),
+        additionalProfitTotalSum: +(acc.additionalProfitTotalSum + (r.additionalProfitTotalSum || 0)).toFixed(2),
+        totalExpense: +(acc.totalExpense + (r.totalExpense || 0)).toFixed(2),
+        totalSaleReturn: +(acc.totalSaleReturn + (r.totalSaleReturn || 0)).toFixed(2),
+        totalCashCollection: +(acc.totalCashCollection + (r.totalCashCollection || 0)).toFixed(2),
+        totalDiscount: +(acc.totalDiscount + (r.totalDiscount || 0)).toFixed(2),
+        in_hand: +(acc.in_hand + (r.in_hand || 0)).toFixed(2),
+        totalSize: +(acc.totalSize + (r.totalSize || 0)).toFixed(2),
+        debt_sum: +(acc.debt_sum + (r.debt_sum || 0)).toFixed(2),
+        netProfitTotalSum: +(acc.netProfitTotalSum + (r.netProfitTotalSum || 0)).toFixed(2),
+      }),
+      {
+        totalIncome: 0, totalSale: 0, totalPlasticSum: 0,
+        additionalProfitTotalSum: 0, totalExpense: 0, totalSaleReturn: 0,
+        totalCashCollection: 0, totalDiscount: 0, in_hand: 0,
+        totalSize: 0, debt_sum: 0, netProfitTotalSum: 0,
+      },
+    );
+  }
 }
