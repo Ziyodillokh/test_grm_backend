@@ -1106,6 +1106,7 @@ export class CashflowService {
 
       // APPROVED order cashflow → vozvrat (qaytarish, kassa dan ayirish kerak)
       if (cashflow.tip === 'order' && cashflow.status === CashflowStatusEnum.APPROVED) {
+        await queryRunner.commitTransaction();
         await queryRunner.release();
         return await this.orderService.returnOrder(cashflow.order.id, userId);
       }
@@ -1237,10 +1238,10 @@ export class CashflowService {
         orderStatus: order?.status && OrderEnum.Cancel,
       };
     } catch (error) {
-      await queryRunner.rollbackTransaction();
+      if (!queryRunner.isReleased) await queryRunner.rollbackTransaction();
       throw new BadRequestException(error.message);
     } finally {
-      await queryRunner.release();
+      if (!queryRunner.isReleased) await queryRunner.release();
     }
   }
 
