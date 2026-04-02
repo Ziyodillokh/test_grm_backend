@@ -58,20 +58,23 @@ const util = (
   let additionalDecimalSum = 0;
   let discountPercentage = 0;
 
-  const totalCost = orderBasket.reduce(
+  const totalCost = +orderBasket.reduce(
     (sum, basket) => sum + calculatePrice(basket),
     0
-  );
+  ).toFixed(2);
 
-  // Round to 2 decimal places to eliminate floating-point noise
-  const roundedCost = +totalCost.toFixed(2);
-  const roundedRevenue = +totalRevenue.toFixed(2);
-  const profit = roundedRevenue - roundedCost;
+  const profit = +(totalRevenue - totalCost).toFixed(2);
 
-  // case 1: revenue < cost → discount (only if difference > 0.01 to avoid floating-point artifacts)
-  if (roundedCost - roundedRevenue > 0.01) {
-    const discountAmount = roundedCost - roundedRevenue;
-    discountPercentage = (discountAmount * 100) / roundedCost;
+  // case 1: revenue < cost → discount
+  // Only apply if discount percentage >= 0.1% (real discounts are at least 1%)
+  // Anything below 0.1% is floating-point arithmetic noise
+  if (totalCost > totalRevenue && profit < 0) {
+    const discountAmount = +(totalCost - totalRevenue).toFixed(2);
+    const rawPercentage = (discountAmount * 100) / totalCost;
+    if (rawPercentage >= 0.1) {
+      discountPercentage = rawPercentage;
+    }
+    // else: discount is < 0.1% — treat as no discount (floating-point artifact)
   }
 
   let totalDiscountApplied = 0;
@@ -89,8 +92,8 @@ const util = (
       const { integerPart, decimalPart } = priceSpliter(finalPrice + profitShare);
       additionalDecimalSum += decimalPart;
       finalPrice = integerPart;
-    } else if (profit < 0) {
-      // revenue < cost → apply discount
+    } else if (profit < 0 && discountPercentage > 0) {
+      // revenue < cost → apply discount (only if real discount exists)
       const rawDiscount = (discountPercentage * price) / 100;
       discountSum = +rawDiscount.toFixed(2);
       finalPrice = +(price - discountSum).toFixed(2);
@@ -117,8 +120,8 @@ const util = (
   }
 
   // 🔥 NEW: reconciliation for discounts
-  if (profit < -0.01) {
-    const discountAmount = roundedCost - roundedRevenue;
+  if (profit < 0 && discountPercentage > 0) {
+    const discountAmount = +(totalCost - totalRevenue).toFixed(2);
     let discountDiff = +(discountAmount - totalDiscountApplied).toFixed(2);
 
     if (Math.abs(discountDiff) >= 0.01) {
