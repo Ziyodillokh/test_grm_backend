@@ -142,6 +142,20 @@ export class QrBaseService {
   }
 
   /**
+   * GET /qr-base/i-market/:id — get single QrBase with full relations (returns array for frontend compatibility).
+   */
+  async findOneIMarket(id: string): Promise<QrBase[]> {
+    const entity = await this.qrBaseRepository.findOne({
+      where: { id },
+      relations: this.iMarketRelations,
+    });
+    if (!entity) {
+      throw new NotFoundException(`QrBase with ID "${id}" not found`);
+    }
+    return [entity];
+  }
+
+  /**
    * POST /qr-base/internet-shop — create QrBase with internet shop fields.
    */
   async createInternetShop(dto: UpdateInternetInfo): Promise<QrBase> {

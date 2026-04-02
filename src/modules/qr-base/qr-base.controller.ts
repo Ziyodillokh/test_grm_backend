@@ -25,6 +25,7 @@ import { QrBase } from './qr-base.entity';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { Role } from '../../common/enums/role.enum';
 import { Route } from '../../infra/shared/decorators/route.decorator';
+import { Public } from '../auth/decorators/public.decorator';
 
 @ApiTags('QrBase')
 @Controller('qr-base')
@@ -35,13 +36,8 @@ export class QrBaseController {
   // Internet Shop endpoints (must be declared BEFORE :id params)
   // -----------------------------------------------------------------------
 
+  @Public()
   @Get('i-market')
-  @Roles(
-    Role.BOSS,
-    Role.M_MANAGER,
-    Role.W_MANAGER,
-    Role.I_MANAGER,
-  )
   @ApiOperation({ summary: 'Get all QR bases for internet market with full relations' })
   @ApiOkResponse({ description: 'QR bases for i-market returned successfully' })
   @HttpCode(HttpStatus.OK)
@@ -53,6 +49,15 @@ export class QrBaseController {
       { page: query.page, limit: query.limit, route },
       query,
     );
+  }
+
+  @Public()
+  @Get('i-market/:id')
+  @ApiOperation({ summary: 'Get single QR base for internet market by ID' })
+  @ApiOkResponse({ description: 'QR base for i-market returned successfully' })
+  @HttpCode(HttpStatus.OK)
+  async findOneIMarket(@Param('id', ParseUUIDPipe) id: string): Promise<QrBase[]> {
+    return this.qrBaseService.findOneIMarket(id);
   }
 
   @Post('internet-shop')
