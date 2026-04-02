@@ -62,6 +62,10 @@ export class QrBase extends BaseEntity {
 
   // --- Relations ---
 
+  @ManyToOne(() => Media, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn()
+  videoUrl: Media;
+
   @ManyToOne(() => Collection, (collection) => collection.qrBase, { onDelete: 'SET NULL' })
   @JoinColumn()
   collection: Collection;

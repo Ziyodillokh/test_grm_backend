@@ -1,5 +1,11 @@
-const search = ({ text, filialId, base, limit, offset, total, shop, collection, calculateTotals = false, isDealer = false, type = 'filial' }) => `
-SELECT 
+const search = ({ text, filialId, base, limit, offset, total, shop, collection, calculateTotals = false, isDealer = false, type = 'filial' }) => {
+  // Sanitize text input to prevent SQL injection
+  const sanitizedText = (text || '').replace(/'/g, "''");
+  const sanitizedFilialId = filialId ? filialId.replace(/'/g, "''") : '';
+  const sanitizedCollection = collection ? collection.replace(/'/g, "''") : '';
+
+  return `
+SELECT
 ${
   calculateTotals
     ? `
@@ -11,7 +17,7 @@ ${
          : `SUM(COALESCE(p.y, 0) * COALESCE(s.x, 0) * COALESCE(p.count, 0) * COALESCE(
            (SELECT cp."priceMeter"
             FROM "collection-price" cp
-            WHERE cp."collectionId" = col.id 
+            WHERE cp."collectionId" = col.id
               AND cp.type = '${type}'
             ORDER BY cp.date ASC
             LIMIT 1), 0))`
@@ -47,20 +53,21 @@ LEFT JOIN country ON q."countryId" = country.id
 LEFT JOIN public.filial AS f ON f.id = p."filialId"
 WHERE (SELECT COUNT(*)
        FROM (SELECT DISTINCT LOWER(word) AS word
-             FROM (SELECT REGEXP_SPLIT_TO_TABLE(LOWER('%${text}%'), ' ') AS word) AS words) AS unique_words
+             FROM (SELECT REGEXP_SPLIT_TO_TABLE(LOWER('${sanitizedText}'), ' ') AS word) AS words) AS unique_words
        WHERE CONCAT_WS(' ', c.title, m.title, s.title, sh.title, st.title, q.code, col.title) ILIKE
              '%' || unique_words.word || '%') = (SELECT COUNT(*)
                                                  FROM (SELECT LOWER(word) AS word
-                                                       FROM (SELECT REGEXP_SPLIT_TO_TABLE(LOWER('%${text}%'), ' ') AS word) AS words) AS unique_words)
+                                                       FROM (SELECT REGEXP_SPLIT_TO_TABLE(LOWER('${sanitizedText}'), ' ') AS word) AS words) AS unique_words)
   AND p.count > 0
   AND p.y > 0
   AND p.is_deleted = false
   AND f."isActive" = true
-  ${filialId ? `AND f.id = '${filialId}'` : ''}
-  ${collection ? `AND col.id = '${collection}'` : ''} 
+  ${sanitizedFilialId ? `AND f.id = '${sanitizedFilialId}'` : ''}
+  ${sanitizedCollection ? `AND col.id = '${sanitizedCollection}'` : ''}
   ${base ? '' : `AND f.title != 'baza'`}
   ${shop === 'true' || shop === 'false' ? `AND p."isInternetShop" = ${shop}` : ''}
-${total || calculateTotals ? '' : `ORDER BY p.id DESC OFFSET ${offset} LIMIT ${limit}`}
+${total || calculateTotals ? '' : `ORDER BY p.id DESC OFFSET ${Number(offset) || 0} LIMIT ${Number(limit) || 100}`}
 `;
+};
 
 export default search;

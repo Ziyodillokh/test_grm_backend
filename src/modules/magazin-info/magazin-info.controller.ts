@@ -47,6 +47,6 @@ export class MagazinInfoController {
   })
   @HttpCode(HttpStatus.NO_CONTENT)
   async deleteData(@Param('id') id: string) {
-    return "ok";
+    return await this.magazineInfoService.deleteOne(id);
   }
 }

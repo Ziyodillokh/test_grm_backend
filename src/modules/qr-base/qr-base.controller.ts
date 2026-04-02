@@ -9,6 +9,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Put,
   Query,
 } from '@nestjs/common';
 import {
@@ -19,6 +20,7 @@ import {
 } from '@nestjs/swagger';
 import { QrBaseService } from './qr-base.service';
 import { CreateQrBaseDto, UpdateQrBaseDto, QueryQrBaseDto } from './dto';
+import UpdateInternetInfo from './dto/internet-info-update.dto';
 import { QrBase } from './qr-base.entity';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { Role } from '../../common/enums/role.enum';
@@ -28,6 +30,55 @@ import { Route } from '../../infra/shared/decorators/route.decorator';
 @Controller('qr-base')
 export class QrBaseController {
   constructor(private readonly qrBaseService: QrBaseService) {}
+
+  // -----------------------------------------------------------------------
+  // Internet Shop endpoints (must be declared BEFORE :id params)
+  // -----------------------------------------------------------------------
+
+  @Get('i-market')
+  @Roles(
+    Role.BOSS,
+    Role.M_MANAGER,
+    Role.W_MANAGER,
+    Role.I_MANAGER,
+  )
+  @ApiOperation({ summary: 'Get all QR bases for internet market with full relations' })
+  @ApiOkResponse({ description: 'QR bases for i-market returned successfully' })
+  @HttpCode(HttpStatus.OK)
+  async findAllIMarket(
+    @Route() route: string,
+    @Query() query: QueryQrBaseDto,
+  ) {
+    return this.qrBaseService.findAllIMarket(
+      { page: query.page, limit: query.limit, route },
+      query,
+    );
+  }
+
+  @Post('internet-shop')
+  @Roles(Role.BOSS, Role.M_MANAGER, Role.W_MANAGER, Role.I_MANAGER)
+  @ApiOperation({ summary: 'Create QR base with internet shop fields' })
+  @ApiCreatedResponse({ description: 'QR base created for internet shop' })
+  @HttpCode(HttpStatus.CREATED)
+  async createInternetShop(@Body() dto: UpdateInternetInfo): Promise<QrBase> {
+    return this.qrBaseService.createInternetShop(dto);
+  }
+
+  @Put('internet-shop/:id')
+  @Roles(Role.BOSS, Role.M_MANAGER, Role.W_MANAGER, Role.I_MANAGER)
+  @ApiOperation({ summary: 'Update QR base internet shop fields' })
+  @ApiOkResponse({ description: 'QR base internet shop data updated' })
+  @HttpCode(HttpStatus.OK)
+  async updateInternetShop(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateInternetInfo,
+  ): Promise<QrBase> {
+    return this.qrBaseService.updateInternetShop(id, dto);
+  }
+
+  // -----------------------------------------------------------------------
+  // Standard CRUD endpoints
+  // -----------------------------------------------------------------------
 
   @Get()
   @Roles(

@@ -11,6 +11,8 @@ import { ClientOrder } from './client-order.entity';
 import { ClientOrderItem } from '../client-order-item/client-order-item.entity';
 import { CreateClientOrderDto, UpdateClientOrderDto } from './dto';
 import { QrBase } from '../qr-base/qr-base.entity';
+import { ProductStatus } from '../../common/enums/product-status.enum';
+import { Product } from '../product/product.entity';
 
 @Injectable()
 export class ClientOrderService {
@@ -43,6 +45,28 @@ export class ClientOrderService {
         }
 
         const product = await em.findOne(QrBase, { where: { id: item.product } });
+
+        if (!product) {
+          throw new BadRequestException(`Product with ID "${item.product}" not found`);
+        }
+
+        // Validate product is published
+        if (product.status !== ProductStatus.PUBLISHED) {
+          throw new BadRequestException(`Product "${product.code}" is not published for sale`);
+        }
+
+        // Validate stock availability
+        const stockCount = await em.count(Product, {
+          where: {
+            bar_code: { id: item.product },
+            is_deleted: false,
+            count: 1, // at least 1 in stock
+          },
+        });
+        if (stockCount === 0) {
+          throw new BadRequestException(`Product "${product.code}" is out of stock`);
+        }
+
         const itemPrice = product?.i_price ?? 0;
 
         const orderItem = em.create(ClientOrderItem, {
