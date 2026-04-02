@@ -39,7 +39,7 @@ class KassaQueryParserMiddleware implements NestMiddleware {
       };
 
     if (report)
-      where.kassaReport = {
+      where.report = {
         id: report,
       };
 
