@@ -35,15 +35,18 @@ const getPriceMeter = (basket: OrderBasket): number =>
   basket.product.bar_code.collection?.collection_prices?.[0]?.priceMeter || 0;
 
 /**
- * Calculates the total price of an order item.
+ * Calculates the total price of an order item (rounded to 2 decimal places).
+ * Rounding is critical — the UI shows rounded prices, so the backend must
+ * use the same precision to avoid phantom discounts.
  * @param basket - The order basket item.
- * @returns price.
+ * @returns price rounded to 2 decimals.
  */
 const calculatePrice = (basket: OrderBasket): number => {
   const priceMeter = getPriceMeter(basket);
-  return basket.isMetric
+  const raw = basket.isMetric
     ? (basket.x / 100) * basket.product.bar_code.size.x * priceMeter
     : basket.product.bar_code.size.kv * basket.x * priceMeter;
+  return +raw.toFixed(2);
 };
 
 /**
