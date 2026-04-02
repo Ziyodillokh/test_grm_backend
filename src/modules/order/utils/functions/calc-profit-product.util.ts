@@ -35,15 +35,17 @@ const getPriceMeter = (basket: OrderBasket): number =>
   basket.product.bar_code.collection?.collection_prices?.[0]?.priceMeter || 0;
 
 /**
- * Calculates the total price of an order item (rounded to 3 decimal places).
- * 3 decimals gives precise calculation (e.g. 15.625 stays 15.625, not 15.63).
- * This prevents phantom discounts when seller sells at UI-rounded price.
+ * Calculates the total price of an order item (3 decimal precision).
+ * Uses size.x * size.y instead of size.kv to avoid DB rounding errors
+ * (size.kv is stored with scale:2, e.g. 0.625 → 0.63 in DB).
+ * Frontend also uses size.x * size.y, so this ensures backend matches frontend.
  */
 const calculatePrice = (basket: OrderBasket): number => {
   const priceMeter = getPriceMeter(basket);
+  const size = basket.product.bar_code.size;
   const raw = basket.isMetric
-    ? (basket.x / 100) * basket.product.bar_code.size.x * priceMeter
-    : basket.product.bar_code.size.kv * basket.x * priceMeter;
+    ? (basket.x / 100) * size.x * priceMeter
+    : size.x * size.y * basket.x * priceMeter;
   return +raw.toFixed(3);
 };
 

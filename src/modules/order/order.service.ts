@@ -1123,7 +1123,7 @@ export class OrderService {
       kv = meters * size.x;
     } else {
       product.count -= basket.x;
-      kv = basket.x * size.kv;
+      kv = +(basket.x * size.x * size.y).toFixed(3);
     }
 
     const cost = kv * priceMeter;
