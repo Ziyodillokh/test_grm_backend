@@ -711,62 +711,11 @@ export class CashflowService {
           kassa.plasticSum += price;
           kassa.income += price;
         }
+        // Order cashflow: kassa totallariga qo'shilmaydi — PENDING holatda yaratiladi.
+        // approveCashflow() da F_MANAGER tasdiqlagan vaqtda kassa ga qo'shiladi.
         if (isOrder && order) {
-          await this.processManagerDiscount(queryRunner, order, true);
-
-          if (order.isDebt) {
-            kassa.debt_sum += price;
-            kassa.debt_kv += order.kv;
-            kassa.debt_count += order.product.bar_code.isMetric ? 1 : order.x;
-          } else {
-            kassa.in_hand += order.price;
-
-          }
-          kassa.plasticSum += order.plasticSum || 0;
-          kassa.sale += price;
-          kassa.discount += (order.discountSum || 0) + (order.managerDiscountSum || 0);
-          kassa.netProfitTotalSum += order.netProfitSum || 0;
-          kassa.additionalProfitTotalSum += order.additionalProfitSum || 0;
-          if (order.product?.isInternetShop) {
-            kassa.internetShopSum += price;
-          }
-          const barCode = order?.product?.bar_code;
-          const size = barCode?.size;
-          if (barCode && size) {
-            kassa.totalSize += barCode.isMetric ? (order.x / 100) * size.x : size.kv * order.x;
-            kassa.totalSellCount += barCode.isMetric ? 1 : order.x;
-          }
-
-          await this.updateSellerReportItem(queryRunner, order, today, true);
-          await this.updateReportItems(queryRunner, order, true, kassa, report);
-
-          // Find the monthly kassa for this kassa
-          const monthlyKassa = await queryRunner.manager.findOne(Kassa, {
-            where: { id: kassa.id },
-            relations: { report: true },
-          });
-
-          if (monthlyKassa) {
-            const oneReport = monthlyKassa.report;
-
-            if (oneReport) {
-              oneReport.totalSale += price;
-              oneReport.totalPlasticSum += order.plasticSum || 0;
-              oneReport.accountantSum += order.plasticSum || 0;
-              oneReport.totalDiscount += (order.discountSum || 0) + (order.managerDiscountSum || 0);
-              oneReport.netProfitTotalSum += order.netProfitSum || 0;
-              oneReport.additionalProfitTotalSum += order.additionalProfitSum || 0;
-              if (order.product?.isInternetShop) {
-                oneReport.totalInternetShopSum += price;
-              }
-              // oneReport.totalIncome -= price;
-              if (barCode && size) {
-                oneReport.totalSize += barCode.isMetric ? (order.x / 100) * size.x : size.kv * order.x;
-                oneReport.totalSellCount += barCode.isMetric ? 1 : order.x;
-              }
-              await this.reportService.save(oneReport);
-            }
-          }
+          // Faqat order statusini "kutilmoqda" deb belgilaymiz
+          // Kassa totallari approveCashflow() da yangilanadi
         }
       }
       else if (value.type === 'Расход' && kassa?.id) {

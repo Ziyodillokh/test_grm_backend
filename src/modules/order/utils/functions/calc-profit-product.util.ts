@@ -63,12 +63,15 @@ const util = (
     0
   );
 
-  const profit = totalRevenue - totalCost;
+  // Round to 2 decimal places to eliminate floating-point noise
+  const roundedCost = +totalCost.toFixed(2);
+  const roundedRevenue = +totalRevenue.toFixed(2);
+  const profit = roundedRevenue - roundedCost;
 
-  // case 1: revenue < cost → discount
-  if (totalCost > totalRevenue) {
-    const discountAmount = totalCost - totalRevenue;
-    discountPercentage = (discountAmount * 100) / totalCost;
+  // case 1: revenue < cost → discount (only if difference > 0.01 to avoid floating-point artifacts)
+  if (roundedCost - roundedRevenue > 0.01) {
+    const discountAmount = roundedCost - roundedRevenue;
+    discountPercentage = (discountAmount * 100) / roundedCost;
   }
 
   let totalDiscountApplied = 0;
@@ -114,8 +117,8 @@ const util = (
   }
 
   // 🔥 NEW: reconciliation for discounts
-  if (profit < 0) {
-    const discountAmount = totalCost - totalRevenue;
+  if (profit < -0.01) {
+    const discountAmount = roundedCost - roundedRevenue;
     let discountDiff = +(discountAmount - totalDiscountApplied).toFixed(2);
 
     if (Math.abs(discountDiff) >= 0.01) {

@@ -45,7 +45,7 @@ export class Cashflow extends BaseEntity {
   @Column({ default: false })
   is_static: boolean;
 
-  @Column('varchar', { default: CashflowStatusEnum.APPROVED, nullable: true })
+  @Column('varchar', { default: CashflowStatusEnum.PENDING, nullable: true })
   status: CashflowStatusEnum;
 
   @ManyToOne(() => CashflowType, (cashflow_type) => cashflow_type.cashflow, { onDelete: 'SET NULL' })
