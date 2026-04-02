@@ -29,11 +29,18 @@ export class KassaReportsAliasController {
   async getAll(
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
     @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit: number,
+    @Query('year') year: string,
+    @Query('filialId') filialId: string,
     @Req() req,
   ) {
     const user = req['user'];
     if (!user?.filial?.id) return { items: [], meta: { totalItems: 0 } };
-    return this.kassaService.getReport({ page, limit }, user, req.where || {});
+    const where = {
+      ...(req.where || {}),
+      ...(year && { year: +year }),
+      ...(filialId && { filial: { id: filialId } }),
+    };
+    return this.kassaService.getReport({ page, limit }, user, where);
   }
 
   @Get('current')
@@ -53,10 +60,11 @@ export class KassaReportsAliasController {
   @Get('total')
   @ApiOperation({ summary: 'Alias: get kassa totals (was kassa-reports/total)' })
   @HttpCode(HttpStatus.OK)
-  async getTotal(@Query() query, @Req() req) {
+  async getTotal(@Query('filialId') filialId: string, @Req() req) {
     const user = req['user'];
-    if (!user?.filial?.id) return { items: [], meta: { totalItems: 0 } };
-    return this.kassaService.getReport({ page: 1, limit: 1000 }, user, req.where || {});
+    const fId = filialId || user?.filial?.id;
+    if (!fId) return {};
+    return this.kassaService.getReportTotals(fId);
   }
 
   @Get(':id')

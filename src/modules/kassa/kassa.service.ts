@@ -80,15 +80,12 @@ export class KassaService {
   }
 
   async getReport(options: IPaginationOptions, user, where) {
-    let startDate = where.startDate,
-      endDate = where.endDate;
+    const filialId = where.filial?.id || user?.filial?.id;
 
-    if (endDate) {
-      where.endDate = LessThanOrEqual(endDate);
-    }
-    if (startDate) {
-      where.startDate = MoreThanOrEqual(startDate);
-    }
+    const queryWhere: any = {
+      ...(where.year && { year: where.year }),
+      ...(filialId && { filial: { id: filialId } }),
+    };
 
     return paginate<Kassa>(this.kassaRepository, options, {
       relations: {
@@ -96,22 +93,47 @@ export class KassaService {
           users: { position: true },
           manager: { position: true },
         },
+        report: true,
       },
-      where: {
-        ...(startDate && { startDate: MoreThanOrEqual(startDate) }),
-        ...(endDate && { endDate: LessThanOrEqual(endDate) }),
-        isActive: false,
-        ...(where.filial
-          ? { filial: where.filial, users: { position: { role: Equal(UserRoleEnum.F_MANAGER) } } }
-          : {
-              filial: {
-                id: user.filial.id,
-                users: { position: { role: Equal(UserRoleEnum.F_MANAGER) } },
-              },
-            }),
-      },
-      order: { startDate: 'DESC' },
+      where: queryWhere,
+      order: { year: 'DESC', month: 'DESC' },
     });
+  }
+
+  async getReportTotals(filialId: string) {
+    const kassas = await this.kassaRepository.find({
+      where: { filial: { id: filialId } },
+    });
+
+    return kassas.reduce(
+      (acc, k) => ({
+        totalIncome: acc.totalIncome + (k.income || 0),
+        income: acc.income + (k.income || 0),
+        totalSale: acc.totalSale + (k.sale || 0),
+        sale: acc.sale + (k.sale || 0),
+        totalPlasticSum: acc.totalPlasticSum + (k.plasticSum || 0),
+        plasticSum: acc.plasticSum + (k.plasticSum || 0),
+        additionalProfitTotalSum: acc.additionalProfitTotalSum + (k.additionalProfitTotalSum || 0),
+        totalExpense: acc.totalExpense + (k.expense || 0),
+        expense: acc.expense + (k.expense || 0),
+        totalSaleReturn: acc.totalSaleReturn + (k.return_sale || 0),
+        return_sale: acc.return_sale + (k.return_sale || 0),
+        totalCashCollection: acc.totalCashCollection + (k.cash_collection || 0),
+        cash_collection: acc.cash_collection + (k.cash_collection || 0),
+        totalDiscount: acc.totalDiscount + (k.discount || 0),
+        discount: acc.discount + (k.discount || 0),
+        in_hand: acc.in_hand + (k.in_hand || 0),
+        debt_sum: acc.debt_sum + (k.debt_sum || 0),
+        totalSize: acc.totalSize + (k.totalSize || 0),
+      }),
+      {
+        totalIncome: 0, income: 0, totalSale: 0, sale: 0,
+        totalPlasticSum: 0, plasticSum: 0, additionalProfitTotalSum: 0,
+        totalExpense: 0, expense: 0, totalSaleReturn: 0, return_sale: 0,
+        totalCashCollection: 0, cash_collection: 0, totalDiscount: 0,
+        discount: 0, in_hand: 0, debt_sum: 0, totalSize: 0,
+      },
+    );
   }
 
   async getById(id: string, for_warning: boolean = false) {
