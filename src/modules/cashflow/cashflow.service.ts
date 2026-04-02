@@ -1080,7 +1080,33 @@ export class CashflowService {
         throw new BadRequestException('Cashflow already cancelled');
       }
 
-      if (cashflow.tip === 'order') {
+      // PENDING order cashflow → otmena (bekor qilish, kassa ga qo'shilmagan)
+      if (cashflow.tip === 'order' && cashflow.status === CashflowStatusEnum.PENDING) {
+        // Mahsulot stockini qaytarish
+        const order = cashflow.order;
+        if (order?.product) {
+          const product = order.product;
+          product.is_deleted = false;
+          product.deletedDate = null;
+          if (product.bar_code?.isMetric) {
+            product.y = +(product.y + order.x / 100).toFixed(2);
+          } else {
+            product.count += order.x;
+          }
+          await queryRunner.manager.save(product);
+        }
+        // Order va cashflow statusini cancel qilish
+        await queryRunner.manager.update('order', order.id, { status: OrderEnum.Cancel });
+        cashflow.status = CashflowStatusEnum.CANCELLED;
+        cashflow.is_cancelled = true;
+        await queryRunner.manager.save(cashflow);
+        await queryRunner.commitTransaction();
+        return cashflow;
+      }
+
+      // APPROVED order cashflow → vozvrat (qaytarish, kassa dan ayirish kerak)
+      if (cashflow.tip === 'order' && cashflow.status === CashflowStatusEnum.APPROVED) {
+        await queryRunner.release();
         return await this.orderService.returnOrder(cashflow.order.id, userId);
       }
 
@@ -2474,6 +2500,11 @@ WHERE k.id = $1;
             }
           }
         }
+      }
+
+      // Order statusini accepted ga o'zgartirish
+      if (isOrder && order) {
+        await queryRunner.manager.update('order', order.id, { status: OrderEnum.Accept });
       }
 
       if (kassa) await queryRunner.manager.save(kassa);
