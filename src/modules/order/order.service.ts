@@ -740,10 +740,11 @@ export class OrderService {
     // 3. Order statusini Cancel qilish
     await this.orderRepository.update({ id: order.id }, { status: OrderEnum.Cancel });
 
-    // 4. Asosiy cashflow (Приход) ni CANCELLED qilish
+    // 4. Eski Приход cashflow APPROVED qoladi (sotilgan, tasdiqlangan fakt o'zgarmaydi)
+    // Yangi Расход cashflow CANCELLED statusda — vozvrat amalga oshganini bildiradi
     const cashflows = await this.cashFlowService.findByOrderId(id);
     for (const cf of cashflows) {
-      if (cf.status === CashflowStatusEnum.APPROVED && cf.type === CashFlowEnum.InCome) {
+      if (cf.type === CashFlowEnum.Consumption && cf.tip === CashflowTipEnum.ORDER) {
         await this.cashflowRepository.update({ id: cf.id }, { status: CashflowStatusEnum.CANCELLED });
       }
     }

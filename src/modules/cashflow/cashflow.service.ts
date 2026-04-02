@@ -2549,7 +2549,7 @@ WHERE k.id = $1;
     await queryRunner.startTransaction();
 
     try {
-      // 1. Cashflow yaratish (APPROVED, Расход)
+      // 1. Cashflow yaratish (CANCELLED, Расход) — vozvrat amalga oshganini bildiradi
       const cashflow = this.cashflowRepository.create({
         price: value.price,
         type: CashFlowEnum.Consumption,
@@ -2560,7 +2560,7 @@ WHERE k.id = $1;
         order: { id: value.order },
         casher: { id: userId },
         cashflow_type: value.cashflow_type ? { id: value.cashflow_type } : null,
-        status: CashflowStatusEnum.APPROVED,
+        status: CashflowStatusEnum.CANCELLED,
       } as any);
       await queryRunner.manager.save(cashflow);
 
