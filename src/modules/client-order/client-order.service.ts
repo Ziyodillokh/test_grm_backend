@@ -140,7 +140,7 @@ export class ClientOrderService {
     return order;
   }
 
-  async update(id: string, dto: UpdateClientOrderDto): Promise<ClientOrder> {
+  async update(id: string, dto: UpdateClientOrderDto, user?: any): Promise<ClientOrder> {
     const order = await this.repo.findOne({
       where: { id },
       relations: ['user', 'client_order_items', 'client_order_items.product', 'cashflow'],
@@ -155,7 +155,7 @@ export class ClientOrderService {
 
     // DONE → Cashflow yaratish
     if (newStatus === OrderStatusEnum.DONE && oldStatus !== OrderStatusEnum.DONE) {
-      await this.createCashflowForOrder(saved);
+      await this.createCashflowForOrder(saved, user);
     }
 
     // DONE dan boshqaga → Cashflow o'chirish
@@ -166,14 +166,18 @@ export class ClientOrderService {
     return saved;
   }
 
-  private async createCashflowForOrder(order: ClientOrder): Promise<void> {
+  private async createCashflowForOrder(order: ClientOrder, user?: any): Promise<void> {
     const em = this.repo.manager;
     const price = order.totalPrice;
     const isOnline = order.payment_type === PaymentTypeEnum.PAYME;
 
-    // Filialdan ochiq kassa topish — birinchi topilgan filial kassasini ishlatamiz
+    // User ning filialidan ochiq kassani topish
+    const filialId = user?.filial?.id;
     const kassa = await em.findOne(Kassa, {
-      where: { isActive: true },
+      where: {
+        isActive: true,
+        ...(filialId && { filial: { id: filialId } }),
+      },
       order: { startDate: 'DESC' },
     });
     if (!kassa) return;

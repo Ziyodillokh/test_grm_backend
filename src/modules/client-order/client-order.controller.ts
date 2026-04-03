@@ -9,6 +9,7 @@ import {
   Post,
   Put,
   Query,
+  Req,
 } from '@nestjs/common';
 import {
   ApiOperation,
@@ -79,8 +80,9 @@ export class ClientOrderController {
   async update(
     @Param('id') id: string,
     @Body() dto: UpdateClientOrderDto,
+    @Req() req,
   ) {
-    return this.service.update(id, dto);
+    return this.service.update(id, dto, req.user);
   }
 
   @Delete('/:id')
