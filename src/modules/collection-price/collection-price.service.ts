@@ -157,6 +157,7 @@ export class CollectionPriceService {
           {
             comingPrice: data.comingPrice,
             priceMeter: data.priceMeter,
+            ...(data.secondPrice !== undefined && { secondPrice: data.secondPrice }),
           },
         );
 
