@@ -109,7 +109,7 @@ export class QrBaseController {
   }
 
   @Get(':id')
-  @Roles(Role.BOSS, Role.M_MANAGER, Role.W_MANAGER, Role.F_MANAGER, Role.SELLER)
+  @Roles(Role.BOSS, Role.M_MANAGER, Role.W_MANAGER, Role.F_MANAGER, Role.SELLER, Role.I_MANAGER)
   @ApiOperation({ summary: 'Get a QR base by ID' })
   @ApiOkResponse({ description: 'QR base returned successfully' })
   @HttpCode(HttpStatus.OK)
@@ -118,7 +118,7 @@ export class QrBaseController {
   }
 
   @Get('code/:code')
-  @Roles(Role.BOSS, Role.M_MANAGER, Role.W_MANAGER, Role.F_MANAGER, Role.SELLER)
+  @Roles(Role.BOSS, Role.M_MANAGER, Role.W_MANAGER, Role.F_MANAGER, Role.SELLER, Role.I_MANAGER)
   @ApiOperation({ summary: 'Get a QR base by code' })
   @ApiOkResponse({ description: 'QR base returned successfully' })
   @HttpCode(HttpStatus.OK)
