@@ -110,6 +110,22 @@ export class KassaController {
     });
   }
 
+  @Get('/totals')
+  @ApiOperation({ summary: 'Method: returns kassa totals by filial and year' })
+  @ApiQuery({ name: 'filialId', required: true, type: String })
+  @ApiQuery({ name: 'year', required: false, type: Number })
+  @ApiOkResponse({ description: 'Kassa totals returned successfully' })
+  @HttpCode(HttpStatus.OK)
+  async getTotals(
+    @Query('filialId') filialId: string,
+    @Query('year') year: string,
+    @Req() req,
+  ) {
+    const fId = filialId || req['user']?.filial?.id;
+    if (!fId) return {};
+    return this.kassaService.getReportTotals(fId, year ? +year : undefined);
+  }
+
   @Get('/:id')
   @ApiOperation({ summary: 'Method: returns single kassa by id' })
   @ApiOkResponse({

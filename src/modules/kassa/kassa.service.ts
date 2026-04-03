@@ -100,9 +100,12 @@ export class KassaService {
     });
   }
 
-  async getReportTotals(filialId: string) {
+  async getReportTotals(filialId: string, year?: number) {
     const kassas = await this.kassaRepository.find({
-      where: { filial: { id: filialId } },
+      where: {
+        filial: { id: filialId },
+        ...(year && { year }),
+      },
     });
 
     return kassas.reduce(
