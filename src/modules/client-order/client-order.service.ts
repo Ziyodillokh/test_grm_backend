@@ -7,12 +7,14 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { IPaginationOptions, paginate, Pagination } from 'nestjs-typeorm-paginate';
 
-import { ClientOrder } from './client-order.entity';
+import { ClientOrder, OrderStatusEnum, PaymentTypeEnum } from './client-order.entity';
 import { ClientOrderItem } from '../client-order-item/client-order-item.entity';
 import { CreateClientOrderDto, UpdateClientOrderDto } from './dto';
 import { QrBase } from '../qr-base/qr-base.entity';
 import { ProductStatus } from '../../common/enums/product-status.enum';
 import { Product } from '../product/product.entity';
+import { Cashflow } from '../cashflow/cashflow.entity';
+import { Kassa } from '../kassa/kassa.entity';
 
 @Injectable()
 export class ClientOrderService {
@@ -139,9 +141,91 @@ export class ClientOrderService {
   }
 
   async update(id: string, dto: UpdateClientOrderDto): Promise<ClientOrder> {
-    const order = await this.findOne(id);
+    const order = await this.repo.findOne({
+      where: { id },
+      relations: ['user', 'client_order_items', 'client_order_items.product', 'cashflow'],
+    });
+    if (!order) throw new NotFoundException('ClientOrder not found');
+
+    const oldStatus = order.order_status;
+    const newStatus = dto.order_status || oldStatus;
+
     Object.assign(order, dto);
-    return this.repo.save(order);
+    const saved = await this.repo.save(order);
+
+    // DONE → Cashflow yaratish
+    if (newStatus === OrderStatusEnum.DONE && oldStatus !== OrderStatusEnum.DONE) {
+      await this.createCashflowForOrder(saved);
+    }
+
+    // DONE dan boshqaga → Cashflow o'chirish
+    if (oldStatus === OrderStatusEnum.DONE && newStatus !== OrderStatusEnum.DONE) {
+      await this.removeCashflowForOrder(saved);
+    }
+
+    return saved;
+  }
+
+  private async createCashflowForOrder(order: ClientOrder): Promise<void> {
+    const em = this.repo.manager;
+    const price = order.totalPrice;
+    const isOnline = order.payment_type === PaymentTypeEnum.PAYME;
+
+    // Filialdan ochiq kassa topish — birinchi topilgan filial kassasini ishlatamiz
+    const kassa = await em.findOne(Kassa, {
+      where: { isActive: true },
+      order: { startDate: 'DESC' },
+    });
+    if (!kassa) return;
+
+    // Cashflow yaratish
+    const cashflow = em.create(Cashflow, {
+      price,
+      type: 'Приход' as any,
+      tip: 'cashflow' as any,
+      title: `Интернет заказ #${order.sequence}`,
+      comment: `Client order #${order.sequence}`,
+      is_online: isOnline,
+      kassa: { id: kassa.id },
+      status: 'approved' as any,
+    } as any);
+
+    const saved = await em.save(Cashflow, cashflow);
+
+    // Kassa totallariga qo'shish
+    kassa.income = (kassa.income || 0) + price;
+    kassa.sale = (kassa.sale || 0) + price;
+    if (isOnline) kassa.plasticSum = (kassa.plasticSum || 0) + price;
+    else kassa.in_hand = (kassa.in_hand || 0) + price;
+    await em.save(Kassa, kassa);
+
+    // ClientOrder ga cashflow bog'lash
+    await em.update(ClientOrder, order.id, { cashflow: { id: saved.id } } as any);
+  }
+
+  private async removeCashflowForOrder(order: ClientOrder): Promise<void> {
+    const em = this.repo.manager;
+    if (!order.cashflow?.id) return;
+
+    const cashflow = await em.findOne(Cashflow, {
+      where: { id: order.cashflow.id },
+      relations: ['kassa'],
+    });
+    if (!cashflow) return;
+
+    // Kassa totallaridan ayirish
+    const kassa = cashflow.kassa;
+    if (kassa) {
+      kassa.income = (kassa.income || 0) - cashflow.price;
+      kassa.sale = (kassa.sale || 0) - cashflow.price;
+      if (cashflow.is_online) kassa.plasticSum = (kassa.plasticSum || 0) - cashflow.price;
+      else kassa.in_hand = (kassa.in_hand || 0) - cashflow.price;
+      await em.save(Kassa, kassa);
+    }
+
+    // Cashflow hard delete
+    await em.update(ClientOrder, order.id, { cashflow: null } as any);
+    await em.delete(Cashflow, cashflow.id);
   }
 
   async remove(id: string): Promise<void> {

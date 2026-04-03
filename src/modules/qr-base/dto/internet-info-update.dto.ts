@@ -46,6 +46,16 @@ class UpdateInternetInfo {
 
   @ApiProperty()
   @IsOptional()
+  @IsNumber()
+  secondPrice: number;
+
+  @ApiProperty()
+  @IsOptional()
+  @IsString()
+  internetTitle: string;
+
+  @ApiProperty()
+  @IsOptional()
   @IsEnum(IMarketSizeTypeEnum)
   sizeType: IMarketSizeTypeEnum;
 

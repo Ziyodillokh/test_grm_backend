@@ -57,6 +57,17 @@ export class QrBase extends BaseEntity {
   @Column('varchar', { nullable: true })
   sizeType: string;
 
+  @Column('varchar', { nullable: true })
+  internetTitle: string;
+
+  @Column('numeric', {
+    precision: 20,
+    scale: 2,
+    transformer: new NumericTransformer(),
+    default: 0,
+  })
+  secondPrice: number;
+
   @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
   date: string;
 

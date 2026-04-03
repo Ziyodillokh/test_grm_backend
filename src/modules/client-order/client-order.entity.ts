@@ -91,4 +91,8 @@ export class ClientOrder extends BaseEntity {
   @ManyToOne('User', 'clientOrders', { onDelete: 'SET NULL' })
   @JoinColumn()
   user: any;
+
+  @ManyToOne('Cashflow', { onDelete: 'SET NULL', nullable: true })
+  @JoinColumn()
+  cashflow: any;
 }
