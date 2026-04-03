@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsBoolean, IsEnum, IsNumber, IsOptional, IsString, IsUUID } from 'class-validator';
+import { IsArray, IsBoolean, IsEnum, IsNumber, IsOptional, IsString, IsUUID } from 'class-validator';
 import ProductStatusEnum from '../../../infra/shared/enum/product.enum';
 import { IMarketSizeTypeEnum } from '@infra/shared/enum/i-market.size-type.enum';
 
@@ -17,7 +17,7 @@ class UpdateInternetInfo {
     example: '["http://", "http://"]',
   })
   @IsOptional()
-  @IsString()
+  @IsArray()
   otherImgs: string[];
 
   @ApiProperty({
