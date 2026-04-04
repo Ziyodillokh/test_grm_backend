@@ -26,8 +26,8 @@ class KassaQueryParserMiddleware implements NestMiddleware {
     }
 
     if (status) {
-      if (status === 'closed_by_c') {
-        where.status = In([kassaProgresEnum.CLOSED_BY_C, kassaProgresEnum.WARNING]);
+      if (status === 'closed_by_c' || status === 'closed') {
+        where.status = In([kassaProgresEnum.CLOSED, kassaProgresEnum.WARNING]);
       } else {
         where.status = status;
       }

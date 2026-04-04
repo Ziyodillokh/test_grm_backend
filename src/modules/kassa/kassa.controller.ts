@@ -315,11 +315,15 @@ export class KassaController {
 
   @Roles(UserRoleEnum.F_MANAGER, UserRoleEnum.M_MANAGER, UserRoleEnum.ACCOUNTANT)
   @Patch(':id/confirm')
-  @ApiOperation({ summary: 'Method: confirm / close monthly kassa (multi-step workflow)' })
-  @ApiOkResponse({ description: 'Kassa confirmation status updated' })
+  @ApiOperation({ summary: 'Confirm or reject monthly kassa (multi-step workflow)' })
+  @ApiOkResponse({ description: 'Kassa status updated' })
   @HttpCode(HttpStatus.OK)
-  async confirmKassa(@Param('id') id: string, @Req() req) {
-    return this.kassaService.closeKassa(id, req.user);
+  async confirmKassa(
+    @Param('id') id: string,
+    @Query('action') action: 'confirm' | 'reject' = 'confirm',
+    @Req() req,
+  ) {
+    return this.kassaService.closeKassa(id, req.user, action);
   }
 
   @Post('generate/:year')

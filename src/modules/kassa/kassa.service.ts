@@ -237,24 +237,13 @@ export class KassaService {
   }
 
   async cancelKassas(ids: string[], user) {
-    const roleStatusMap = {
-      [UserRoleEnum.F_MANAGER]: KassaProgresEnum.REJECTED,
-    };
-
-    const userRole = user.position.role;
-    const status = roleStatusMap[userRole];
-
-    if (!status) {
-      throw new BadRequestException('You cannot close kassa!');
-    }
-
-    const partialEntity = {
-      status,
-      closer_m: user.id,
-    };
-
-    const updatePromises = ids.map((id) => this.kassaRepository.update(id, partialEntity));
-
+    // Reject endi boolean flag orqali boshqariladi, status WARNING ga qaytadi
+    const updatePromises = ids.map((id) =>
+      this.kassaRepository.update(id, {
+        status: KassaProgresEnum.WARNING,
+        closer_m: user.id,
+      }),
+    );
     return Promise.allSettled(updatePromises);
   }
 
@@ -271,18 +260,11 @@ export class KassaService {
   }
 
   async rejectKassa(ids: string[], user: User) {
-    const roleStatusMap = {
-      [UserRoleEnum.F_MANAGER]: KassaProgresEnum.REJECTED,
-    };
-
-    if (!roleStatusMap?.[user.position.role]) throw new BadRequestException('You can not reject kassa!');
-
-    const status = roleStatusMap[user.position.role];
+    // Reject endi boolean flag orqali, status WARNING ga qaytadi
     return await Promise.allSettled(
       ids.map((id) => {
         return this.kassaRepository.update(id, {
-          isActive: false,
-          status,
+          status: KassaProgresEnum.WARNING,
         });
       }),
     );
@@ -454,7 +436,7 @@ export class KassaService {
     });
 
     for (const kassa of kassas) {
-      kassa.status = KassaProgresEnum.CLOSED_BY_C;
+      kassa.status = KassaProgresEnum.CLOSED;
     }
 
     await this.kassaRepository.save(kassas);
@@ -701,7 +683,126 @@ export class KassaService {
    *  - ACCOUNTANT -> isAccountantConfirmed = true, creates terminal cashflow
    *  - Both confirmed -> ACCEPTED, carry forward balance to next month
    */
-  async closeKassa(id: string, user: User) {
+
+  // ─── Guard funksiyalar ──────────────────────────────────────────
+
+  /** Kassaga yangi cashflow qo'shish mumkinmi */
+  canAddCashflow(kassa: Kassa): boolean {
+    return kassa.status === KassaProgresEnum.OPEN;
+  }
+
+  /** Kassadan cashflow o'chirish mumkinmi */
+  canDeleteCashflow(kassa: Kassa, isOrderCashflow: boolean): boolean {
+    if (kassa.status === KassaProgresEnum.CLOSED || kassa.status === KassaProgresEnum.ACCEPTED) return false;
+    if (kassa.status === KassaProgresEnum.WARNING) {
+      return !isOrderCashflow; // faqat order bilan bog'liq BO'LMAGAN
+    }
+    return true; // open
+  }
+
+  /** Cashflow yangilash mumkinmi */
+  canUpdateCashflow(kassa: Kassa): boolean {
+    if (kassa.status === KassaProgresEnum.CLOSED || kassa.status === KassaProgresEnum.ACCEPTED) return false;
+    return true; // open va warning
+  }
+
+  /** Cashflow sanasini boshqa oyga o'zgartirish mumkinmi */
+  canChangeCashflowMonth(kassa: Kassa): boolean {
+    return kassa.status === KassaProgresEnum.OPEN || kassa.status === KassaProgresEnum.WARNING;
+  }
+
+  /** Order vazvrat — barcha holatda mumkin */
+  canReturnOrder(): boolean {
+    return true; // open, warning, closed, accepted
+  }
+
+  // ─── Kassa qayta hisoblash ──────────────────────────────────────
+
+  /** Kassaning barcha totallarini cashflowlardan qayta hisoblash */
+  async recalculateKassa(kassaId: string): Promise<void> {
+    const cashflows = await this.cashflowRepository.find({
+      where: { kassa: { id: kassaId }, is_cancelled: false },
+      relations: { order: { product: { bar_code: { size: true } } } },
+    });
+
+    let income = 0, expense = 0, sale = 0, plasticSum = 0, in_hand = 0;
+    let discount = 0, return_sale = 0, return_size = 0, cash_collection = 0;
+    let totalSize = 0, totalSellCount = 0;
+    let netProfitTotalSum = 0, additionalProfitTotalSum = 0;
+    let debt_sum = 0, debt_kv = 0, debt_count = 0;
+    let internetShopSum = 0;
+
+    for (const cf of cashflows) {
+      const price = Math.abs(cf.price || 0);
+      const isOrder = cf.tip === CashflowTipEnum.ORDER;
+      const order = cf.order;
+
+      if (cf.type === CashFlowEnum.InCome) {
+        if (isOrder && order) {
+          sale += price;
+          plasticSum += order.plasticSum || 0;
+          discount += (order.discountSum || 0) + (order.managerDiscountSum || 0);
+          netProfitTotalSum += order.netProfitSum || 0;
+          additionalProfitTotalSum += order.additionalProfitSum || 0;
+          if (order.isDebt) {
+            debt_sum += price;
+            debt_kv += order.kv || 0;
+            debt_count += order.product?.bar_code?.isMetric ? 1 : (order.x || 0);
+          } else {
+            in_hand += order.price || 0;
+          }
+          const barCode = order?.product?.bar_code;
+          const size = barCode?.size;
+          if (barCode && size) {
+            totalSize += barCode.isMetric ? ((order.x || 0) / 100) * size.x : (size.kv || 0) * (order.x || 0);
+            totalSellCount += barCode.isMetric ? 1 : (order.x || 0);
+          }
+          if (order.product?.isInternetShop) internetShopSum += price;
+        } else {
+          income += price;
+          if (cf.is_online) plasticSum += price;
+        }
+      } else if (cf.type === CashFlowEnum.Consumption) {
+        expense += price;
+        in_hand -= price;
+        if (cf.cashflow_type?.slug === 'Инкассация') cash_collection += price;
+        if (cf.cashflow_type?.slug === 'return') {
+          return_sale += price;
+        }
+      }
+    }
+
+    // Kassa yangilash
+    const kassa = await this.kassaRepository.findOne({ where: { id: kassaId } });
+    if (!kassa) return;
+
+    const openingBalance = kassa.opening_balance || 0;
+
+    kassa.income = income;
+    kassa.expense = expense;
+    kassa.sale = sale;
+    kassa.plasticSum = plasticSum;
+    kassa.in_hand = openingBalance + in_hand + income - expense;
+    kassa.discount = discount;
+    kassa.return_sale = return_sale;
+    kassa.return_size = return_size;
+    kassa.cash_collection = cash_collection;
+    kassa.totalSize = totalSize;
+    kassa.totalSellCount = totalSellCount;
+    kassa.netProfitTotalSum = netProfitTotalSum;
+    kassa.additionalProfitTotalSum = additionalProfitTotalSum;
+    kassa.debt_sum = debt_sum;
+    kassa.debt_kv = debt_kv;
+    kassa.debt_count = debt_count;
+    kassa.internetShopSum = internetShopSum;
+    kassa.totalSum = kassa.in_hand + plasticSum;
+
+    await this.kassaRepository.save(kassa);
+  }
+
+  // ─── closeKassa ─────────────────────────────────────────────────
+
+  async closeKassa(id: string, user: User, action: 'confirm' | 'reject' = 'confirm') {
     const userRole = user.position.role;
 
     const kassa = await this.kassaRepository.findOne({
@@ -711,104 +812,110 @@ export class KassaService {
 
     if (!kassa) throw new BadRequestException('Kassa not found');
 
-    // Check that all daily kassas within this monthly kassa are accepted
-    // (kassas with actual sales that haven't been accepted yet)
-    const hasUnacceptedKassa = kassa.status !== KassaProgresEnum.ACCEPTED
-      && (kassa.in_hand + kassa.plasticSum) > 0
-      && kassa.sale > 0;
-
-    if (hasUnacceptedKassa) {
-      throw new BadRequestException('You have unaccepted kassas or you have no kassas.');
+    // ─── F_MANAGER: yopish (warning/open → closed) ─────────────────
+    if (userRole === UserRoleEnum.F_MANAGER && action === 'confirm') {
+      if (kassa.status !== KassaProgresEnum.WARNING && kassa.status !== KassaProgresEnum.OPEN) {
+        throw new BadRequestException('Kassani faqat open yoki warning holatdan yopish mumkin');
+      }
+      kassa.status = KassaProgresEnum.CLOSED;
+      // Barcha flaglarni reset qilish — yangi tasdiqlash sikli
+      kassa.isMManagerConfirmed = false;
+      kassa.isAccountantConfirmed = false;
+      kassa.isManagerRejected = false;
+      kassa.isAccountantRejected = false;
     }
 
-    if (userRole === UserRoleEnum.F_MANAGER) {
-      if (kassa.confirmationStatus !== KassaReportProgresEnum.OPEN) {
-        throw new BadRequestException('Report already closed, accepted or rejected!');
-      }
-      kassa.confirmationStatus = KassaReportProgresEnum.CLOSED;
-    } else if (userRole === UserRoleEnum.M_MANAGER) {
-      if (
-        kassa.confirmationStatus !== KassaReportProgresEnum.CLOSED &&
-        kassa.confirmationStatus !== KassaReportProgresEnum.ACCOUNTANT_CONFIRMED &&
-        kassa.confirmationStatus !== KassaReportProgresEnum.M_MANAGER_CONFIRMED
-      ) {
-        throw new BadRequestException('Report must be closed by F_MANAGER first!');
+    // ─── M_MANAGER: tasdiqlash ──────────────────────────────────────
+    else if (userRole === UserRoleEnum.M_MANAGER && action === 'confirm') {
+      if (kassa.status !== KassaProgresEnum.CLOSED) {
+        throw new BadRequestException('Kassani tasdiqlash uchun avval F_MANAGER yopishi kerak');
       }
       kassa.isMManagerConfirmed = true;
-      kassa.confirmationStatus = KassaReportProgresEnum.M_MANAGER_CONFIRMED;
-    } else if (userRole === UserRoleEnum.ACCOUNTANT) {
-      if (
-        kassa.confirmationStatus !== KassaReportProgresEnum.CLOSED &&
-        kassa.confirmationStatus !== KassaReportProgresEnum.ACCOUNTANT_CONFIRMED &&
-        kassa.confirmationStatus !== KassaReportProgresEnum.M_MANAGER_CONFIRMED
-      ) {
-        throw new BadRequestException('Report must be closed by F_MANAGER first!');
+      kassa.isManagerRejected = false;
+    }
+
+    // ─── M_MANAGER: qaytarish ───────────────────────────────────────
+    else if (userRole === UserRoleEnum.M_MANAGER && action === 'reject') {
+      if (kassa.status !== KassaProgresEnum.CLOSED) {
+        throw new BadRequestException('Faqat closed kassani qaytarish mumkin');
+      }
+      kassa.isManagerRejected = true;
+      kassa.isMManagerConfirmed = false;
+      kassa.isAccountantConfirmed = false;
+      kassa.status = KassaProgresEnum.WARNING;
+    }
+
+    // ─── ACCOUNTANT: tasdiqlash ─────────────────────────────────────
+    else if (userRole === UserRoleEnum.ACCOUNTANT && action === 'confirm') {
+      if (kassa.status !== KassaProgresEnum.CLOSED) {
+        throw new BadRequestException('Kassani tasdiqlash uchun avval F_MANAGER yopishi kerak');
       }
       kassa.isAccountantConfirmed = true;
-      kassa.confirmationStatus = KassaReportProgresEnum.ACCOUNTANT_CONFIRMED;
+      kassa.isAccountantRejected = false;
 
+      // Terminal cashflow yaratish
       const accountant = await this.userRepository.findOne({
-        where: {
-          position: { role: UserRoleEnum.ACCOUNTANT },
-        },
+        where: { position: { role: UserRoleEnum.ACCOUNTANT } },
         relations: { avatar: true, position: true },
       });
-
       const report = await this.reportService.findOne(kassa.report?.id);
       const slugTerminal = await this.getOneBySlug('онлайн');
 
-      await this.cashflowRepository.save(
-        this.cashflowRepository.create({
-          price: kassa.plasticSum,
-          type: CashFlowEnum.InCome,
-          tip: CashflowTipEnum.CASHFLOW,
-          comment: `${kassa.filial.title} terminal va perechisleniya: ${this.getMonthName(
-            kassa.month,
-          )} oyi uchun ${kassa.year}`,
-          cashflow_type: slugTerminal,
-          date: new Date().toISOString(),
-          report: report,
-          casher: accountant,
-          is_online: false,
-          is_static: true,
-        }),
-      );
-    } else {
-      throw new BadRequestException('You do not have permission to perform this action!');
+      if (slugTerminal && report) {
+        await this.cashflowRepository.save(
+          this.cashflowRepository.create({
+            price: kassa.plasticSum,
+            type: CashFlowEnum.InCome,
+            tip: CashflowTipEnum.CASHFLOW,
+            comment: `${kassa.filial.title} terminal: ${this.getMonthName(kassa.month)} oyi ${kassa.year}`,
+            cashflow_type: slugTerminal,
+            date: new Date().toISOString(),
+            report: report,
+            casher: accountant,
+            is_online: false,
+            is_static: true,
+          }),
+        );
+      }
     }
 
-    // When both M_MANAGER and ACCOUNTANT have confirmed -> ACCEPTED
-    if (kassa.isMManagerConfirmed && kassa.isAccountantConfirmed) {
-      kassa.confirmationStatus = KassaReportProgresEnum.ACCEPTED;
-
-      let nextMonth: number;
-      let nextYear: number;
-      if (kassa.month === 12) {
-        nextMonth = 1;
-        nextYear = kassa.year + 1;
-      } else {
-        nextMonth = kassa.month + 1;
-        nextYear = kassa.year;
+    // ─── ACCOUNTANT: qaytarish ──────────────────────────────────────
+    else if (userRole === UserRoleEnum.ACCOUNTANT && action === 'reject') {
+      if (kassa.status !== KassaProgresEnum.CLOSED) {
+        throw new BadRequestException('Faqat closed kassani qaytarish mumkin');
       }
+      kassa.isAccountantRejected = true;
+      kassa.isAccountantConfirmed = false;
+      kassa.isMManagerConfirmed = false;
+      kassa.status = KassaProgresEnum.WARNING;
+    }
+
+    else {
+      throw new BadRequestException('Bu amalni bajarish huquqingiz yo\'q');
+    }
+
+    // ─── Ikkalasi tasdiqlagan → ACCEPTED ────────────────────────────
+    if (kassa.isMManagerConfirmed && kassa.isAccountantConfirmed) {
+      kassa.status = KassaProgresEnum.ACCEPTED;
 
       const now = dayjs();
-      if (
-        kassa.year > now.year() ||
-        (kassa.year === now.year() && kassa.month >= now.month() + 1)
-      ) {
-        throw new BadRequestException('You cannot close the current or a future month.');
+      if (kassa.year > now.year() || (kassa.year === now.year() && kassa.month >= now.month() + 1)) {
+        throw new BadRequestException('Joriy yoki kelajak oyni yakunlab bo\'lmaydi');
       }
 
-      // Find the next month's kassa for this filial
+      // Balansni keyingi oyga o'tkazish
+      const nextMonth = kassa.month === 12 ? 1 : kassa.month + 1;
+      const nextYear = kassa.month === 12 ? kassa.year + 1 : kassa.year;
+
       const nextKassa = await this.kassaRepository.findOne({
         where: { month: nextMonth, year: nextYear, filial: { id: kassa.filial.id } },
         relations: { filial: true },
       });
 
-      const slugSaldo = await this.getOneBySlug('Balance');
       const price = kassa.in_hand;
 
       if (Number(price) > 0 && nextKassa) {
+        const slugSaldo = await this.getOneBySlug('Balance');
         await this.cashflowRepository.save(
           this.cashflowRepository.create({
             price: price,
@@ -824,25 +931,15 @@ export class KassaService {
           }),
         );
 
-        await this.kassaRepository.update({ id: nextKassa.id }, {
-          in_hand: nextKassa.in_hand + price,
-          income: nextKassa.income + price > 0 ? price : 0,
-          totalSum: (nextKassa.in_hand || 0) + (nextKassa.plasticSum || 0) + price,
-        });
-      }
-
-      if (nextKassa) {
-        if (price > 0) {
-          nextKassa.totalSum += price;
-          nextKassa.income += price;
-        }
-        nextKassa.opening_balance += price;
-        nextKassa.in_hand += price;
+        nextKassa.opening_balance = (nextKassa.opening_balance || 0) + price;
+        nextKassa.in_hand = (nextKassa.in_hand || 0) + price;
+        nextKassa.income = (nextKassa.income || 0) + (price > 0 ? price : 0);
+        nextKassa.totalSum = (nextKassa.in_hand || 0) + (nextKassa.plasticSum || 0);
         await this.kassaRepository.save(nextKassa);
       }
     }
 
-    kassa.dealer_frozen_owed = kassa.filial.owed;
+    kassa.dealer_frozen_owed = kassa.filial?.owed || 0;
 
     return await this.kassaRepository.save(kassa);
   }

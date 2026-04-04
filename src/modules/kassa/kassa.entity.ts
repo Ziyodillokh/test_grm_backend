@@ -231,6 +231,12 @@ export class Kassa extends BaseEntity implements IReportAggregates {
   isMManagerConfirmed: boolean;
 
   @Column({ default: false })
+  isManagerRejected: boolean;
+
+  @Column({ default: false })
+  isAccountantRejected: boolean;
+
+  @Column({ default: false })
   is_cancelled: boolean;
 
   @Column('varchar', { default: FilialTypeEnum.FILIAL })

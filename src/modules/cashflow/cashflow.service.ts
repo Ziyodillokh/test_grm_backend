@@ -601,6 +601,10 @@ export class CashflowService {
 
       if (value.kassa) {
         kassa = await this.kassaService.getById(value.kassa);
+        // Guard: faqat OPEN kassaga yangi cashflow qo'shish mumkin
+        if (kassa && !this.kassaService.canAddCashflow(kassa)) {
+          throw new BadRequestException('Bu kassaga yangi cashflow qo\'shib bo\'lmaydi — kassa yopilgan');
+        }
       }
 
       if (value.report) {
