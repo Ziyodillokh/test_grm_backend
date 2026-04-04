@@ -138,6 +138,22 @@ export class Report extends BaseEntity implements IReportAggregates {
   })
   accountantSum: number;
 
+  @Column('numeric', {
+    precision: 20,
+    scale: 2,
+    transformer: new ColumnNumericTransformer(),
+    default: 0,
+  })
+  managerSaldo: number;
+
+  @Column('numeric', {
+    precision: 20,
+    scale: 2,
+    transformer: new ColumnNumericTransformer(),
+    default: 0,
+  })
+  accountantSaldo: number;
+
   @Column('int', {default: 0})
   debt_count: number
 
