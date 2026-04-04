@@ -10,6 +10,13 @@ import { useContainer } from 'class-validator';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import * as bodyParser from 'body-parser';
 import * as process from 'process';
+import * as dayjs from 'dayjs';
+import * as utc from 'dayjs/plugin/utc';
+import * as timezone from 'dayjs/plugin/timezone';
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
+dayjs.tz.setDefault('Asia/Tashkent');
 
 const logging = new Logger('Request Middleware', { timestamp: true });
 

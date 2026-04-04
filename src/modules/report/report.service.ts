@@ -1207,10 +1207,13 @@ export class ReportService {
     const month = dayjs().month() + 1;
     const year = dayjs().year();
 
+    const prevMonth = month === 1 ? 12 : month - 1;
+    const prevYear = month === 1 ? year - 1 : year;
+
     const reports = await this.reportRepo.find({
       where: {
-        month: month - 1 || 1,
-        year: year,
+        month: prevMonth,
+        year: prevYear,
       },
     }); // need update reportStatus to
 

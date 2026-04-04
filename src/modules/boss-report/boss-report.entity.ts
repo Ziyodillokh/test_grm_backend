@@ -9,7 +9,7 @@ export class BossReport extends BaseEntity implements IReportAggregates {
   @Column({ type: 'int' })
   year: number;
 
-  @Column({ type: 'int', default: new Date().getMonth() + 1 })
+  @Column({ type: 'int' })
   month: number;
 
   @Column({ type: 'int', default: 0 })
