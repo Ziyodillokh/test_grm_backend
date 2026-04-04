@@ -1541,8 +1541,8 @@ export class CashflowService {
           relations: ['position'],
         });
 
-        if (kassa.confirmationStatus === KassaReportProgresEnum.ACCEPTED) {
-          throw new BadRequestException('Cannot delete cashflow from accepted kassa reports');
+        if (kassa.status === KassaProgresEnum.ACCEPTED) {
+          throw new BadRequestException('Cannot delete cashflow from accepted kassa');
         }
 
         const isDManager = user?.position?.role === UserRoleEnum.D_MANAGER;

@@ -24,6 +24,7 @@ import { Transfer } from '@modules/transfer/transfer.entity';
 import { Media } from '@modules/media/media.entity';
 import { PlanYearService } from '@modules/plan-year/plan-year.service';
 import userRoleEnum from '@infra/shared/enum/user-role.enum';
+import KassaProgresEnum from '@infra/shared/enum/kassa-progres-enum';
 
 @Injectable()
 export class ReportService {
@@ -585,7 +586,7 @@ export class ReportService {
           where: {
             year,
             month,
-            confirmationStatus: KassaReportProgresEnum.ACCEPTED,
+            status: KassaProgresEnum.ACCEPTED,
             filialType: type,
           },
         });
@@ -881,7 +882,7 @@ export class ReportService {
     }
 
     // Kassalarni tekshirish
-    const openKassas = report.kassas.filter((kassa) => kassa.confirmationStatus === KassaReportProgresEnum.OPEN);
+    const openKassas = report.kassas.filter((kassa) => kassa.status === KassaProgresEnum.OPEN || kassa.status === KassaProgresEnum.WARNING);
 
     if (openKassas.length > 0) {
       throw new BadRequestException('You have unclosed kassa reports');
@@ -1095,7 +1096,7 @@ export class ReportService {
         year: year,
         month: month,
         filialType: FilialTypeEnum.DEALER,
-        confirmationStatus: KassaReportProgresEnum.ACCEPTED,
+        status: KassaProgresEnum.ACCEPTED,
       },
     });
 
