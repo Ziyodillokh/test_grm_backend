@@ -74,6 +74,7 @@ export class KassaService {
         },
       },
       order: {
+        month: 'DESC',
         endDate: 'DESC',
       },
     });
