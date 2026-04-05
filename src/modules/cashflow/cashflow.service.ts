@@ -1525,9 +1525,18 @@ export class CashflowService {
         throw new BadRequestException(`filial manager o'chrshi krak`);
       }
 
-      // Order bilan bog'langan cashflowlarni o'chirmaslik
+      // Order bilan bog'langan cashflowlarni o'chirmaslik (faqat rejected bo'lsa ruxsat)
       const isOrder = (cashflow.tip as string) === CashflowTipEnum.ORDER;
       if (isOrder) {
+        if (cashflow.is_cancelled || cashflow.status === CashflowStatusEnum.CANCELLED) {
+          // Rejected order — soft delete (order + cashflow)
+          if (cashflow.order?.id) {
+            await queryRunner.manager.softDelete('order', cashflow.order.id);
+          }
+          await queryRunner.manager.softDelete(Cashflow, cashflow.id);
+          await queryRunner.commitTransaction();
+          return;
+        }
         throw new BadRequestException('Cannot delete cashflow associated with orders');
       }
 
