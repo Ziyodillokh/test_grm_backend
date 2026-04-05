@@ -63,22 +63,47 @@ export class ReportService {
 
   async getCurrentReport(filial: Filial): Promise<Report> {
     const now = dayjs();
-    const existing = await this.reportRepo.findOne({
-      where: {
-        year: now.year(),
-        month: now.month() + 1,
-      },
+    const year = now.year();
+    const month = now.month() + 1;
+
+    let report = await this.reportRepo.findOne({
+      where: { year, month },
+    });
+
+    if (!report) {
+      report = this.reportRepo.create({ year, month });
+      report = await this.reportRepo.save(report);
+    }
+
+    // Link unlinked kassas for current month
+    const unlinkedKassas = await this.kassaRepo.find({
+      where: { year, month, report: { id: null as any } },
+    });
+    if (!unlinkedKassas.length) {
+      // Also check kassas with no report at all
+      const orphanKassas = await this.kassaRepo
+        .createQueryBuilder('kassa')
+        .where('kassa.year = :year', { year })
+        .andWhere('kassa.month = :month', { month })
+        .andWhere('kassa.reportId IS NULL')
+        .getMany();
+
+      for (const kassa of orphanKassas) {
+        kassa.report = report;
+        await this.kassaRepo.save(kassa);
+      }
+    } else {
+      for (const kassa of unlinkedKassas) {
+        kassa.report = report;
+        await this.kassaRepo.save(kassa);
+      }
+    }
+
+    return this.reportRepo.findOne({
+      where: { id: report.id },
       relations: ['kassas', 'kassas.filial'],
+      order: { kassas: { filial: { title: 'ASC' } } },
     });
-
-    if (existing) return existing;
-
-    const newReport = this.reportRepo.create({
-      year: now.year(),
-      month: now.month() + 1,
-    });
-
-    return await this.reportRepo.save(newReport);
   }
 
   async getReportByDate(filial: Filial, { year, month }): Promise<Report> {
