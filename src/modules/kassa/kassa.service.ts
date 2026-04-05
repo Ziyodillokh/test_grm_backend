@@ -170,11 +170,19 @@ export class KassaService {
   }
 
   async GetOpenKassa(id: string, type?: FilialType) {
+    // Avval OPEN statusli kassani qidirish (joriy oy)
+    const openKassa = await this.kassaRepository.findOne({
+      where: { filial: { id, type: type || FilialType.FILIAL }, isActive: true, status: KassaProgresEnum.OPEN },
+      relations: { report: true },
+      order: { month: 'DESC', year: 'DESC' },
+    });
+    if (openKassa) return openKassa;
+
+    // OPEN topilmasa, isActive bo'lgan eng yangi kassani qaytarish
     return await this.kassaRepository.findOne({
       where: { filial: { id, type: type || FilialType.FILIAL }, isActive: true },
-      relations: {
-        report: true,
-      },
+      relations: { report: true },
+      order: { month: 'DESC', year: 'DESC' },
     });
   }
 
