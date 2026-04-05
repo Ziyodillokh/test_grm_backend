@@ -179,20 +179,20 @@ export class AuthService {
       // New user -- will be registered on confirm
       const cacheData = { phone: cleanPhone, code };
       await this.redis.set(cacheKey, JSON.stringify(cacheData), 'EX', OTP_TTL_SECONDS);
-      // TODO: Send OTP via SMS service instead of returning in response
       return {
         message: `Code sent to phone: ${cleanPhone}`,
         type: 'register',
+        code, // TEST MODE: SMS ulanmagan, code response da qaytadi
       };
     }
 
     // Existing user
     const cacheData = { phone: cleanPhone, code, id: user.id };
     await this.redis.set(cacheKey, JSON.stringify(cacheData), 'EX', OTP_TTL_SECONDS);
-    // TODO: Send OTP via SMS service instead of returning in response
     return {
       message: `Code sent to phone: ${cleanPhone}`,
       type: 'login',
+      code, // TEST MODE: SMS ulanmagan, code response da qaytadi
     };
   }
 
