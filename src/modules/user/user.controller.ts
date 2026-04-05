@@ -9,7 +9,9 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Put,
   Query,
+  Req,
 } from '@nestjs/common';
 import {
   ApiCreatedResponse,
@@ -53,6 +55,17 @@ export class UserController {
     );
   }
 
+  @Get('imarket-clients')
+  @ApiOperation({ summary: 'Get all iMarket clients (role=CLIENT)' })
+  @ApiOkResponse({ description: 'iMarket clients returned' })
+  @HttpCode(HttpStatus.OK)
+  async getIMarketClients(@Route() route: string, @Query() query: QueryUserDto) {
+    return this.userService.findIMarketClients(
+      { page: query.page || 1, limit: query.limit || 20, route },
+      query,
+    );
+  }
+
   @Get('me')
   @ApiOperation({ summary: 'Get current user profile' })
   @ApiOkResponse({ description: 'Current user returned successfully' })
@@ -92,6 +105,20 @@ export class UserController {
   @HttpCode(HttpStatus.CREATED)
   async create(@Body() dto: CreateUserDto): Promise<User> {
     return this.userService.create(dto);
+  }
+
+  @Put('client')
+  @ApiOperation({ summary: 'Update current client profile (firstName, lastName)' })
+  @ApiOkResponse({ description: 'Client profile updated' })
+  @HttpCode(HttpStatus.OK)
+  async updateClient(
+    @Body() dto: { firstName?: string; lastName?: string },
+    @Req() req,
+  ) {
+    const userId = req.user?.id;
+    if (!userId) return { error: 'Unauthorized' };
+    await this.userService.update(userId, dto as any);
+    return this.userService.findOne(userId);
   }
 
   @Patch(':id')

@@ -157,6 +157,21 @@ export class UserService {
     return Array.isArray(saved) ? saved[0] : saved;
   }
 
+  /** Find all iMarket clients (role=CLIENT) */
+  async findIMarketClients(options: IPaginationOptions, query: QueryUserDto): Promise<Pagination<User>> {
+    const where: FindOptionsWhere<User> = {
+      position: { role: 1 }, // CLIENT = 1
+    };
+    if (query.search) {
+      where.firstName = ILike(`%${query.search}%`);
+    }
+    return paginate<User>(this.userRepository, options, {
+      where,
+      relations: { position: true, avatar: true },
+      order: { createdAt: 'DESC' },
+    });
+  }
+
   /** Find user by a specific field (legacy) */
   async getClientBy(field: string, value: any): Promise<User | null> {
     return this.userRepository.findOne({
