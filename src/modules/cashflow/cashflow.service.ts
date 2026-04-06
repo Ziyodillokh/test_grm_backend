@@ -2,6 +2,7 @@ import { BadRequestException, forwardRef, Inject, Injectable, NotFoundException 
 import { InjectRepository } from '@nestjs/typeorm';
 import { IPaginationOptions, paginate, Pagination } from 'nestjs-typeorm-paginate';
 import { CreateCashflowDto } from './dto';
+import UpdateCashflowDto from './dto/update-cashflow.dto';
 import { Cashflow } from './cashflow.entity';
 import { KassaService } from '../kassa/kassa.service';
 import { Between, DataSource, EntityManager, In, IsNull, LessThanOrEqual, MoreThanOrEqual, QueryRunner, Repository } from 'typeorm';
@@ -1087,7 +1088,7 @@ export class CashflowService {
           cashflow_type: true,
           kassa: true,
           debt: true,
-          child: true,
+          child: { report: true },
         },
       });
 
@@ -1139,6 +1140,14 @@ export class CashflowService {
           await this.orderService.returnOrder(cashflow.order.id, userId);
         }
 
+        // Oddiy prixod cashflow reverse
+        if (!isOrder) {
+          kassa.income -= price;
+          if (cashflow?.is_online) {
+            kassa.plasticSum -= price;
+          }
+        }
+
         if (cashflow.cashflow_type.slug === 'Перечисление') {
           kassa.plasticSum -= price;
           kassa.income -= price;
@@ -1164,14 +1173,17 @@ export class CashflowService {
           await queryRunner.manager.save(debt);
         }
       } else if (cashflow.type === 'Расход') {
-        if (cashflow.cashflow_type.slug === 'Инкассация') {
-          if (kassa.status === KassaProgresEnum.ACCEPTED) {
-            // Update kassa directly (was kassaReport before)
-            kassa.totalSum += price;
-            kassa.expense -= price;
-            kassa.cash_collection -= price;
-            kassa.in_hand += price;
+        // Oddiy rasxod cashflow reverse
+        if (!isOrder) {
+          kassa.in_hand += price;
+          kassa.expense -= price;
+          if (cashflow?.is_online) {
+            kassa.plasticSum += price;
           }
+        }
+
+        if (cashflow.cashflow_type.slug === 'Инкассация') {
+          kassa.cash_collection -= price;
 
           // Find the report linked to this kassa
           const kassaWithReport = await queryRunner.manager.findOne(Kassa, {
@@ -1183,15 +1195,9 @@ export class CashflowService {
             report.accountantSum -= price;
             report.totalIncome -= price;
             report.totalCashCollection -= price;
-
             await queryRunner.manager.save(report);
           }
-
-          kassa.expense -= price;
-          kassa.cash_collection -= price;
-          kassa.in_hand += price;
         }
-
 
         if (isOrder) {
           throw new BadRequestException('You can not delete cashflow!');
@@ -1221,6 +1227,26 @@ export class CashflowService {
       const otherCashflow = cashflow.child.map(el => ({ ...el, is_cancelled: true, status: CashflowStatusEnum.CANCELLED }));
       await queryRunner.manager.save(cashflow);
       await queryRunner.manager.save(otherCashflow);
+
+      // Child cashflowlarning report effectlarini reverse
+      for (const child of cashflow.child) {
+        if (child.report) {
+          const childReport = await queryRunner.manager.findOne(Report, { where: { id: child.report.id } });
+          if (childReport) {
+            childReport.totalIncome -= price;
+            if (cashflow.cashflow_type.slug === 'bugalter' || cashflow.cashflow_type.slug === 'Инкассация') {
+              childReport.accountantSum -= price;
+            }
+            if (cashflow.cashflow_type.slug === 'manager') {
+              childReport.managerSum -= price;
+            }
+            if (cashflow.cashflow_type.slug === 'Инкассация') {
+              childReport.totalCashCollection -= price;
+            }
+            await queryRunner.manager.save(childReport);
+          }
+        }
+      }
 
       if (isOrder && order && order.seller?.id && cashflow.type === 'Приход') {
         const today = dayjs(cashflow.date).format('YYYY-MM-DD');
@@ -1702,54 +1728,23 @@ export class CashflowService {
         await queryRunner.manager.save(report);
       }
 
-      // Kassa direct fields logikasini teskari qilish
-      if (kassa) {
-        if (cashflow.type === 'Приход') {
-          kassa.income -= price;
-
-          if (cashflow?.is_online) {
-            kassa.plasticSum -= price;
+      // Child cashflowlarning report effectlarini reverse
+      if (kassa && cashflow.type === 'Расход' && cashflow.child.length) {
+        const childReport = cashflow.child[0].report;
+        if (childReport) {
+          childReport.totalIncome -= price;
+          if (cashflow.cashflow_type.slug === 'bugalter') {
+            childReport.accountantSum -= price;
+          }
+          if (cashflow.cashflow_type.slug === 'manager') {
+            childReport.managerSum -= price;
           }
           if (cashflow.cashflow_type.slug === 'Инкассация') {
-            kassa.cash_collection -= price;
+            childReport.totalCashCollection -= price;
+            childReport.accountantSum -= price;
           }
-
-        } else if (cashflow.type === 'Расход') {
-          if (cashflow.child.length) {
-            let totalCashCollection = cashflow.child[0].report.totalCashCollection;
-            let managerSum = cashflow.child[0].report.managerSum;
-            let accountantSum = cashflow.child[0].report.accountantSum;
-            let totalIncome = cashflow.child[0].report.totalIncome;
-            if (cashflow.cashflow_type.slug === 'bugalter') {
-              accountantSum -= price;
-            }
-            if (cashflow.cashflow_type.slug === 'manager') {
-              managerSum -= price;
-            }
-            if (cashflow.cashflow_type.slug === 'Инкассация') {
-              totalCashCollection -= price;
-            }
-            await this.reportRepository.update({ id: cashflow.child[0].report.id }, {
-              accountantSum,
-              managerSum,
-              totalCashCollection,
-              totalIncome: totalIncome - price,
-            });
-          }
-          kassa.expense -= price;
-
-          if (cashflow?.is_online) {
-            kassa.plasticSum += price;
-          } else {
-            kassa.in_hand += price;
-          }
-
-          if (cashflow.cashflow_type.slug === 'Инкассация') {
-            kassa.cash_collection -= price;
-          }
+          await queryRunner.manager.save(childReport);
         }
-
-        await queryRunner.manager.save(kassa);
       }
 
       // Cashflowni o'chirish
@@ -2657,6 +2652,265 @@ WHERE k.id = $1;
 
     cashflow.status = CashflowStatusEnum.REJECTED;
     return await this.cashflowRepository.save(cashflow);
+  }
+
+  async updateCashflow(id: string, data: UpdateCashflowDto, userId: string) {
+    const queryRunner = this.connection.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      const cashflow = await queryRunner.manager.findOne(Cashflow, {
+        where: { id },
+        relations: {
+          createdBy: true,
+          cashflow_type: true,
+          kassa: { filial: true },
+          report: true,
+          order: {
+            product: {
+              bar_code: {
+                size: true,
+                collection: { collection_prices: true },
+              },
+            },
+            seller: true,
+          },
+          parent: true,
+          child: { report: true },
+          debt: true,
+        },
+      });
+
+      if (!cashflow) throw new NotFoundException('Cashflow not found');
+      if (cashflow.is_cancelled || cashflow.status === CashflowStatusEnum.CANCELLED) {
+        throw new BadRequestException('Bekor qilingan cashflowni update qilib bo\'lmaydi');
+      }
+      if (cashflow.parent?.id) {
+        throw new BadRequestException('Static cashflowni faqat parent orqali update qilish mumkin');
+      }
+
+      const kassa = cashflow.kassa;
+      const isOrder = (cashflow.tip as string) === CashflowTipEnum.ORDER;
+
+      // Kassa status check
+      if (kassa && kassa.status === KassaProgresEnum.ACCEPTED) {
+        throw new BadRequestException('Qabul qilingan kassadagi cashflowni update qilib bo\'lmaydi');
+      }
+
+      // Date validation — different month requires WARNING kassa
+      if (data.date !== undefined && kassa) {
+        const oldMonth = dayjs(cashflow.date).format('YYYY-MM');
+        const newMonth = dayjs(data.date).format('YYYY-MM');
+        if (oldMonth !== newMonth && kassa.status !== KassaProgresEnum.WARNING) {
+          throw new BadRequestException('Boshqa oydagi sana uchun kassa WARNING statusda bo\'lishi kerak');
+        }
+      }
+
+      if (isOrder) {
+        // ==================== ORDER CASHFLOW UPDATE ====================
+        const order = cashflow.order;
+        if (!order) throw new BadRequestException('Order topilmadi');
+
+        const oldOrderPrice = order.price;
+        const oldPlasticSum = order.plasticSum;
+        const oldCashflowPrice = cashflow.price;
+        const oldAdditionalProfit = order.additionalProfitSum;
+
+        const newOrderPrice = data.price !== undefined ? Math.abs(data.price) : oldOrderPrice;
+        const newPlasticSum = data.plasticSum !== undefined ? Math.abs(data.plasticSum) : oldPlasticSum;
+        const newCashflowPrice = newOrderPrice + newPlasticSum;
+
+        // Recalculate additionalProfitSum = price + plasticSum - (priceMeter * kv)
+        const collectionPrice = order.product?.bar_code?.collection?.collection_prices?.[0];
+        const priceMeter = collectionPrice?.priceMeter || 0;
+        const newAdditionalProfit = newOrderPrice + newPlasticSum - (priceMeter * order.kv);
+
+        // If APPROVED, update kassa and report
+        if (cashflow.status === CashflowStatusEnum.APPROVED && kassa) {
+          const cashflowPriceDiff = newCashflowPrice - oldCashflowPrice;
+          const orderPriceDiff = newOrderPrice - oldOrderPrice;
+          const plasticDiff = newPlasticSum - oldPlasticSum;
+          const additionalProfitDiff = newAdditionalProfit - oldAdditionalProfit;
+
+          if (!order.isDebt) {
+            kassa.in_hand += orderPriceDiff;
+          }
+          kassa.plasticSum += plasticDiff;
+          kassa.sale += cashflowPriceDiff;
+          kassa.additionalProfitTotalSum += additionalProfitDiff;
+
+          const kassaWithReport = await queryRunner.manager.findOne(Kassa, {
+            where: { id: kassa.id },
+            relations: { report: true },
+          });
+          const oneReport = kassaWithReport?.report;
+          if (oneReport) {
+            oneReport.totalSale += cashflowPriceDiff;
+            oneReport.totalPlasticSum += plasticDiff;
+            oneReport.accountantSum += plasticDiff;
+            oneReport.additionalProfitTotalSum += additionalProfitDiff;
+            await queryRunner.manager.save(oneReport);
+          }
+
+          await queryRunner.manager.save(kassa);
+        }
+
+        // Update order
+        order.price = newOrderPrice;
+        order.plasticSum = newPlasticSum;
+        order.additionalProfitSum = newAdditionalProfit;
+        if (data.comment !== undefined) order.comment = data.comment;
+        if (data.date !== undefined) order.date = data.date;
+        await queryRunner.manager.save(order);
+
+        // Update cashflow
+        cashflow.price = newCashflowPrice;
+        if (data.comment !== undefined) cashflow.comment = data.comment;
+        if (data.date !== undefined) cashflow.date = data.date as any;
+        await queryRunner.manager.save(cashflow);
+
+      } else {
+        // ==================== ODDIY CASHFLOW UPDATE ====================
+        const oldPrice = cashflow.price;
+        const newPrice = data.price !== undefined ? Math.abs(data.price) : oldPrice;
+        const priceDiff = newPrice - oldPrice;
+
+        // --- Kassa effects ---
+        if (priceDiff !== 0 && kassa) {
+          if (cashflow.type === CashFlowEnum.InCome) {
+            kassa.income += priceDiff;
+            if (cashflow.is_online) {
+              kassa.plasticSum += priceDiff;
+            }
+            if (cashflow.cashflow_type?.slug === 'Перечисление') {
+              kassa.plasticSum += priceDiff;
+              kassa.income += priceDiff;
+              const kassaWithReport = await queryRunner.manager.findOne(Kassa, {
+                where: { id: kassa.id },
+                relations: { report: true },
+              });
+              const oneReport = kassaWithReport?.report;
+              if (oneReport) {
+                oneReport.totalPlasticSum += priceDiff;
+                oneReport.accountantSum += priceDiff;
+                await queryRunner.manager.save(oneReport);
+              }
+            }
+          } else if (cashflow.type === CashFlowEnum.Consumption) {
+            kassa.in_hand -= priceDiff;
+            kassa.expense += priceDiff;
+            if (cashflow.is_online) {
+              kassa.plasticSum -= priceDiff;
+            }
+            if (cashflow.cashflow_type?.slug === 'Инкассация') {
+              kassa.cash_collection += priceDiff;
+              const kassaWithReport = await queryRunner.manager.findOne(Kassa, {
+                where: { id: kassa.id },
+                relations: { report: true },
+              });
+              const oneReport = kassaWithReport?.report;
+              if (oneReport) {
+                oneReport.totalCashCollection += priceDiff;
+                oneReport.accountantSum += priceDiff;
+                await queryRunner.manager.save(oneReport);
+              }
+            }
+          }
+          await queryRunner.manager.save(kassa);
+        }
+
+        // --- Report effects (M_MANAGER cashflows) ---
+        if (priceDiff !== 0 && cashflow.report) {
+          const report = cashflow.report;
+          const user = await queryRunner.manager.findOne(User, {
+            where: { id: cashflow.createdBy?.id },
+            relations: ['position'],
+          });
+          if (cashflow.type === CashFlowEnum.InCome) {
+            report.totalIncome += priceDiff;
+            if (user?.position?.role === UserRoleEnum.ACCOUNTANT) {
+              report.accountantSum += priceDiff;
+            } else {
+              report.managerSum += priceDiff;
+            }
+          } else if (cashflow.type === CashFlowEnum.Consumption) {
+            report.totalExpense += priceDiff;
+            if (user?.position?.role === UserRoleEnum.ACCOUNTANT) {
+              report.accountantSum -= priceDiff;
+            } else {
+              report.managerSum -= priceDiff;
+            }
+          }
+          await queryRunner.manager.save(report);
+        }
+
+        // --- Debt effects ---
+        if (priceDiff !== 0 && cashflow.debt) {
+          const isDebtFlow = ['dolg', 'Долг', 'Кент'].includes(cashflow.cashflow_type?.slug);
+          if (isDebtFlow) {
+            const debt = await this.debtService.findOne(cashflow.debt.id);
+            if (debt) {
+              if (cashflow.type === CashFlowEnum.InCome) {
+                debt.given += priceDiff;
+              } else {
+                debt.owed += priceDiff;
+              }
+              debt.totalDebt = debt.given - debt.owed;
+              await queryRunner.manager.save(debt);
+            }
+          }
+        }
+
+        // --- Child cashflows auto-update ---
+        if (cashflow.child?.length) {
+          for (const child of cashflow.child) {
+            if (priceDiff !== 0) child.price = newPrice;
+            if (data.date !== undefined) child.date = data.date as any;
+            if (data.comment !== undefined) {
+              const slug = cashflow.cashflow_type?.slug;
+              if (slug === 'Инкассация') {
+                child.comment = `${kassa?.filial?.title || ''} filialini kassasidan "Инкассация" qabul qilindi - ${data.comment || ''}`;
+              } else {
+                child.comment = `${kassa?.filial?.title || ''} filialidan kassa qabul qilindi - ${data.comment || ''}`;
+              }
+            }
+            await queryRunner.manager.save(child);
+
+            // Child report effects (only on price change)
+            if (priceDiff !== 0 && child.report) {
+              const childReport = await queryRunner.manager.findOne(Report, {
+                where: { id: child.report.id },
+              });
+              if (childReport) {
+                childReport.totalIncome += priceDiff;
+                if (cashflow.cashflow_type?.slug === 'bugalter' || cashflow.cashflow_type?.slug === 'Инкассация') {
+                  childReport.accountantSum += priceDiff;
+                }
+                if (cashflow.cashflow_type?.slug === 'manager') {
+                  childReport.managerSum += priceDiff;
+                }
+                await queryRunner.manager.save(childReport);
+              }
+            }
+          }
+        }
+
+        // Update cashflow fields
+        cashflow.price = newPrice;
+        if (data.comment !== undefined) cashflow.comment = data.comment;
+        if (data.date !== undefined) cashflow.date = data.date as any;
+        await queryRunner.manager.save(cashflow);
+      }
+
+      await queryRunner.commitTransaction();
+      return this.getOne(id);
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      throw new BadRequestException(error.message);
+    } finally {
+      await queryRunner.release();
+    }
   }
 
   async reverseCashflow(cashflowId: string): Promise<Cashflow> {

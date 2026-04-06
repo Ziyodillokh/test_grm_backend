@@ -29,6 +29,7 @@ import {
 } from '@nestjs/swagger';
 
 import { CreateCashflowDto, createDealerCashflowDto } from './dto';
+import UpdateCashflowDto from './dto/update-cashflow.dto';
 import { Route } from '../../infra/shared/decorators/route.decorator';
 import { CashflowService } from './cashflow.service';
 import { Cashflow } from './cashflow.entity';
@@ -153,6 +154,12 @@ export class CashflowController {
   @ApiOperation({ summary: 'Method: calc and set to kassa.' })
   async updateCosts(@Param('kassa_id') kassa_id: string) {
     return await this.cashflowService.updatecosts(kassa_id);
+  }
+
+  @Patch(':id/update')
+  @ApiOperation({ summary: 'Method: updates cashflow (price, comment, date, plasticSum)' })
+  async updateCashflow(@Param('id') id: string, @Body() data: UpdateCashflowDto, @Req() req) {
+    return this.cashflowService.updateCashflow(id, data, req.user.id);
   }
 
   @Patch(':id/accept')
