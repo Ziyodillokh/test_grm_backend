@@ -82,6 +82,7 @@ export class CronTaskService {
       if (today.date() === lastDay) {
         this.logger.log('📅 Last day of the month detected — running end-of-month logic...');
         await this.kassaService.handleEndOfMonth();
+        await this.reportService.changeStatusByMonth();
         this.logger.log('✅ End-of-month process completed successfully.');
       } else {
         this.logger.debug('Not the last day of the month — skipping end-of-month logic.');

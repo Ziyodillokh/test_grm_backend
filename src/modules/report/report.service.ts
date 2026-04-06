@@ -1236,25 +1236,51 @@ export class ReportService {
   }
 
   async changeStatusByMonth() {
-    const month = dayjs().month() + 1;
-    const year = dayjs().year();
+    const now = dayjs();
+    const nextMonth = now.add(1, 'month');
+    const month = nextMonth.month() + 1;
+    const year = nextMonth.year();
 
-    const prevMonth = month === 1 ? 12 : month - 1;
-    const prevYear = month === 1 ? year - 1 : year;
+    const currentMonth = now.month() + 1;
+    const currentYear = now.year();
 
-    const reports = await this.reportRepo.find({
+    const targetTypes: FilialTypeEnum[] = [FilialTypeEnum.FILIAL, FilialTypeEnum.DEALER, FilialTypeEnum.MARKET];
+
+    // 1. Joriy oy OPEN reportlarni WARNING ga o'zgartirish (oy tugayapti)
+    const currentReports = await this.reportRepo.find({
       where: {
-        month: prevMonth,
-        year: prevYear,
-      },
-    }); // need update reportStatus to
-
-    const reportsNew = await this.reportRepo.find({
-      where: {
-        month: month,
-        year: year,
+        month: currentMonth,
+        year: currentYear,
+        status: ReportProgresEnum.OPEN,
       },
     });
+
+    for (const report of currentReports) {
+      report.status = ReportProgresEnum.WARNING;
+      report.reportStatus = 1; // o'tgan oy
+      await this.reportRepo.save(report);
+    }
+
+    // 2. Yangi oy uchun reportlar yaratish yoki mavjudlarini OPEN qilish
+    for (const type of targetTypes) {
+      let report = await this.reportRepo.findOne({
+        where: { year, month, filialType: type },
+      });
+
+      if (!report) {
+        report = this.reportRepo.create({
+          year,
+          month,
+          filialType: type,
+          status: ReportProgresEnum.OPEN,
+          reportStatus: 2, // joriy oy
+        });
+        await this.reportRepo.save(report);
+      } else if (report.status === ReportProgresEnum.OPEN) {
+        report.reportStatus = 2;
+        await this.reportRepo.save(report);
+      }
+    }
   }
 
   async update(id: string, data) {
