@@ -66,6 +66,7 @@ import { ProductModule } from './modules/product/product.module';
 import { ProductHistoryModule } from './modules/product-history/product-history.module';
 import { QrBaseModule } from './modules/qr-base/qr-base.module';
 import { QrCodeModule } from './modules/qr-code/qr-code.module';
+import { QrLogoModule } from './modules/qr-logo/qr-logo.module';
 import { ReInventoryModule } from '@modules/re-inventory/re-inventory.module';
 import { ReportsModule } from './modules/report/report.module';
 import { RestoreModule } from './modules/restore/restore.module';
@@ -108,6 +109,7 @@ import { VideoMessageModule } from './modules/video-message/video-message.module
     ProductModule,
     QrBaseModule,
     QrCodeModule,
+    QrLogoModule,
 
     // ─── Catalog / Data Library ───────────────────────────────────
     CollectionModule,
