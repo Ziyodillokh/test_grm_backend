@@ -1010,6 +1010,7 @@ export class CashflowService {
     const cashflow = await this.cashflowRepository.find({
       where: {
         kassa: { id: kassaId },
+        tip: CashflowTipEnum.CASHFLOW,
       },
       order: {
         order: {
