@@ -713,6 +713,17 @@ export class CashflowService {
         if (cashflow.cashflow_type.slug === 'Перечисление') {
           kassa.plasticSum += price;
           kassa.income += price;
+
+          const kassaWithReport = await queryRunner.manager.findOne(Kassa, {
+            where: { id: kassa.id },
+            relations: { report: true },
+          });
+          const oneReport = kassaWithReport?.report;
+          if (oneReport) {
+            oneReport.totalPlasticSum += price;
+            oneReport.accountantSum += price;
+            await this.reportService.save(oneReport);
+          }
         }
         // Order cashflow: kassa totallariga qo'shilmaydi — PENDING holatda yaratiladi.
         // approveCashflow() da F_MANAGER tasdiqlagan vaqtda kassa ga qo'shiladi.
@@ -1126,6 +1137,22 @@ export class CashflowService {
       if (cashflow.type === 'Приход') {
         if (isOrder) {
           await this.orderService.returnOrder(cashflow.order.id, userId);
+        }
+
+        if (cashflow.cashflow_type.slug === 'Перечисление') {
+          kassa.plasticSum -= price;
+          kassa.income -= price;
+
+          const kassaWithReport = await queryRunner.manager.findOne(Kassa, {
+            where: { id: kassa.id },
+            relations: { report: true },
+          });
+          const oneReport = kassaWithReport?.report;
+          if (oneReport) {
+            oneReport.totalPlasticSum -= price;
+            oneReport.accountantSum -= price;
+            await this.reportService.save(oneReport);
+          }
         }
 
         if (cashflow.cashflow_type.slug === 'Долг' || (cashflow.cashflow_type.slug === 'dolg' && cashflow.debt)) {
@@ -1579,6 +1606,17 @@ export class CashflowService {
 
           if (cashflow.cashflow_type.slug === 'Перечисление') {
             kassa.plasticSum -= price;
+
+            const kassaWithReport = await queryRunner.manager.findOne(Kassa, {
+              where: { id: kassa.id },
+              relations: { report: true },
+            });
+            const oneReport = kassaWithReport?.report;
+            if (oneReport) {
+              oneReport.totalPlasticSum -= price;
+              oneReport.accountantSum -= price;
+              await this.reportService.save(oneReport);
+            }
           }
         } else if (cashflow.type === 'Расход') {
           kassa.totalSum += price;
