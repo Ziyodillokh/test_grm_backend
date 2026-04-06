@@ -13,6 +13,7 @@ import { Report } from './report.entity';
 import { Kassa } from '../kassa/kassa.entity';
 import { CancelReportDto } from './dto/update-report.dto';
 import { Cashflow } from '../cashflow/cashflow.entity';
+import { CashflowType } from '@modules/cashflow-type/cashflow-type.entity';
 import ReportProgresEnum from 'src/infra/shared/enum/report-progres.enum';
 import FilialType from '@infra/shared/enum/filial-type.enum';
 import { PackageTransferEnum, UserRoleEnum } from '@infra/shared/enum';
@@ -25,6 +26,7 @@ import { Media } from '@modules/media/media.entity';
 import { PlanYearService } from '@modules/plan-year/plan-year.service';
 import userRoleEnum from '@infra/shared/enum/user-role.enum';
 import KassaProgresEnum from '@infra/shared/enum/kassa-progres-enum';
+import CashflowTipEnum from '@infra/shared/enum/cashflow/cashflow-tip.enum';
 
 @Injectable()
 export class ReportService {
@@ -52,6 +54,8 @@ export class ReportService {
     private readonly userRepository: Repository<User>,
     @InjectRepository(Transfer)
     private readonly transferRepository: Repository<Transfer>,
+    @InjectRepository(CashflowType)
+    private readonly cashflowTypeRepository: Repository<CashflowType>,
   ) {
   }
 
@@ -346,6 +350,60 @@ export class ReportService {
 
     if (report.isAccountantConfirmed && report.isMManagerConfirmed) {
       report.status = ReportProgresEnum.ACCEPTED;
+
+      // ──── Saldo: qoldiqlarni keyingi oyga o'tkazish ────
+      const nextMonth = report.month === 12 ? 1 : report.month + 1;
+      const nextYear = report.month === 12 ? report.year + 1 : report.year;
+
+      const nextReport = await this.reportRepo.findOne({
+        where: { month: nextMonth, year: nextYear, filialType: FilialTypeEnum.FILIAL },
+      });
+
+      if (nextReport) {
+        const slugSaldo = await this.cashflowTypeRepository.findOne({
+          where: { slug: 'Balance' },
+        });
+
+        const users = await this.userRepository.find({
+          where: [
+            { position: { role: 9 }, isActive: true },
+            { position: { role: 10 }, isActive: true },
+          ],
+          relations: { position: true },
+        });
+
+        for (const u of users) {
+          const amount = u.position.role === 9 ? report.managerSum : report.accountantSum;
+
+          if (amount > 0 && slugSaldo) {
+            await this.cashflowRepository.save(
+              this.cashflowRepository.create({
+                price: amount,
+                type: CashFlowEnum.InCome,
+                tip: CashflowTipEnum.CASHFLOW,
+                comment: `${report.month}-oy saldo qoldig'i ${report.year}`,
+                cashflow_type: slugSaldo,
+                date: new Date().toISOString(),
+                report: nextReport,
+                createdBy: u,
+                is_online: false,
+                is_static: true,
+              }),
+            );
+
+            if (u.position.role === 9) {
+              nextReport.managerSum += amount;
+              nextReport.managerSaldo = amount;
+            } else {
+              nextReport.accountantSum += amount;
+              nextReport.accountantSaldo = amount;
+            }
+            nextReport.totalIncome += amount;
+          }
+        }
+
+        await this.reportRepo.save(nextReport);
+      }
     }
 
     return await this.reportRepo.save(report);

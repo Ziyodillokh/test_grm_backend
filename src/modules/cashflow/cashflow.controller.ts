@@ -108,8 +108,11 @@ export class CashflowController {
     description: 'The cashflow total was returned successfully',
   })
   @HttpCode(HttpStatus.OK)
-  async getTotalForMManager(@Param('id') reportId: string): Promise<{ income: number; expense: number }> {
-    return this.cashflowService.getTotalForMManager(reportId);
+  async getTotalForMManager(
+    @Param('id') reportId: string,
+    @Query('userId') userId?: string,
+  ): Promise<{ income: number; expense: number }> {
+    return this.cashflowService.getTotalForMManager(reportId, userId);
   }
 
   @Get('/:id')

@@ -1046,10 +1046,11 @@ export class CashflowService {
     };
   }
 
-  async getTotalForMManager(reportId: string) {
+  async getTotalForMManager(reportId: string, userId?: string) {
     const cashflow = await this.cashflowRepository.find({
       where: {
         report: { id: reportId },
+        ...(userId && { createdBy: { id: userId } }),
       },
       order: {
         order: {

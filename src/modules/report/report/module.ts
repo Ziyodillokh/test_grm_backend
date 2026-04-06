@@ -16,10 +16,11 @@ import { RedisProvider } from '../../../redis/redis.provider';
 import { Product } from '@modules/product/product.entity';
 import { Transfer } from '@modules/transfer/transfer.entity';
 import { PlanYearModule } from '@modules/plan-year/plan-year.module';
+import { CashflowType } from '@modules/cashflow-type/cashflow-type.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Report, Kassa, Filial, Cashflow, User, PackageTransfer, Order, Product, Transfer]),
+    TypeOrmModule.forFeature([Report, Kassa, Filial, Cashflow, User, PackageTransfer, Order, Product, Transfer, CashflowType]),
     ActionModule,
     PlanYearModule,
     forwardRef(() => KassaModule),
