@@ -95,7 +95,7 @@ export class RestoreService {
           lastName: ILike(`%${seller?.split(' ')?.[1]}%`),
         },
       });
-      const Cashier = await this.userRepo.findOne({
+      const CreatedByUser = await this.userRepo.findOne({
         where: {
           firstName: ILike(`%${cashier?.split(' ')?.[0]}%`),
           lastName: ILike(`%${cashier?.split(' ')?.[1]}%`),
@@ -122,7 +122,7 @@ export class RestoreService {
 
       console.log('Filial.ids', Filial?.id);
       console.log('Filial.id', Seller?.id);
-      console.log('Cashier.id', Cashier?.id);
+      console.log('CreatedByUser.id', CreatedByUser?.id);
       console.log('Kassa.id', Kassa?.id);
       console.log('Cashflow_type?.id', Cashflow_type?.id);
       console.log('Product.id', Product?.id);
@@ -140,7 +140,7 @@ export class RestoreService {
           kv: (barcode?.isMetric ? (count / 100) * barcode?.size?.x : barcode?.size?.kv * count) || 0,
           date,
           comment: comment,
-          casher: Cashier?.id,
+          createdBy: CreatedByUser?.id,
           seller: Seller?.id,
           additionalProfitSum: profit || 0,
           discountPercentage: 0,
@@ -152,7 +152,7 @@ export class RestoreService {
         let newOrder = this.orderRepo.create(order as unknown as Order);
         Order = await this.orderRepo.save(newOrder);
       }
-      console.log('Cashier.id', Order?.id);
+      console.log('CreatedByUser.id', Order?.id);
 
       const cashflow = {
         tip: Order?.id ? CashflowTipEnum.ORDER : CashflowTipEnum.CASHFLOW,
@@ -161,7 +161,7 @@ export class RestoreService {
         price: Number(price) + Number(plastic),
         comment: comment,
         kassa: Kassa?.id || null,
-        casher: Cashier?.id || null,
+        createdBy: CreatedByUser?.id || null,
         type,
         filial: Filial?.id || null,
         date,

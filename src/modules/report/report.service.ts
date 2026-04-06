@@ -712,7 +712,7 @@ export class ReportService {
             type: CashFlowEnum.InCome,
             is_static: false,
           },
-          relations: ['cashflow_type', 'casher', 'casher.position'],
+          relations: ['cashflow_type', 'createdBy', 'createdBy.position'],
           order: { date: 'ASC' },
         });
 
@@ -727,7 +727,7 @@ export class ReportService {
         let incomeManagerTotal = 0;
 
         for (const cashflow of incomeFlows) {
-          const user = cashflow.casher;
+          const user = cashflow.createdBy;
           if (!user || !user.position) {
             console.log(`    SKIP: Cashflow ID ${cashflow.id} - user yoki position yo'q`);
             continue;
@@ -771,7 +771,7 @@ export class ReportService {
             report: { id: report.id },
             type: CashFlowEnum.Consumption,
           },
-          relations: ['cashflow_type', 'casher', 'casher.position'],
+          relations: ['cashflow_type', 'createdBy', 'createdBy.position'],
           order: { date: 'ASC' },
         });
         console.log(`  ${expenseCashflows.length} ta expense cashflow topildi`);
@@ -787,7 +787,7 @@ export class ReportService {
         let expenseManagerTotal = 0;
 
         for (const cashflow of expenseCashflows) {
-          const user = cashflow.casher;
+          const user = cashflow.createdBy;
           if (!user || !user.position) {
             console.log(`    SKIP: Cashflow ID ${cashflow.id} - user yoki position yo'q`);
             continue;
@@ -1440,14 +1440,14 @@ export class ReportService {
       SUM(CASE WHEN cash.type = 'Приход' THEN cash.price ELSE 0 END)::NUMERIC(20, 2) AS total_income,
       SUM(CASE WHEN cash.type = 'Расход' THEN cash.price ELSE 0 END)::NUMERIC(20, 2) AS total_expense
     `)
-      .where('cash.casherId = :accountant', { accountant: accountant.id });
+      .where('cash.createdById = :accountant', { accountant: accountant.id });
 
     const manager_qb = this.cashflowRepository.createQueryBuilder('cash')
       .select(`
       SUM(CASE WHEN cash.type = 'Приход' THEN cash.price ELSE 0 END)::NUMERIC(20, 2) AS total_income,
       SUM(CASE WHEN cash.type = 'Расход' THEN cash.price ELSE 0 END)::NUMERIC(20, 2) AS total_expense
     `)
-      .where('cash.casherId = :manager', { manager: manager.id });
+      .where('cash.createdById = :manager', { manager: manager.id });
 
     const boss_qb = this.cashflowRepository.createQueryBuilder('cash')
       .leftJoin('cash.cashflow_type', 'cash_type')
@@ -1787,18 +1787,18 @@ export class ReportService {
       ])
       .leftJoin('cash.cashflow_type', 'cashflow_type')
       .addSelect([
-        'casher.id',
-        'casher.firstName',
-        'casher.lastName',
+        'createdBy.id',
+        'createdBy.firstName',
+        'createdBy.lastName',
       ])
-      .leftJoin('cash.casher', 'casher')
+      .leftJoin('cash.createdBy', 'createdBy')
       .addSelect([
         'avatar.id',
         'avatar.path',
         'avatar.mimetype',
         'avatar.name',
       ])
-      .leftJoin('casher.avatar', 'avatar')
+      .leftJoin('createdBy.avatar', 'avatar')
       .where('cash.type = :type', { type: 'Расход' })
       .andWhere('cash.tip != :tip', { tip: 'order' })
       .offset(offset)
@@ -1893,20 +1893,20 @@ export class ReportService {
       ])
       .leftJoin('cash.cashflow_type', 'cashflow_type')
       .addSelect([
-        'casher.id',
-        'casher.firstName',
-        'casher.lastName',
+        'createdBy.id',
+        'createdBy.firstName',
+        'createdBy.lastName',
       ])
-      .leftJoin('cash.casher', 'casher')
+      .leftJoin('cash.createdBy', 'createdBy')
       .addSelect([
         'avatar.id',
         'avatar.path',
         'avatar.mimetype',
         'avatar.name',
       ])
-      .leftJoin('casher.avatar', 'avatar')
+      .leftJoin('createdBy.avatar', 'avatar')
       .leftJoin('cash.filial', 'filial')
-      .where('casher.id = :user_id', { user_id })
+      .where('createdBy.id = :user_id', { user_id })
       .offset(offset)
       .limit(limit)
       .orderBy('cash.date', 'DESC');
@@ -1918,7 +1918,7 @@ export class ReportService {
     `)
       .leftJoin('cash.cashflow_type', 'cashflow_type')
       .leftJoin('cash.filial', 'filial')
-      .where('cash.casherId = :user_id', { user_id });
+      .where('cash.createdById = :user_id', { user_id });
 
     if (type) {
       cashflow_qb.andWhere('cash.type = :type', { type });
@@ -2009,10 +2009,10 @@ export class ReportService {
       .leftJoin('cash.cashflow_type', 'cashflow_type')
       .addSelect(['cashflow_type.id', 'cashflow_type.title', 'cashflow_type.slug'])
       .leftJoin('cash.debt', 'debt')
-      .addSelect(['casher.id', 'casher.firstName', 'casher.lastName'])
-      .leftJoin('cash.casher', 'casher')
+      .addSelect(['createdBy.id', 'createdBy.firstName', 'createdBy.lastName'])
+      .leftJoin('cash.createdBy', 'createdBy')
       .addSelect(['avatar.id', 'avatar.path', 'avatar.mimetype', 'avatar.name'])
-      .leftJoin('casher.avatar', 'avatar')
+      .leftJoin('createdBy.avatar', 'avatar')
       .addSelect(['debt.id', 'debt.fullName'])
       .where('cashflow_type.slug = :slug', { slug: 'dolg' })
       .orderBy('cash.date', 'DESC')
@@ -2142,9 +2142,9 @@ export class ReportService {
         'seller.id',
         'seller.firstName',
         'seller.lastName',
-        'casher.id',
-        'casher.firstName',
-        'casher.lastName',
+        'createdBy.id',
+        'createdBy.firstName',
+        'createdBy.lastName',
         's_avatar.id',
         's_avatar.path',
         's_avatar.mimetype',
@@ -2169,8 +2169,8 @@ export class ReportService {
       ])
       .leftJoin('o.seller', 'seller')
       .leftJoin('seller.avatar', 's_avatar')
-      .leftJoin('o.casher', 'casher')
-      .leftJoin('casher.avatar', 'c_avatar')
+      .leftJoin('o.createdBy', 'createdBy')
+      .leftJoin('createdBy.avatar', 'c_avatar')
       .leftJoin('o.product', 'product')
       .leftJoin('o.bar_code', 'bar_code')
       .leftJoin('bar_code.collection', 'col')
@@ -3105,9 +3105,9 @@ export class ReportService {
         'seller.id',
         'seller.firstName',
         'seller.lastName',
-        'casher.id',
-        'casher.firstName',
-        'casher.lastName',
+        'createdBy.id',
+        'createdBy.firstName',
+        'createdBy.lastName',
         's_avatar.id',
         's_avatar.path',
         's_avatar.mimetype',
@@ -3132,8 +3132,8 @@ export class ReportService {
       ])
       .leftJoin('o.seller', 'seller')
       .leftJoin('seller.avatar', 's_avatar')
-      .leftJoin('o.casher', 'casher')
-      .leftJoin('casher.avatar', 'c_avatar')
+      .leftJoin('o.createdBy', 'createdBy')
+      .leftJoin('createdBy.avatar', 'c_avatar')
       .leftJoin('o.product', 'product')
       .leftJoin('o.bar_code', 'bar_code')
       .leftJoin('bar_code.collection', 'col')
@@ -3783,7 +3783,7 @@ export class ReportService {
       SUM(CASE WHEN cash.type = 'Расход' THEN cash.price ELSE 0 END)::NUMERIC(20, 2) AS total_expense
     `)
       .leftJoin('cash.cashflow_type', 'c_t')
-      .where('cash.casherId = :accountant', { accountant: accountant.id })
+      .where('cash.createdById = :accountant', { accountant: accountant.id })
       .andWhere('cash.reportId = :id', { id: report.id })
       .andWhere('c_t.slug != :type', { type: 'онлайн' });
 
@@ -3793,7 +3793,7 @@ export class ReportService {
       SUM(CASE WHEN cash.type = 'Расход' THEN cash.price ELSE 0 END)::NUMERIC(20, 2) AS total_expense
     `)
       .leftJoin('cash.cashflow_type', 'c_t')
-      .where('cash.casherId = :manager', { manager: manager.id })
+      .where('cash.createdById = :manager', { manager: manager.id })
       .andWhere('cash.reportId = :id', { id: report.id });
 
     const data = {

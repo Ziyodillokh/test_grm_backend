@@ -56,7 +56,7 @@ class UpdateCashflowDto {
   })
   @IsOptional()
   @IsString()
-  readonly casher: string;
+  readonly createdBy: string;
 }
 
 export default UpdateCashflowDto;

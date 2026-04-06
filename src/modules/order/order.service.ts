@@ -111,7 +111,7 @@ export class OrderService {
       .findOne({
         where: { id },
         relations: {
-          casher: true,
+          createdBy: true,
           seller: true,
           product: {
             bar_code: {
@@ -199,7 +199,7 @@ export class OrderService {
   async getByKassaWithCach(id: string) {
     const data = await this.orderRepository
       .find({
-        relations: { kassa: true, casher: true, seller: true, product: true },
+        relations: { kassa: true, createdBy: true, seller: true, product: true },
         where: { kassa: { id } },
         order: { date: 'desc' },
       })
@@ -509,8 +509,7 @@ export class OrderService {
           kassa: { id: kassa.id },
           type: CashFlowEnum.InCome,
           price: (savedOrder as any).price + ((savedOrder as any).plasticSum || 0),
-          seller: { id: user.id },
-          casher: { id: user.id },
+          createdBy: { id: user.id },
           status: CashflowStatusEnum.PENDING,
         });
         await cashflowRepository.save(cashflow);
@@ -522,7 +521,7 @@ export class OrderService {
     });
   }
 
-  async checkOrder(id: string, casher: string, kassa_id?: string) {
+  async checkOrder(id: string, createdBy: string, kassa_id?: string) {
     const order = await this.orderRepository.findOne({
       where: { id },
       relations: {
@@ -537,7 +536,7 @@ export class OrderService {
           filial: true,
         },
         seller: true,
-        casher: true,
+        createdBy: true,
         bar_code: true,
         client: true,
       },
@@ -570,7 +569,7 @@ export class OrderService {
     const response = await this.orderRepository
       .createQueryBuilder()
       .update()
-      .set({ status: OrderEnum.Accept, casher, date: order.date, kassa: kassa.id } as unknown as Order)
+      .set({ status: OrderEnum.Accept, createdBy, date: order.date, kassa: kassa.id } as unknown as Order)
       .where('id = :id', { id })
       .execute();
 
@@ -579,7 +578,7 @@ export class OrderService {
       if (kassa_id) {
         await this.cashFlowService.updateCashflowKassa(pendingCashflow.id, kassa.id);
       }
-      await this.cashFlowService.approveCashflow(pendingCashflow.id, casher);
+      await this.cashFlowService.approveCashflow(pendingCashflow.id, createdBy);
     } else {
       // Fallback: create and approve immediately (for backward compatibility)
       const cashflow_type = await this.cashFlowTypeService.getOneBySlug('order');
@@ -589,14 +588,14 @@ export class OrderService {
           order: id,
           cashflow_type: cashflow_type.id,
           kassa: kassa.id,
-          casher: casher,
+          createdBy: createdBy,
           type: CashFlowEnum.InCome,
           title: '',
           comment: '',
           price: order.price + order.plasticSum,
           report: null,
         },
-        casher,
+        createdBy,
       );
     }
 
@@ -605,7 +604,7 @@ export class OrderService {
         ...order,
         status: OrderEnum.Accept,
       },
-      casher,
+      createdBy,
       order.kassa.filial.id,
       'accept_order',
     );
@@ -615,7 +614,7 @@ export class OrderService {
     return response;
   }
 
-  async rejectOrder(id: string, casher: User) {
+  async rejectOrder(id: string, createdBy: User) {
     const data = await this.orderRepository.findOne({
       where: { id },
       relations: { product: { bar_code: true }, kassa: { filial: true }, cashflow: true, client: true },
@@ -666,7 +665,7 @@ export class OrderService {
         ...data,
         status: OrderEnum.Reject,
       },
-      casher.id,
+      createdBy.id,
       data.kassa.filial.id,
       'reject_order',
     );
@@ -775,7 +774,7 @@ export class OrderService {
       {
         price,
         comment: comment || 'Возврат товара',
-        casher: '',
+        createdBy: '',
         kassa,
         title,
         type,

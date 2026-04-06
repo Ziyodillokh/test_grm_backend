@@ -58,9 +58,8 @@ export class KassaCashflowController {
     const qb = this.cashflowRepository
       .createQueryBuilder('cashflow')
       .leftJoinAndSelect('cashflow.cashflow_type', 'cashflow_type')
-      .leftJoinAndSelect('cashflow.casher', 'casher')
+      .leftJoinAndSelect('cashflow.createdBy', 'createdBy')
       .leftJoinAndSelect('cashflow.order', 'order')
-      .leftJoinAndSelect('cashflow.seller', 'seller')
       .where('cashflow.kassaId = :kassaId', { kassaId });
 
     // Filter by status
@@ -159,7 +158,7 @@ export class KassaCashflowController {
     // Return updated cashflow with relations
     return this.cashflowRepository.findOne({
       where: { id },
-      relations: ['kassa', 'order', 'cashflow_type', 'casher', 'seller'],
+      relations: ['kassa', 'order', 'cashflow_type', 'createdBy'],
     });
   }
 

@@ -81,7 +81,7 @@ export class DebtService {
           debtId: debt.id,
           tip: CashflowTipEnum.DEBT,
           title: 'debt',
-          casher: userId,
+          createdBy: userId,
           order: null,
           report: null,
         },

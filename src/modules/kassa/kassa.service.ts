@@ -191,7 +191,7 @@ export class KassaService {
       relations: {
         orders: {
           seller: true,
-          casher: true,
+          createdBy: true,
           product: {
             bar_code: {
               model: true,
@@ -202,7 +202,7 @@ export class KassaService {
           },
         },
         cashflow: {
-          casher: true,
+          createdBy: true,
         },
         filial: true,
       },
@@ -880,7 +880,7 @@ export class KassaService {
             cashflow_type: slugTerminal,
             date: new Date().toISOString(),
             report: report,
-            casher: accountant,
+            createdBy: accountant,
             is_online: false,
             is_static: true,
           }),
@@ -934,7 +934,7 @@ export class KassaService {
             cashflow_type: slugSaldo,
             date: new Date().toISOString(),
             kassa: nextKassa,
-            casher: kassa?.filial?.manager,
+            createdBy: kassa?.filial?.manager,
             is_online: false,
             is_static: true,
           }),

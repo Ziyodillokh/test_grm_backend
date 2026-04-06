@@ -164,7 +164,7 @@ export class PackageTransferService {
           cashflow.comment = `${packageTransfer.dealer.title} qarz oldi: ${packageTransfer.total_profit_sum}, ${packageTransfer.total_kv} m²`;
           cashflow.date = new Date();
           cashflow.is_static = true;
-          cashflow.casher = packageTransfer.d_manager;
+          cashflow.createdBy = packageTransfer.d_manager;
 
           const year = dayjs().year();
           const month = dayjs().month() + 1;

@@ -51,7 +51,7 @@ class CreateCashflowDto {
   })
   @IsOptional()
   @IsUUID('4')
-  readonly casher: string;
+  readonly createdBy: string;
 
   @ApiProperty({
     description: `debt id`,

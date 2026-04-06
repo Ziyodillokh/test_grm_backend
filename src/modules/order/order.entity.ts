@@ -103,9 +103,9 @@ export class Order extends BaseEntity {
   @JoinColumn()
   seller: User;
 
-  @ManyToOne(() => User, (user) => user.casherOrders)
+  @ManyToOne(() => User, (user) => user.createdByOrders)
   @JoinColumn()
-  casher: User;
+  createdBy: User;
 
   @ManyToOne(() => Kassa, (kassa) => kassa.orders, {
     onDelete: 'CASCADE',

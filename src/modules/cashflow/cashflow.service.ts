@@ -91,10 +91,8 @@ export class CashflowService {
      */
     const baseQb = this.cashflowRepository
       .createQueryBuilder('cashflow')
-      .leftJoinAndSelect('cashflow.casher', 'casher')
-      .leftJoinAndSelect('casher.avatar', 'avatar')
-      .leftJoinAndSelect('cashflow.seller', 'c_seller')
-      .leftJoinAndSelect('c_seller.avatar', 'seller_avatar')
+      .leftJoinAndSelect('cashflow.createdBy', 'createdBy')
+      .leftJoinAndSelect('createdBy.avatar', 'avatar')
       .leftJoinAndSelect('cashflow.debt', 'debt')
       .leftJoinAndSelect('cashflow.cashflow_type', 'cashflow_type')
       .leftJoinAndSelect('cashflow.filial', 'filial')
@@ -172,9 +170,9 @@ export class CashflowService {
         kassaId: filter.kassaId,
       });
 
-    if (filter.casherId)
-      baseQb.andWhere('cashflow.casherId = :casherId', {
-        casherId: filter.casherId,
+    if (filter.createdById)
+      baseQb.andWhere('cashflow.createdById = :createdById', {
+        createdById: filter.createdById,
       });
 
     if (filter.orderId)
@@ -309,7 +307,7 @@ export class CashflowService {
     return await this.cashflowRepository
       .findOne({
         where: { id },
-        relations: { casher: true },
+        relations: { createdBy: true },
       })
       .catch(() => {
         throw new NotFoundException('Cashflow not found');
@@ -614,7 +612,7 @@ export class CashflowService {
 
       const cashflowData = {
         ...value,
-        casher: userId,
+        createdBy: userId,
         price,
         debt: value.debtId,
         ...(kassa?.filial?.id && { filial: kassa.filial.id }),
@@ -806,7 +804,7 @@ export class CashflowService {
           }
 
           const reportCashflowData = {
-            casher: targetUser.id,
+            createdBy: targetUser.id,
             price,
             debt: value.debtId,
             filial: kassa.filial.id,
@@ -1186,11 +1184,12 @@ export class CashflowService {
 
       // if (isOrder && order) {
       //   order.status = OrderEnum.Progress;
-      //   order.casher = null;
+      //   order.createdBy = null;
       //   await queryRunner.manager.save(order);
       // }
 
       cashflow.is_cancelled = true;
+      cashflow.createdBy = { id: userId } as any;
       cashflow.status = CashflowStatusEnum.CANCELLED;
       const otherCashflow = cashflow.child.map(el => ({ ...el, is_cancelled: true, status: CashflowStatusEnum.CANCELLED }));
       await queryRunner.manager.save(cashflow);
@@ -1367,8 +1366,8 @@ export class CashflowService {
 
     const queryBuilder = this.cashflowRepository
       .createQueryBuilder('cashflow')
-      .leftJoinAndSelect('cashflow.casher', 'casher')
-      .leftJoinAndSelect('casher.avatar', 'avatar')
+      .leftJoinAndSelect('cashflow.createdBy', 'createdBy')
+      .leftJoinAndSelect('createdBy.avatar', 'avatar')
       .leftJoin('cashflow.report', 'report')
       .where('cashflow.reportId IS NOT NULL')
       .andWhere('report.month = :month AND report.year = :year', { month, year });
@@ -1548,7 +1547,7 @@ export class CashflowService {
       // Kassa logikasini teskari qilish (was KassaReport before)
       if (kassa) {
         const user = await this.userRepo.findOne({
-          where: { id: cashflow.casher?.id },
+          where: { id: cashflow.createdBy?.id },
           relations: ['position'],
         });
 
@@ -1611,7 +1610,7 @@ export class CashflowService {
       // Report logikasini teskari qilish
       if (report) {
         const user = await this.userRepo.findOne({
-          where: { id: cashflow.casher?.id },
+          where: { id: cashflow.createdBy?.id },
           relations: ['position'],
         });
 
@@ -2231,12 +2230,12 @@ WHERE k.id = $1;
       ? `${filial.title} dealer "перечисления" qildi.`
       : `${filial.title} dealer naqd kassa.`;
 
-    const casher = await this.userRepo.findOne({
+    const createdBy = await this.userRepo.findOne({
       where: { position: { role: userRole } },
       relations: { avatar: true, position: true },
     });
 
-    if (!casher || !dManager) {
+    if (!createdBy || !dManager) {
       throw new BadRequestException('Required users not found');
     }
 
@@ -2255,7 +2254,7 @@ WHERE k.id = $1;
       comment,
       cashflow_type: dealerType,
       kassa: kassaEntity,
-      casher: dManager,
+      createdBy: dManager,
       is_online,
       filial: filial.id,
     } as unknown as Cashflow);
@@ -2268,7 +2267,7 @@ WHERE k.id = $1;
       comment: cashflowComment,
       cashflow_type: is_online ? transferType : dealerType,
       report: filialReport,
-      casher,
+      createdBy,
       is_online,
       parent: kassaCashflowSaved,
     } as unknown as Cashflow);
@@ -2394,10 +2393,8 @@ WHERE k.id = $1;
       title: value.title || '',
       kassa: { id: value.kassa },
       order: value.order ? { id: value.order } : null,
-      casher: { id: userId },
       cashflow_type: cashflow_type ? { id: cashflow_type } : null,
       status: CashflowStatusEnum.PENDING,
-      seller: value.seller ? { id: value.seller } : null,
     });
     return await this.cashflowRepository.save(cashflow);
   }
@@ -2425,7 +2422,7 @@ WHERE k.id = $1;
     await this.cashflowRepository.update({ id: cashflowId }, { kassa: { id: kassaId } });
   }
 
-  async approveCashflow(cashflowId: string, casherId?: string): Promise<Cashflow> {
+  async approveCashflow(cashflowId: string, createdById?: string): Promise<Cashflow> {
     const cashflow = await this.cashflowRepository.findOne({
       where: { id: cashflowId },
       relations: {
@@ -2451,8 +2448,8 @@ WHERE k.id = $1;
     }
 
     cashflow.status = CashflowStatusEnum.APPROVED;
-    if (casherId) {
-      cashflow.casher = { id: casherId } as any;
+    if (createdById) {
+      cashflow.createdBy = { id: createdById } as any;
     }
     cashflow.title = cashflow?.cashflow_type?.title || '';
 
@@ -2573,7 +2570,7 @@ WHERE k.id = $1;
         title: value.title || '',
         kassa: { id: value.kassa },
         order: { id: value.order },
-        casher: { id: userId },
+        createdBy: { id: userId },
         cashflow_type: value.cashflow_type ? { id: value.cashflow_type } : null,
         status: CashflowStatusEnum.CANCELLED,
       } as any);

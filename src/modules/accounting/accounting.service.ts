@@ -105,7 +105,7 @@ export class AccountingService {
     const order = this.entityManager
       .getRepository('order')
       .createQueryBuilder('order')
-      .leftJoinAndSelect('order.casher', 'casher')
+      .leftJoinAndSelect('order.createdBy', 'createdBy')
       .leftJoinAndSelect('order.seller', 'seller')
       .leftJoinAndSelect('order.kassa', 'kassa')
       .leftJoinAndSelect('order.product', 'product')
@@ -122,7 +122,7 @@ export class AccountingService {
     const cashflow = this.entityManager
       .getRepository('cashflow')
       .createQueryBuilder('cashflow')
-      .leftJoinAndSelect('cashflow.casher', 'casher')
+      .leftJoinAndSelect('cashflow.createdBy', 'createdBy')
       .leftJoinAndSelect('cashflow.kassa', 'kassa')
       .leftJoin('kassa.filial', 'filial');
 

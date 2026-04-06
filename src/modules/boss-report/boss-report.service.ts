@@ -407,8 +407,8 @@ export class BossReportService {
     const bosRasxodQuery = this.cashflowRepository
       .createQueryBuilder('cashflow')
       .leftJoinAndSelect('cashflow.cashflow_type', 'cashflow_type')
-      .leftJoinAndSelect('cashflow.casher', 'casher')
-      .leftJoinAndSelect('casher.avatar', 'avatar')
+      .leftJoinAndSelect('cashflow.createdBy', 'createdBy')
+      .leftJoinAndSelect('createdBy.avatar', 'avatar')
       .where('cashflow.date BETWEEN :start AND :end', { start: startDate, end: endDate })
       .andWhere('cashflow_type.title = :title', { title: 'Босс' })
       .andWhere('cashflow.type = :type', { type: CashFlowEnum.Consumption })
@@ -418,8 +418,8 @@ export class BossReportService {
     const biznesExpensesQuery = this.cashflowRepository
       .createQueryBuilder('cashflow')
       .leftJoinAndSelect('cashflow.cashflow_type', 'cashflow_type')
-      .leftJoinAndSelect('cashflow.casher', 'casher')
-      .leftJoinAndSelect('casher.avatar', 'avatar')
+      .leftJoinAndSelect('cashflow.createdBy', 'createdBy')
+      .leftJoinAndSelect('createdBy.avatar', 'avatar')
       .where('cashflow.date BETWEEN :start AND :end', { start: startDate, end: endDate })
       .andWhere('cashflow_type.title IN (:...titles)', {
         titles: ['Магазин', 'Аренда', 'Корпоротив', 'Логистика', 'Банк%'],
@@ -495,8 +495,8 @@ export class BossReportService {
         comment: item.comment,
         title: item.cashflow_type?.title,
         categoryType: item.cashflow_type?.title === 'Босс' ? 'boss' : 'biznes',
-        casher: item.casher || null,
-        avatar: item.casher?.avatar || null,
+        createdBy: item.createdBy || null,
+        avatar: item.createdBy?.avatar || null,
       })),
 
       // Pagination

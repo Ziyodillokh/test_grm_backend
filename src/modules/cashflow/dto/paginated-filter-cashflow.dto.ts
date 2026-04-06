@@ -40,7 +40,7 @@ export class PaginatedFilterCashflowDto {
   @ApiPropertyOptional()
   @IsUUID()
   @IsOptional()
-  casherId?: string;
+  createdById?: string;
 
   @ApiPropertyOptional()
   @IsUUID()

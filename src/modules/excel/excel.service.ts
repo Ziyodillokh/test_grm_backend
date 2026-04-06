@@ -871,7 +871,7 @@ export class ExcelService {
         { header: 'Country', key: 'country', width: 15 },
         { header: 'Comment', key: 'comment', width: 35 },
         { header: 'Seller', key: 'seller', width: 20 },
-        { header: 'Casher', key: 'casher', width: 20 },
+        { header: 'CreatedBy', key: 'createdBy', width: 20 },
         { header: 'Filial', key: 'filial', width: 14 },
         { header: 'ID', key: 'id', width: 0 }, // hidden
       ];
@@ -978,16 +978,15 @@ export class ExcelService {
             CONCAT(c_seller.firstName, ' ', c_seller.lastName)
           END AS seller
         `,
-          'CONCAT(casher.firstName, \' \', casher.lastName) AS casher',
+          'CONCAT(createdBy.firstName, \' \', createdBy.lastName) AS createdBy',
           'filial.title AS filial',
         ])
-        .leftJoin('cashflow.casher', 'casher')
+        .leftJoin('cashflow.createdBy', 'createdBy')
         .leftJoin('cashflow.cashflow_type', 'cashflow_type')
         .leftJoin('cashflow.filial', 'filial')
         .leftJoin('cashflow.order', 'order')
         .leftJoin('order.bar_code', 'bar_code')
         .leftJoin('order.seller', 'seller')
-        .leftJoin('cashflow.seller', 'c_seller')
         .leftJoin('bar_code.color', 'color')
         .leftJoin('bar_code.collection', 'collection')
         .leftJoin('bar_code.country', 'country')
@@ -1067,7 +1066,7 @@ export class ExcelService {
   private async getKassaReportCashFlows(kassaReportId: string) {
     return await this.cashflowRepository
       .createQueryBuilder('cashflow')
-      .leftJoinAndSelect('cashflow.casher', 'casher')
+      .leftJoinAndSelect('cashflow.createdBy', 'createdBy')
       .leftJoinAndSelect('cashflow.cashflow_type', 'cashflow_type')
       .leftJoinAndSelect('cashflow.filial', 'filial')
       .where('cashflow.kassaReport.id = :kassaReportId', { kassaReportId })
@@ -1091,7 +1090,7 @@ export class ExcelService {
 
     return await this.cashflowRepository
       .createQueryBuilder('cashflow')
-      .leftJoinAndSelect('cashflow.casher', 'casher')
+      .leftJoinAndSelect('cashflow.createdBy', 'createdBy')
       .leftJoinAndSelect('cashflow.cashflow_type', 'cashflow_type')
       .leftJoinAndSelect('cashflow.filial', 'filial')
       .leftJoinAndSelect('cashflow.order', 'order')

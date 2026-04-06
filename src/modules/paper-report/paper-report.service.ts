@@ -308,8 +308,8 @@ export class PaperReportService {
     const postavshikPlasticQuery = this.cashflowRepository
       .createQueryBuilder('cashflow')
       .leftJoin('cashflow.cashflow_type', 'cashflow_type')
-      .leftJoin('cashflow.casher', 'casher')
-      .leftJoin('casher.position', 'position')
+      .leftJoin('cashflow.createdBy', 'createdBy')
+      .leftJoin('createdBy.position', 'position')
       .where('cashflow.date BETWEEN :start AND :end', { start: startDate, end: endDate })
       .andWhere('cashflow_type.title = :title', { title: 'Поставщики' })
       .andWhere('position.role = :role', { role: UserRoleEnum.ACCOUNTANT });
@@ -322,8 +322,8 @@ export class PaperReportService {
     const postavshikNaqdQuery = this.cashflowRepository
       .createQueryBuilder('cashflow')
       .leftJoin('cashflow.cashflow_type', 'cashflow_type')
-      .leftJoin('cashflow.casher', 'casher')
-      .leftJoin('casher.position', 'position')
+      .leftJoin('cashflow.createdBy', 'createdBy')
+      .leftJoin('createdBy.position', 'position')
       .where('cashflow.date BETWEEN :start AND :end', { start: startDate, end: endDate })
       .andWhere('cashflow_type.title = :title', { title: 'Поставщики' })
       .andWhere('position.role = :role', { role: UserRoleEnum.M_MANAGER });
@@ -434,7 +434,7 @@ export class PaperReportService {
     const qarzdanKelganQuery = this.cashflowRepository
       .createQueryBuilder('cashflow')
       .leftJoin('cashflow.cashflow_type', 'cashflow_type')
-      .leftJoin('cashflow.casher', 'casher')
+      .leftJoin('cashflow.createdBy', 'createdBy')
       .leftJoin('cashflow.kassa', 'kassa')
       .where('cashflow.date BETWEEN :start AND :end', { start: startDate, end: endDate })
       .andWhere('cashflow.type = :type', { type: CashFlowEnum.InCome })
@@ -864,7 +864,7 @@ export class PaperReportService {
     SELECT 
       o.id,
       o."sellerId",
-      o."casherId",
+      o."createdById",
       CASE 
         WHEN o."plasticSum" IS NOT NULL
         THEN GREATEST(o."price" - o."plasticSum", 0) 
@@ -904,7 +904,7 @@ export class PaperReportService {
 
       // User ma'lumotlarini olish
       const userIds = [
-        ...new Set([...orders.map((o) => o.sellerId).filter(Boolean), ...orders.map((o) => o.casherId).filter(Boolean)]),
+        ...new Set([...orders.map((o) => o.sellerId).filter(Boolean), ...orders.map((o) => o.createdById).filter(Boolean)]),
       ];
       let usersMap = new Map();
       if (userIds.length > 0) {
@@ -936,7 +936,7 @@ export class PaperReportService {
         Zavod: order.factory_title || '',
         Filial: order.filial_title || '',
         Sotuvchi: usersMap.get(order.sellerId) || '',
-        Kassir: usersMap.get(order.casherId) || '',
+        Kassir: usersMap.get(order.createdById) || '',
         Sana: order.date ? new Date(order.date).toLocaleDateString('uz-UZ') : '',
         Izoh: order.comment || '',
       }));
@@ -970,7 +970,7 @@ export class PaperReportService {
     FROM "order" o
     INNER JOIN kassa k ON o."kassaId" = k.id
     INNER JOIN filial f ON k."filialId" = f.id AND f.type = $3
-    LEFT JOIN "users" u ON o."casherId" = u.id
+    LEFT JOIN "users" u ON o."createdById" = u.id
     WHERE o.date BETWEEN $1 AND $2
       AND o.status = $4
       AND o."plasticSum" > 0
@@ -990,7 +990,7 @@ export class PaperReportService {
     LEFT JOIN cashflow_type ct ON c."cashflowTypeId" = ct.id
     LEFT JOIN kassa k ON c."kassaId" = k.id
     LEFT JOIN filial f ON k."filialId" = f.id
-    LEFT JOIN "users" u ON c."casherId" = u.id
+    LEFT JOIN "users" u ON c."createdById" = u.id
     WHERE c.date BETWEEN $1 AND $2
       AND c.type = $3
       AND ct.title = 'Перечисление'
@@ -1050,7 +1050,7 @@ export class PaperReportService {
     LEFT JOIN cashflow_type ct ON c."cashflowTypeId" = ct.id
     LEFT JOIN kassa k ON c."kassaId" = k.id
     LEFT JOIN filial f ON k."filialId" = f.id
-    LEFT JOIN "users" u ON c."casherId" = u.id
+    LEFT JOIN "users" u ON c."createdById" = u.id
     WHERE c.date BETWEEN $1 AND $2
       AND ct.title = $3
       ${filialId ? 'AND k."filialId" = $4' : ''}
@@ -1103,7 +1103,7 @@ export class PaperReportService {
       kr."createdAt" as date
     FROM kassa_report kr
     INNER JOIN filial f ON kr."filialId" = f.id AND f.type = $3
-    LEFT JOIN "users" u ON kr."casherId" = u.id
+    LEFT JOIN "users" u ON kr."createdById" = u.id
     WHERE kr."createdAt" BETWEEN $1 AND $2
       AND (kr."totalSum" - COALESCE(kr."totalPlasticSum", 0)) > 0
       ${filialId ? 'AND kr."filialId" = $4' : ''}
@@ -1146,7 +1146,7 @@ export class PaperReportService {
     SELECT c.price, c.date, c.comment, u."firstName" as kassir_name, u."lastName" as kassir_lastname
     FROM cashflow c
     LEFT JOIN cashflow_type ct ON c."cashflowTypeId" = ct.id
-    LEFT JOIN "users" u ON c."casherId" = u.id
+    LEFT JOIN "users" u ON c."createdById" = u.id
     LEFT JOIN kassa k ON c."kassaId" = k.id
     WHERE c.date BETWEEN $1 AND $2
       AND c.type = $3
@@ -1193,7 +1193,7 @@ export class PaperReportService {
       kr."createdAt" as date
     FROM kassa_report kr
     INNER JOIN filial f ON kr."filialId" = f.id AND f.type = $3
-    LEFT JOIN "users" u ON kr."casherId" = u.id
+    LEFT JOIN "users" u ON kr."createdById" = u.id
     WHERE kr."createdAt" BETWEEN $1 AND $2
       AND (kr."totalIncome" - COALESCE(kr."totalPlasticSum", 0)) > 0
       ${filialId ? 'AND kr."filialId" = $4' : ''}
@@ -1238,7 +1238,7 @@ export class PaperReportService {
       kr."createdAt" as date
     FROM kassa_report kr
     INNER JOIN filial f ON kr."filialId" = f.id AND f.type = $3
-    LEFT JOIN "users" u ON kr."casherId" = u.id
+    LEFT JOIN "users" u ON kr."createdById" = u.id
     WHERE kr."createdAt" BETWEEN $1 AND $2
       AND COALESCE(kr."totalPlasticSum", 0) > 0
       ${filialId ? 'AND kr."filialId" = $4' : ''}
@@ -1283,7 +1283,7 @@ export class PaperReportService {
     LEFT JOIN cashflow_type ct ON c."cashflowTypeId" = ct.id
     LEFT JOIN kassa k ON c."kassaId" = k.id
     LEFT JOIN filial f ON k."filialId" = f.id
-    LEFT JOIN "users" u ON c."casherId" = u.id
+    LEFT JOIN "users" u ON c."createdById" = u.id
     WHERE c.date BETWEEN $1 AND $2
       AND c.type = $3
       AND ct.title = 'Сальдо'
@@ -1376,7 +1376,7 @@ export class PaperReportService {
            u."firstName" as kassir_name, u."lastName" as kassir_lastname
     FROM "order" o
     LEFT JOIN "users" s ON o."sellerId" = s.id
-    LEFT JOIN "users" u ON o."casherId" = u.id
+    LEFT JOIN "users" u ON o."createdById" = u.id
     INNER JOIN kassa k ON o."kassaId" = k.id
     WHERE o.date BETWEEN $1 AND $2
       AND o."isDebt" = true
@@ -1424,7 +1424,7 @@ export class PaperReportService {
            u."firstName" as kassir_name, u."lastName" as kassir_lastname
     FROM "order" o
     LEFT JOIN "users" s ON o."sellerId" = s.id
-    LEFT JOIN "users" u ON o."casherId" = u.id
+    LEFT JOIN "users" u ON o."createdById" = u.id
     INNER JOIN kassa k ON o."kassaId" = k.id
     WHERE o.date BETWEEN $1 AND $2
       AND o.status = $3
@@ -1471,7 +1471,7 @@ export class PaperReportService {
            f.title as filial, kr."createdAt" as date
     FROM kassa_report kr
     INNER JOIN filial f ON kr."filialId" = f.id
-    LEFT JOIN "users" u ON kr."casherId" = u.id
+    LEFT JOIN "users" u ON kr."createdById" = u.id
     WHERE kr."createdAt" BETWEEN $1 AND $2
       AND COALESCE(kr."totalDiscount", 0) > 0
       ${filialId ? 'AND kr."filialId" = $3' : ''}
@@ -1519,7 +1519,7 @@ export class PaperReportService {
     LEFT JOIN cashflow_type ct ON c."cashflowTypeId" = ct.id
     LEFT JOIN kassa k ON c."kassaId" = k.id
     LEFT JOIN filial f ON k."filialId" = f.id
-    LEFT JOIN "users" u ON c."casherId" = u.id
+    LEFT JOIN "users" u ON c."createdById" = u.id
     WHERE c.date BETWEEN $1 AND $2
       AND c.type = $3
       AND ct.title IN ('Магазин', 'Аренда', 'Корпоротив', 'Логистика', 'Банк%')
@@ -1567,7 +1567,7 @@ export class PaperReportService {
            u."firstName" as kassir_name, u."lastName" as kassir_lastname
     FROM cashflow c
     LEFT JOIN cashflow_type ct ON c."cashflowTypeId" = ct.id
-    LEFT JOIN "users" u ON c."casherId" = u.id
+    LEFT JOIN "users" u ON c."createdById" = u.id
     LEFT JOIN kassa k ON c."kassaId" = k.id
     WHERE c.date BETWEEN $1 AND $2
       AND ct.title = 'Босс'
@@ -1586,7 +1586,7 @@ export class PaperReportService {
            u."firstName" as kassir_name, u."lastName" as kassir_lastname
     FROM cashflow c
     LEFT JOIN cashflow_type ct ON c."cashflowTypeId" = ct.id
-    LEFT JOIN "users" u ON c."casherId" = u.id
+    LEFT JOIN "users" u ON c."createdById" = u.id
     LEFT JOIN kassa k ON c."kassaId" = k.id
     WHERE c.date BETWEEN $1 AND $2
       AND ct.title = 'Босс'
@@ -1646,7 +1646,7 @@ export class PaperReportService {
            pos.role as user_role
     FROM cashflow c
     LEFT JOIN cashflow_type ct ON c."cashflowTypeId" = ct.id
-    LEFT JOIN "users" u ON c."casherId" = u.id
+    LEFT JOIN "users" u ON c."createdById" = u.id
     LEFT JOIN position pos ON u."positionId" = pos.id
     LEFT JOIN kassa k ON c."kassaId" = k.id
     WHERE c.date BETWEEN $1 AND $2
@@ -1693,7 +1693,7 @@ export class PaperReportService {
     LEFT JOIN cashflow_type ct ON c."cashflowTypeId" = ct.id
     LEFT JOIN kassa k ON c."kassaId" = k.id
     LEFT JOIN filial f ON k."filialId" = f.id
-    LEFT JOIN "users" u ON c."casherId" = u.id
+    LEFT JOIN "users" u ON c."createdById" = u.id
     WHERE c.date BETWEEN $1 AND $2
       AND ct.title = 'Таможня'
       ${filialId ? 'AND k."filialId" = $3' : ''}

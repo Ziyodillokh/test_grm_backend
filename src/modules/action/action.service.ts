@@ -146,7 +146,7 @@ export class ActionService {
               is_online: +order.plasticSum > 0,
               price: order.price,
               comment: order.comment,
-              casher: action?.user?.id || null,
+              createdBy: action?.user?.id || null,
               cashflow_type: 'e2266555-7774-419e-9335-9ad817ea961c',
               date: order.kassa.startDate,
               x: order.x
@@ -163,7 +163,7 @@ export class ActionService {
             comment: info.comment,
             date: info.kassa.startDate,
             price: info.price,
-            casher: action.user.id,
+            createdBy: action.user.id,
             plasticSum: info.plasticSum,
             discountSum: info.discountSum,
             netProfitSum: info.netProfitSum,
@@ -187,7 +187,7 @@ export class ActionService {
             is_online: +order.plasticSum > 0,
             price: (+order?.price + +order?.plasticSum) || 0,
             comment: order.comment,
-            casher: action?.user?.id || null,
+            createdBy: action?.user?.id || null,
             cashflow_type: 'e2266555-7774-419e-9335-9ad817ea961c',
             date: order.kassa.startDate,
           } as unknown as Cashflow);
@@ -217,7 +217,7 @@ export class ActionService {
               is_online: +order.plasticSum > 0,
               price: order.price,
               comment: order.comment,
-              casher: action?.user?.id || null,
+              createdBy: action?.user?.id || null,
               cashflow_type: 'e2266555-7774-419e-9335-9ad817ea961c',
               date: order.kassa.startDate,
             } as unknown as Cashflow);
@@ -234,7 +234,7 @@ export class ActionService {
             comment: info.comment,
             date: info.kassa.startDate,
             price: info.price,
-            casher: action.user.id,
+            createdBy: action.user.id,
             plasticSum: info.plasticSum,
             discountSum: info.discountSum,
             netProfitSum: info.netProfitSum,
@@ -257,7 +257,7 @@ export class ActionService {
             is_online: +order.plasticSum > 0,
             price: order.price,
             comment: order.comment,
-            casher: action?.user?.id || null,
+            createdBy: action?.user?.id || null,
             cashflow_type: 'e2266555-7774-419e-9335-9ad817ea961c',
             date: order.kassa.startDate,
           } as unknown as Cashflow);

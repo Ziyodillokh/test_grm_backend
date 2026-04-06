@@ -62,7 +62,7 @@ export class Cashflow extends BaseEntity {
 
   @ManyToOne(() => User, (user) => user.cashflow)
   @JoinColumn()
-  casher: User;
+  createdBy: User;
 
   @ManyToOne(() => Order, (order) => order.cashflow, { onDelete: 'SET NULL', nullable: true })
   @JoinColumn()
@@ -75,10 +75,6 @@ export class Cashflow extends BaseEntity {
   @ManyToOne(() => Debt, (debt) => debt.cashflow, { onDelete: 'SET NULL' })
   @JoinColumn()
   debt: Debt;
-
-  @ManyToOne(() => User, user => user.id)
-  @JoinColumn()
-  seller: User;
 
   @OneToMany(() => Cashflow, cashflow => cashflow.parent)
   child: Cashflow[];
