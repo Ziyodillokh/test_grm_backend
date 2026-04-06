@@ -16,9 +16,9 @@ export class QrLogoService {
 
   async create(dto: CreateQrLogoDto): Promise<QrLogo> {
     const qrDataUrl = await QRCode.toDataURL(dto.link, {
-      width: 200,
-      margin: 1,
-      color: { dark: '#000000', light: '#ffffff' },
+      width: 300,
+      margin: 0,
+      color: { dark: '#000000', light: '#00000000' },
     });
 
     const entity = this.repo.create({
