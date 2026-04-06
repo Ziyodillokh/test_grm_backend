@@ -26,6 +26,14 @@ class CreateCollectionDto {
   readonly description?: string;
 
   @ApiProperty({
+    description: `Payment and delivery info`,
+    example: 'Cash, Payme, Click',
+  })
+  @IsOptional()
+  @IsString()
+  readonly paymentDeliveryInfo?: string;
+
+  @ApiProperty({
     description: `UUID`,
     example: '',
   })

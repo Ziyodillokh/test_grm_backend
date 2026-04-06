@@ -16,6 +16,9 @@ export class Collection extends BaseEntity {
   @Column('text', {nullable: true})
   description: string;
 
+  @Column('text', {nullable: true})
+  paymentDeliveryInfo: string;
+
   /** @deprecated Use CollectionPrice entity instead */
   @Column('numeric', {
     precision: 20,
