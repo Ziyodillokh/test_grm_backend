@@ -7,6 +7,14 @@ import * as QRCode from 'qrcode';
 import { QrLogo } from './qr-logo.entity';
 import { CreateQrLogoDto, UpdateQrLogoDto, QueryQrLogoDto } from './dto';
 
+const QR_OPTIONS = {
+  version: 10,
+  width: 300,
+  margin: 0,
+  errorCorrectionLevel: 'M',
+  color: { dark: '#000000', light: '#00000000' },
+} as QRCode.QRCodeToDataURLOptions;
+
 @Injectable()
 export class QrLogoService {
   constructor(
@@ -15,11 +23,7 @@ export class QrLogoService {
   ) {}
 
   async create(dto: CreateQrLogoDto): Promise<QrLogo> {
-    const qrDataUrl = await QRCode.toDataURL(dto.link, {
-      width: 300,
-      margin: 0,
-      color: { dark: '#000000', light: '#00000000' },
-    });
+    const qrDataUrl = await QRCode.toDataURL(dto.link, QR_OPTIONS) as string;
 
     const entity = this.repo.create({
       link: dto.link,
@@ -27,7 +31,7 @@ export class QrLogoService {
       qrDataUrl,
     });
 
-    return this.repo.save(entity);
+    return await this.repo.save(entity) as QrLogo;
   }
 
   async findAll(
@@ -56,11 +60,7 @@ export class QrLogoService {
     const entity = await this.findOne(id);
 
     if (dto.link && dto.link !== entity.link) {
-      entity.qrDataUrl = await QRCode.toDataURL(dto.link, {
-        width: 200,
-        margin: 1,
-        color: { dark: '#000000', light: '#ffffff' },
-      });
+      entity.qrDataUrl = await QRCode.toDataURL(dto.link, QR_OPTIONS) as string;
       entity.link = dto.link;
     }
 
