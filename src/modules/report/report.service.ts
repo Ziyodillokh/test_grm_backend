@@ -66,37 +66,31 @@ export class ReportService {
     const year = now.year();
     const month = now.month() + 1;
 
+    // Filial tipiga mos report qidirish
+    const filialType = filial?.type || FilialTypeEnum.FILIAL;
+
     let report = await this.reportRepo.findOne({
-      where: { year, month },
+      where: { year, month, filialType },
     });
 
     if (!report) {
-      report = this.reportRepo.create({ year, month });
+      report = this.reportRepo.create({ year, month, filialType });
       report = await this.reportRepo.save(report);
     }
 
-    // Link unlinked kassas for current month
-    const unlinkedKassas = await this.kassaRepo.find({
-      where: { year, month, report: { id: null as any } },
-    });
-    if (!unlinkedKassas.length) {
-      // Also check kassas with no report at all
-      const orphanKassas = await this.kassaRepo
-        .createQueryBuilder('kassa')
-        .where('kassa.year = :year', { year })
-        .andWhere('kassa.month = :month', { month })
-        .andWhere('kassa.reportId IS NULL')
-        .getMany();
+    // Link unlinked kassas for current month (faqat shu filialType uchun)
+    const orphanKassas = await this.kassaRepo
+      .createQueryBuilder('kassa')
+      .leftJoinAndSelect('kassa.filial', 'filial')
+      .where('kassa.year = :year', { year })
+      .andWhere('kassa.month = :month', { month })
+      .andWhere('kassa."reportId" IS NULL')
+      .andWhere('filial.type = :filialType', { filialType })
+      .getMany();
 
-      for (const kassa of orphanKassas) {
-        kassa.report = report;
-        await this.kassaRepo.save(kassa);
-      }
-    } else {
-      for (const kassa of unlinkedKassas) {
-        kassa.report = report;
-        await this.kassaRepo.save(kassa);
-      }
+    for (const kassa of orphanKassas) {
+      kassa.report = report;
+      await this.kassaRepo.save(kassa);
     }
 
     return this.reportRepo.findOne({
