@@ -103,6 +103,7 @@ export class CashflowService {
       .leftJoinAndSelect('seller.avatar', 'avatar_s')
       .leftJoinAndSelect('ord.bar_code', 'bar_code')
       .leftJoinAndSelect('bar_code.collection', 'collection')
+      .leftJoinAndSelect('collection.collection_prices', 'collection_prices')
       .leftJoinAndSelect('bar_code.factory', 'factory')
       .leftJoinAndSelect('bar_code.size', 'size')
       .leftJoinAndSelect('bar_code.model', 'model')
