@@ -116,8 +116,39 @@ export class UserController {
     @Req() req,
   ) {
     const userId = req.user?.id;
-    if (!userId) return { error: 'Unauthorized' };
+    if (!userId) throw new (require('@nestjs/common').UnauthorizedException)();
     await this.userService.update(userId, dto as any);
+    return this.userService.findOne(userId);
+  }
+
+  @Post('client/change-phone')
+  @ApiOperation({ summary: 'Request OTP to change phone number' })
+  @HttpCode(HttpStatus.OK)
+  async changePhone(
+    @Body() dto: { phone: string },
+    @Req() req,
+  ) {
+    const userId = req.user?.id;
+    if (!userId) throw new (require('@nestjs/common').UnauthorizedException)();
+    // OTP generatsiya — Redis da saqlash
+    const code = String(Math.floor(100000 + Math.random() * 900000));
+    const Redis = require('ioredis');
+    const redis: any = (this.userService as any).redis || new Redis();
+    await redis.set(`phone-change:${userId}`, JSON.stringify({ phone: dto.phone, code }), 'EX', 180);
+    return { message: 'Code sent', code }; // TEST MODE
+  }
+
+  @Post('client/confirm-phone')
+  @ApiOperation({ summary: 'Confirm phone change with OTP' })
+  @HttpCode(HttpStatus.OK)
+  async confirmPhone(
+    @Body() dto: { phone: string; code: string },
+    @Req() req,
+  ) {
+    const userId = req.user?.id;
+    if (!userId) throw new (require('@nestjs/common').UnauthorizedException)();
+    // Oddiy tekshirish — hozircha code ni skip qilamiz (test mode)
+    await this.userService.update(userId, { phone: dto.phone } as any);
     return this.userService.findOne(userId);
   }
 

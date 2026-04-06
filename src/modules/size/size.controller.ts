@@ -28,6 +28,7 @@ import { Public } from '@modules/auth/decorators/public.decorator';
 export class SizeController {
   constructor(private readonly sizeService: SizeService) {}
 
+  @Public()
   @Get('/')
   @ApiOperation({ summary: 'Method: returns single size by id' })
   @ApiOkResponse({

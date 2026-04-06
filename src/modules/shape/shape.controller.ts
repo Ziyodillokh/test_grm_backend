@@ -8,12 +8,14 @@ import { ShapeService } from './shape.service';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { UserRoleEnum } from '../../infra/shared/enum';
 import { Pagination } from 'nestjs-typeorm-paginate';
+import { Public } from '../auth/decorators/public.decorator';
 
 @ApiTags('Shape')
 @Controller('shape')
 export class ShapeController {
   constructor(private readonly shapeService: ShapeService) {}
 
+  @Public()
   @Get('/')
   @ApiOperation({ summary: 'Method: returns single Shape by id' })
   @ApiOkResponse({
