@@ -804,7 +804,6 @@ export class KassaService {
     kassa.debt_kv = debt_kv;
     kassa.debt_count = debt_count;
     kassa.internetShopSum = internetShopSum;
-    kassa.totalSum = kassa.in_hand + plasticSum;
 
     await this.kassaRepository.save(kassa);
   }
@@ -943,7 +942,6 @@ export class KassaService {
         nextKassa.opening_balance = (nextKassa.opening_balance || 0) + price;
         nextKassa.in_hand = (nextKassa.in_hand || 0) + price;
         nextKassa.income = (nextKassa.income || 0) + (price > 0 ? price : 0);
-        nextKassa.totalSum = (nextKassa.in_hand || 0) + (nextKassa.plasticSum || 0);
         await this.kassaRepository.save(nextKassa);
       }
     }

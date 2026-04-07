@@ -709,6 +709,8 @@ export class CashflowService {
           kassa.income += price;
           if (value?.is_online) {
             kassa.plasticSum += price;
+          } else {
+            kassa.in_hand += price;
           }
         }
         if (cashflow.cashflow_type.slug === 'Перечисление') {
@@ -1614,16 +1616,16 @@ export class CashflowService {
         if (cashflow.type === 'Приход') {
           if (cashflow?.is_online) {
             kassa.plasticSum -= price;
+          } else {
+            kassa.in_hand -= price;
           }
 
           if (isDManager) {
-            kassa.totalSum -= price;
             kassa.filial.given -= price;
             kassa.filial.owed = price + Number(kassa.filial.owed);
             kassa.income -= price;
             kassa.expense += price;
           } else {
-            kassa.totalSum -= price;
             kassa.income -= price;
           }
 
@@ -1646,7 +1648,6 @@ export class CashflowService {
             }
           }
         } else if (cashflow.type === 'Расход') {
-          kassa.totalSum += price;
           kassa.expense -= price;
 
           if (cashflow?.is_online) {
@@ -2178,7 +2179,6 @@ SET
   "totalSellCount" = o."sellCount",
   "return_sale" = c."returnSale",
   "in_hand" = (((o.in_hand + c."totalIncome") - (c."totalExpence" + c."returnSale")) + $2) - c."perechesleniya",
-  "totalSum" = (((o.in_hand + c."totalIncome") - (c."totalExpence" + c."returnSale")) + $2) - c."perechesleniya" + o."plasticSum" + c."perechesleniya",
   "internetShopSum" = o."internetShopSum",
   "debt_count" = o."debtCount",
   "debt_kv" = o."debtKv",

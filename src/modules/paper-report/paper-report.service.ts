@@ -186,7 +186,7 @@ export class PaperReportService {
     const terminalDealer = salesDealer.reduce((acc, r) => acc + Number(r.plasticSum || 0), 0);
 
     // Naqd hisoblar - ikkala field ham totalSum ishlatiladi (TUZATILDI)
-    const naqdFilial = salesFilialNaqd.reduce((acc, r) => acc + Number((r.totalSum || 0) - (r.plasticSum || 0)), 0);
+    const naqdFilial = salesFilialNaqd.reduce((acc, r) => acc + Number(r.in_hand || 0), 0);
     const naqdDealer = salesDealerNaqd.reduce((acc, r) => acc + Number((r.income || 0) - (r.plasticSum || 0)), 0);
 
     const foyda1 = sales.reduce((acc, r) => acc + Number(r.netProfitTotalSum || 0), 0);
@@ -1094,20 +1094,20 @@ export class PaperReportService {
       ];
 
       const kassaReportsQuery = `
-    SELECT 
-      (kr."totalSum" - COALESCE(kr."totalPlasticSum", 0)) as naqd_summa,
-      kr.comment as izoh, 
-      f.title as filial, 
-      u."firstName" as kassir_name, 
-      u."lastName" as kassir_lastname, 
-      kr."createdAt" as date
-    FROM kassa_report kr
-    INNER JOIN filial f ON kr."filialId" = f.id AND f.type = $3
-    LEFT JOIN "users" u ON kr."createdById" = u.id
-    WHERE kr."createdAt" BETWEEN $1 AND $2
-      AND (kr."totalSum" - COALESCE(kr."totalPlasticSum", 0)) > 0
-      ${filialId ? 'AND kr."filialId" = $4' : ''}
-    ORDER BY kr."createdAt" DESC
+    SELECT
+      k."in_hand" as naqd_summa,
+      k.comment as izoh,
+      f.title as filial,
+      u."firstName" as kassir_name,
+      u."lastName" as kassir_lastname,
+      k."createdAt" as date
+    FROM kassa k
+    INNER JOIN filial f ON k."filialId" = f.id AND f.type = $3
+    LEFT JOIN "users" u ON k."createdById" = u.id
+    WHERE k."createdAt" BETWEEN $1 AND $2
+      AND k."in_hand" > 0
+      ${filialId ? 'AND k."filialId" = $4' : ''}
+    ORDER BY k."createdAt" DESC
   `;
       const params = filialId
         ? [startDate, endDate, FilialTypeEnum.FILIAL, filialId]

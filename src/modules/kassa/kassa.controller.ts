@@ -160,7 +160,6 @@ export class KassaController {
       kassa = await this.kassaService.GetOpenKassa(id, req.user.filial.type);
     }
 
-    kassa = { ...kassa, income: kassa?.totalSum || 0 };
     return kassa;
   }
 

@@ -39,14 +39,6 @@ export class Kassa extends BaseEntity implements IReportAggregates {
     transformer: new ColumnNumericTransformer(),
     default: 0,
   })
-  totalSum: number;
-
-  @Column('numeric', {
-    precision: 20,
-    scale: 2,
-    transformer: new ColumnNumericTransformer(),
-    default: 0,
-  })
   additionalProfitTotalSum: number;
 
   @Column('numeric', {

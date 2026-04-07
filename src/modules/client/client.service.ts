@@ -217,8 +217,8 @@ export class ClientService {
         given: savedClient.given,
       });
 
-      openKassa.totalSum = openKassa.totalSum + amount;
-      openKassa.income = openKassa.income + amount;
+      openKassa.in_hand += amount;
+      openKassa.income += amount;
 
       await kassaRepo.save(openKassa);
 

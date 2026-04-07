@@ -284,7 +284,6 @@ export class ReportService {
       report.totalDiscount += k.discount || 0;
       report.totalPlasticSum += k.plasticSum || 0;
       report.netProfitTotalSum += k.netProfitTotalSum || 0;
-      report.managerSum += Math.max(k.totalSum - k.plasticSum, 0);
       report.accountantSum += Math.max(k.plasticSum + k.cash_collection, 0);
       report.totalExpense += k.expense || 0;
       report.totalIncome += k.income || 0;
@@ -313,7 +312,6 @@ export class ReportService {
       totalDiscount: report.totalDiscount - (kassa.discount || 0),
       totalPlasticSum: report.totalPlasticSum - (kassa.plasticSum || 0),
       netProfitTotalSum: report.netProfitTotalSum - (kassa.netProfitTotalSum || 0),
-      managerSum: report.managerSum - ((kassa.totalSum - kassa.plasticSum) || 0),
       accountantSum: report.accountantSum - ((kassa.plasticSum + kassa.cash_collection) || 0),
       totalExpense: report.totalExpense - (kassa.expense || 0),
       totalIncome: report.totalIncome - (kassa.income || 0),
@@ -712,7 +710,6 @@ export class ReportService {
           kassaAggregated.totalDiscount += k.discount || 0;
           kassaAggregated.totalIncome += k.income || 0;
           kassaAggregated.totalExpense += k.expense || 0;
-          kassaAggregated.managerSum += (k.totalSum - k.plasticSum) || 0;
           kassaAggregated.accountantSum += (k.plasticSum + k.cash_collection) || 0;
         }
 
@@ -1217,7 +1214,6 @@ export class ReportService {
       },
     });
 
-    report.managerSum += (kassa.totalSum - kassa.plasticSum) || 0;
     report.totalIncome += kassa.income || 0;
 
     await this.reportRepo.save(report);
