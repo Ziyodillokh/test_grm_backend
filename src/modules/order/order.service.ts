@@ -404,12 +404,12 @@ export class OrderService {
     }
 
     const priceMeter = product?.collection_price?.priceMeter || 0;
-    const kassaNarxi = priceMeter * value.kv;
+    const baseCost = priceMeter * value.kv;
     const revenue = value.price + (value?.plasticSum || 0);
-    const chegirma = Math.max(kassaNarxi - revenue, 0);
-    const zavodFoydasi = (priceMeter - product.comingPrice) * value.kv;
-    additionalProfitSum = Math.max(revenue - kassaNarxi, 0);
-    netProfitSum = zavodFoydasi - chegirma;
+    const discount = Math.max(baseCost - revenue, 0);
+    const grossProfit = (priceMeter - product.comingPrice) * value.kv;
+    additionalProfitSum = Math.max(revenue - baseCost, 0);
+    netProfitSum = grossProfit - discount;
 
     product.bar_code.isMetric = value.isMetric;
     await this.saveRepo(product);
@@ -1123,12 +1123,12 @@ export class OrderService {
       kv = +(basket.x * size.x * size.y).toFixed(3);
     }
 
-    const kassaNarxi = kv * priceMeter;
+    const baseCost = kv * priceMeter;
     const revenue = basket.price + basket.plasticSum;
-    const chegirma = Math.max(kassaNarxi - revenue, 0);
-    const zavodFoydasi = (priceMeter - comingPrice) * kv;
-    additionalProfitSum = Math.max(revenue - kassaNarxi, 0);
-    netProfitSum = zavodFoydasi - chegirma;
+    const discount = Math.max(baseCost - revenue, 0);
+    const grossProfit = (priceMeter - comingPrice) * kv;
+    additionalProfitSum = Math.max(revenue - baseCost, 0);
+    netProfitSum = grossProfit - discount;
 
     if (product.y < 0.2 || product.count < 1) {
       product.is_deleted = true;
