@@ -1186,7 +1186,7 @@ export class CashflowService {
         }
 
         if (cashflow.cashflow_type.slug === 'Инкассация') {
-          kassa.cash_collection -= price;
+          kassa.cash_collection = Math.max(0, kassa.cash_collection - price);
 
           // Find the report linked to this kassa
           const kassaWithReport = await queryRunner.manager.findOne(Kassa, {
@@ -1197,7 +1197,7 @@ export class CashflowService {
             const report = await queryRunner.manager.findOne(Report, { where: { id: kassaWithReport.report.id } });
             report.accountantSum -= price;
             report.totalIncome -= price;
-            report.totalCashCollection -= price;
+            report.totalCashCollection = Math.max(0, report.totalCashCollection - price);
             await queryRunner.manager.save(report);
           }
         }
@@ -1630,7 +1630,7 @@ export class CashflowService {
           }
 
           if (cashflow.cashflow_type.slug === 'Инкассация') {
-            kassa.cash_collection -= price;
+            kassa.cash_collection = Math.max(0, kassa.cash_collection - price);
           }
 
           if (cashflow.cashflow_type.slug === 'Перечисление') {
@@ -1661,7 +1661,7 @@ export class CashflowService {
           }
 
           if (cashflow.cashflow_type.slug === 'Инкассация') {
-            kassa.cash_collection -= price;
+            kassa.cash_collection = Math.max(0, kassa.cash_collection - price);
           }
 
           if (cashflow.cashflow_type.slug === 'Перечисление') {

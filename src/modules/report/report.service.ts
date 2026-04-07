@@ -306,7 +306,7 @@ export class ReportService {
       totalSellCount: report.totalSellCount - (kassa.totalSellCount || 0),
       totalSize: report.totalSize - (kassa.totalSize || 0),
       totalSale: report.totalSale - (kassa.sale || 0),
-      totalCashCollection: report.totalCashCollection - (kassa.cash_collection || 0),
+      totalCashCollection: Math.max(0, report.totalCashCollection - (kassa.cash_collection || 0)),
       additionalProfitTotalSum: report.additionalProfitTotalSum - (kassa.additionalProfitTotalSum || 0),
       totalInternetShopSum: report.totalInternetShopSum - (kassa.internetShopSum || 0),
       totalDiscount: report.totalDiscount - (kassa.discount || 0),
