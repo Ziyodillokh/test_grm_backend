@@ -1144,7 +1144,7 @@ export class CashflowService {
         }
 
         // Oddiy prixod cashflow reverse
-        if (!isOrder) {
+        if (!isOrder && cashflow.cashflow_type.slug !== 'Перечисление') {
           kassa.income -= price;
           if (cashflow?.is_online) {
             kassa.plasticSum -= price;
@@ -1614,27 +1614,9 @@ export class CashflowService {
         const isDManager = user?.position?.role === UserRoleEnum.D_MANAGER;
 
         if (cashflow.type === 'Приход') {
-          if (cashflow?.is_online) {
-            kassa.plasticSum -= price;
-          } else {
-            kassa.in_hand -= price;
-          }
-
-          if (isDManager) {
-            kassa.filial.given -= price;
-            kassa.filial.owed = price + Number(kassa.filial.owed);
-            kassa.income -= price;
-            kassa.expense += price;
-          } else {
-            kassa.income -= price;
-          }
-
-          if (cashflow.cashflow_type.slug === 'Инкассация') {
-            kassa.cash_collection = Math.max(0, kassa.cash_collection - price);
-          }
-
           if (cashflow.cashflow_type.slug === 'Перечисление') {
             kassa.plasticSum -= price;
+            kassa.income -= price;
 
             const kassaWithReport = await queryRunner.manager.findOne(Kassa, {
               where: { id: kassa.id },
@@ -1645,6 +1627,25 @@ export class CashflowService {
               oneReport.totalPlasticSum -= price;
               oneReport.accountantSum -= price;
               await this.reportService.save(oneReport);
+            }
+          } else {
+            if (cashflow?.is_online) {
+              kassa.plasticSum -= price;
+            } else {
+              kassa.in_hand -= price;
+            }
+
+            if (isDManager) {
+              kassa.filial.given -= price;
+              kassa.filial.owed = price + Number(kassa.filial.owed);
+              kassa.income -= price;
+              kassa.expense += price;
+            } else {
+              kassa.income -= price;
+            }
+
+            if (cashflow.cashflow_type.slug === 'Инкассация') {
+              kassa.cash_collection = Math.max(0, kassa.cash_collection - price);
             }
           }
         } else if (cashflow.type === 'Расход') {
@@ -2780,10 +2781,6 @@ WHERE k.id = $1;
         // --- Kassa effects ---
         if (priceDiff !== 0 && kassa) {
           if (cashflow.type === CashFlowEnum.InCome) {
-            kassa.income += priceDiff;
-            if (cashflow.is_online) {
-              kassa.plasticSum += priceDiff;
-            }
             if (cashflow.cashflow_type?.slug === 'Перечисление') {
               kassa.plasticSum += priceDiff;
               kassa.income += priceDiff;
@@ -2796,6 +2793,13 @@ WHERE k.id = $1;
                 oneReport.totalPlasticSum += priceDiff;
                 oneReport.accountantSum += priceDiff;
                 await queryRunner.manager.save(oneReport);
+              }
+            } else {
+              kassa.income += priceDiff;
+              if (cashflow.is_online) {
+                kassa.plasticSum += priceDiff;
+              } else {
+                kassa.in_hand += priceDiff;
               }
             }
           } else if (cashflow.type === CashFlowEnum.Consumption) {
