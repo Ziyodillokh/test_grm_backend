@@ -396,23 +396,20 @@ export class OrderService {
       if (product.y < value.x / 100) throw new BadRequestException('Mahsulot metri yetarli emas!');
       const cost = value.x / 100;
       product.y = product.y - cost;
-      // product.setTotalSize();
-      // product.calculateProductPrice();
-      additionalProfitSum =
-        value.price +
-        (value?.plasticSum || 0) -
-        (product?.collection_price?.priceMeter || 0) * (cost * product.bar_code.size.x);
-      netProfitSum = ((product?.collection_price?.priceMeter || 0) - product.comingPrice) * cost * product.bar_code.size.x;
       value.kv = cost * product.bar_code.size.x;
     } else {
       if (product.count < value.x) throw new BadRequestException('Mahsulot soni yetarli emas!');
       product.count = +product.count - +value.x;
-      // product.setTotalSize();
-      additionalProfitSum =
-        value.price + (value?.plasticSum || 0) - (product?.collection_price?.priceMeter || 0) * product.bar_code.size.kv;
-      netProfitSum = ((product?.collection_price?.priceMeter || 0) - product.comingPrice) * product.bar_code.size.kv;
       value.kv = product.bar_code.size.kv * value.x;
     }
+
+    const priceMeter = product?.collection_price?.priceMeter || 0;
+    const kassaNarxi = priceMeter * value.kv;
+    const revenue = value.price + (value?.plasticSum || 0);
+    const chegirma = Math.max(kassaNarxi - revenue, 0);
+    const zavodFoydasi = (priceMeter - product.comingPrice) * value.kv;
+    additionalProfitSum = Math.max(revenue - kassaNarxi, 0);
+    netProfitSum = zavodFoydasi - chegirma;
 
     product.bar_code.isMetric = value.isMetric;
     await this.saveRepo(product);
@@ -1126,15 +1123,12 @@ export class OrderService {
       kv = +(basket.x * size.x * size.y).toFixed(3);
     }
 
-    const cost = kv * priceMeter;
+    const kassaNarxi = kv * priceMeter;
     const revenue = basket.price + basket.plasticSum;
-
-    additionalProfitSum = Math.max(revenue - cost, 0);
-    if (cost > revenue) {
-      netProfitSum = Math.max((priceMeter - comingPrice) * kv, 0);
-    } else {
-      netProfitSum = Math.max(revenue - (comingPrice * kv), 0);
-    }
+    const chegirma = Math.max(kassaNarxi - revenue, 0);
+    const zavodFoydasi = (priceMeter - comingPrice) * kv;
+    additionalProfitSum = Math.max(revenue - kassaNarxi, 0);
+    netProfitSum = zavodFoydasi - chegirma;
 
     if (product.y < 0.2 || product.count < 1) {
       product.is_deleted = true;
