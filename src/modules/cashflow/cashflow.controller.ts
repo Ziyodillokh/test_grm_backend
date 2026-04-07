@@ -53,16 +53,7 @@ export class CashflowController {
     return await this.cashflowService.getAll({ page: query.page || 1, limit: query.limit || 10, route }, query);
   }
 
-  // @Roles(UserRoleEnum.F_MANAGER)
-  @Get('/for/filial-manager/:id')
-  @ApiOperation({ summary: 'Method: returns total cashflow for filial manager' })
-  @ApiOkResponse({
-    description: 'The cashflow total was returned successfully',
-  })
-  @HttpCode(HttpStatus.OK)
-  async getTotalForFlManager(@Param('id') kassaReportId: string): Promise<{ income: number; expense: number }> {
-    return this.cashflowService.getTotalForFlManager(kassaReportId);
-  }
+
 
   @Get('summary')
   @ApiQuery({ name: 'year', example: 2025 })

@@ -1018,35 +1018,6 @@ export class CashflowService {
     }
   }
 
-  async getTotalForFlManager(kassaId: string) {
-    const cashflow = await this.cashflowRepository.find({
-      where: {
-        kassa: { id: kassaId },
-        tip: CashflowTipEnum.CASHFLOW,
-      },
-      order: {
-        order: {
-          date: 'DESC',
-        },
-      },
-    });
-
-    const totals = cashflow.reduce(
-      (acc, curr) => {
-        if (curr.type === CashFlowEnum.InCome) {
-          return { ...acc, income: acc.income + curr.price };
-        } else {
-          return { ...acc, expense: acc.expense + curr.price };
-        }
-      },
-      { income: 0, expense: 0 },
-    );
-
-    return {
-      income: parseFloat(totals.income.toFixed(2)),
-      expense: parseFloat(totals.expense.toFixed(2)),
-    };
-  }
 
   async getTotalForMManager(reportId: string, userId?: string) {
     const cashflow = await this.cashflowRepository.find({
