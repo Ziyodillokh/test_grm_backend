@@ -705,7 +705,7 @@ export class CashflowService {
       const today = dayjs().format('YYYY-MM-DD');
 
       if (value.type === 'Приход' && kassa?.id) {
-        if (!isOrder) {
+        if (!isOrder && cashflow.cashflow_type.slug !== 'Перечисление') {
           kassa.income += price;
           if (value?.is_online) {
             kassa.plasticSum += price;
