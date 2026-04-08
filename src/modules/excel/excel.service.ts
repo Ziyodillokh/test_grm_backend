@@ -1011,8 +1011,12 @@ export class ExcelService {
       if (reportId) qb.andWhere('cashflow.reportId = :reportId', { reportId });
 
       // Always exclude progress and rejected orders (canceled = vozvrat, kerak)
+      // Also exclude cashflows with rejected/pending status
       qb.andWhere(
         `(order.id IS NULL OR order.status NOT IN ('progress', 'rejected'))`,
+      );
+      qb.andWhere(
+        `cashflow.status NOT IN ('rejected', 'pending')`,
       );
 
       // Apply filters

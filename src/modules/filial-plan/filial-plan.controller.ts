@@ -21,6 +21,18 @@ export class FilialPlanController {
     return await this.filialPlanService.getTotals(Number(page || 1), Number(limit || 15));
   }
 
+  @Get('/seller-daily/:sellerId')
+  @ApiParam({ name: 'sellerId', required: true, type: String })
+  @ApiQuery({ name: 'year', required: true, type: Number })
+  @ApiQuery({ name: 'month', required: true, type: Number })
+  async getSellerDaily(
+    @Param('sellerId') sellerId: string,
+    @Query('year') year: number,
+    @Query('month') month: number,
+  ) {
+    return this.filialPlanService.getSellerDailyReport(sellerId, +year, +month);
+  }
+
   @Get('/:year')
   @ApiQuery({ name: 'page', required: false, type: Number })
   @ApiQuery({ name: 'limit', required: false, type: Number })

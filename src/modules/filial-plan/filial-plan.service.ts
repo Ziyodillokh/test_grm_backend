@@ -420,4 +420,101 @@ export class FilialPlanService {
       },
     };
   }
+
+  async getSellerDailyReport(sellerId: string, year: number, month: number) {
+    const safeYear = Number.isInteger(+year) && +year > 2000 ? +year : new Date().getFullYear();
+    const safeMonth = Number.isInteger(+month) && +month >= 1 && +month <= 12 ? +month : new Date().getMonth() + 1;
+
+    const fromDate = new Date(safeYear, safeMonth - 1, 1);
+    const toDate = new Date(safeYear, safeMonth, 1);
+
+    // 1. Kunlik sotuvlar (accepted orderlar)
+    const dailyData = await this.orderRepo
+      .createQueryBuilder('o')
+      .select([
+        "DATE(o.date) AS date",
+        "COALESCE(COUNT(o.id), 0) AS count",
+        "COALESCE(SUM(o.kv), 0) AS kv",
+        "COALESCE(SUM(o.price + o.plasticSum), 0) AS earn",
+        "COALESCE(SUM(o.discountSum), 0) AS discount",
+        "COALESCE(SUM(o.plasticSum), 0) AS plastic",
+      ])
+      .where('o.sellerId = :sellerId', { sellerId })
+      .andWhere('o.status = :status', { status: 'accepted' })
+      .andWhere('o.date >= :fromDate', { fromDate })
+      .andWhere('o.date < :toDate', { toDate })
+      .groupBy('DATE(o.date)')
+      .orderBy('DATE(o.date)', 'ASC')
+      .getRawMany();
+
+    // 2. Oylik yig'indi
+    const totals = dailyData.reduce(
+      (acc, d) => ({
+        count: acc.count + Number(d.count),
+        kv: +(acc.kv + Number(d.kv)).toFixed(2),
+        earn: +(acc.earn + Number(d.earn)).toFixed(2),
+        discount: +(acc.discount + Number(d.discount)).toFixed(2),
+        plastic: +(acc.plastic + Number(d.plastic)).toFixed(2),
+      }),
+      { count: 0, kv: 0, earn: 0, discount: 0, plastic: 0 },
+    );
+
+    // 3. Seller ma'lumotlari va planka
+    const seller = await this.userRepo.findOne({
+      where: { id: sellerId },
+      relations: ['filial', 'avatar'],
+    });
+
+    let planPrice = 0;
+    if (seller?.filial?.id) {
+      // Filialning shu oydagi plan_price yig'indisi
+      const planRaw = await this.kassaRepo
+        .createQueryBuilder('k')
+        .select('COALESCE(SUM(k.plan_price), 0)', 'filialPlan')
+        .leftJoin('k.filial', 'f')
+        .where('f.id = :filialId', { filialId: seller.filial.id })
+        .andWhere('k.year = :year', { year: safeYear })
+        .andWhere('k.month = :month', { month: safeMonth })
+        .andWhere('f.type = :filialType', { filialType: FilialTypeEnum.FILIAL })
+        .getRawOne();
+
+      const filialPlan = Number(planRaw?.filialPlan) || 0;
+
+      // Filialda nechta active seller bor
+      const sellerCountRaw = await this.userRepo
+        .createQueryBuilder('u')
+        .select('COUNT(u.id)', 'cnt')
+        .leftJoin('u.filial', 'f')
+        .where('f.id = :filialId', { filialId: seller.filial.id })
+        .andWhere('u.isActive = true')
+        .andWhere('f.type = :filialType', { filialType: FilialTypeEnum.FILIAL })
+        .getRawOne();
+
+      const sellerCount = Math.max(1, Number(sellerCountRaw?.cnt) || 1);
+      planPrice = +(filialPlan / sellerCount).toFixed(2);
+    }
+
+    const progress = planPrice > 0 ? Math.round((totals.earn / planPrice) * 100) : 0;
+
+    return {
+      days: dailyData.map((d) => ({
+        date: d.date,
+        count: Number(d.count),
+        kv: +Number(d.kv).toFixed(2),
+        earn: +Number(d.earn).toFixed(2),
+        discount: +Number(d.discount).toFixed(2),
+        plastic: +Number(d.plastic).toFixed(2),
+      })),
+      totals,
+      plan: { planPrice, progress },
+      seller: seller
+        ? {
+            id: seller.id,
+            firstName: seller.firstName,
+            lastName: seller.lastName,
+            avatar: seller.avatar ? { id: seller.avatar.id, path: seller.avatar.path } : null,
+          }
+        : null,
+    };
+  }
 }
