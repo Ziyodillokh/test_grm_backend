@@ -363,19 +363,33 @@ export class ExcelController {
     return await this.fileService.checkCreate(datas);
   }
 
+  @Public()
   @Get('cashflows/excel')
   @ApiOperation({ summary: "CashFlow ma'lumotlarni Excel formatida export qilish" })
   @ApiQuery({ name: 'kassaId', required: false })
   @ApiQuery({ name: 'reportId', required: false })
   @ApiQuery({ name: 'kassaReportId', required: false })
+  @ApiQuery({ name: 'search', required: false })
+  @ApiQuery({ name: 'sellerId', required: false })
+  @ApiQuery({ name: 'cashflowTypeId', required: false })
+  @ApiQuery({ name: 'fromDate', required: false })
+  @ApiQuery({ name: 'toDate', required: false })
   @ApiResponse({ status: 200 })
   async exportCashFlowsToExcel(
     @Res() res: Response,
     @Query('kassaId') kassaId?: string,
     @Query('reportId') reportId?: string,
     @Query('kassaReportId') kassaReportId?: string,
+    @Query('search') search?: string,
+    @Query('sellerId') sellerId?: string,
+    @Query('cashflowTypeId') cashflowTypeId?: string,
+    @Query('fromDate') fromDate?: string,
+    @Query('toDate') toDate?: string,
   ) {
-    return await this.fileService.exportCashFlowsByKassaAndFilial(res, kassaId, reportId, kassaReportId);
+    return await this.fileService.exportCashFlowsByKassaAndFilial(
+      res, kassaId, reportId, kassaReportId,
+      { search, sellerId, cashflowTypeId, fromDate, toDate },
+    );
   }
 
   @Get('product/excel/new')
