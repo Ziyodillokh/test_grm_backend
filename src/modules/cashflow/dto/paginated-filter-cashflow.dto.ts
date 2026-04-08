@@ -101,4 +101,14 @@ export class PaginatedFilterCashflowDto {
   @IsString()
   @IsOptional()
   search?: number;
+
+  @ApiPropertyOptional()
+  @IsString()
+  @IsOptional()
+  status?: string;
+
+  @ApiPropertyOptional()
+  @IsUUID('4')
+  @IsOptional()
+  cashflowTypeId?: string;
 }

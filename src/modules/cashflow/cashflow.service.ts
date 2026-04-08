@@ -201,6 +201,16 @@ export class CashflowService {
         toDate: filter.toDate,
       });
 
+    if (filter.status)
+      baseQb.andWhere('cashflow.status = :status', {
+        status: filter.status,
+      });
+
+    if (filter.cashflowTypeId)
+      baseQb.andWhere('cashflow_type.id = :cashflowTypeId', {
+        cashflowTypeId: filter.cashflowTypeId,
+      });
+
     /**
      * =========================
      * MONTH FILTER
@@ -271,6 +281,7 @@ export class CashflowService {
         'COALESCE(SUM(cashflow.price), 0) AS "totalSum"',
         'COALESCE(SUM(ord.plasticSum), 0) AS "plasticSum"',
         'COALESCE(SUM(ord.price), 0) AS "totalOrderPrice"',
+        `COALESCE(SUM(CASE WHEN cashflow.type = 'Приход' THEN cashflow.price ELSE 0 END), 0) AS "totalIncome"`,
         `COALESCE(SUM(CASE WHEN cashflow.type = 'Расход' THEN cashflow.price ELSE 0 END), 0) AS "totalExpense"`,
         `COALESCE(SUM(CASE WHEN ord.status = 'canceled' THEN ord.plasticSum + ord.price ELSE 0 END), 0) AS "totalReturnSale"`,
         'COALESCE(SUM(ord.discountSum), 0) AS "totalDiscount"',
@@ -290,6 +301,7 @@ export class CashflowService {
         totalSum: Number(totalsRaw?.totalSum) || 0,
         plasticSum: Number(totalsRaw?.plasticSum) || 0,
         totalPrice: Number(totalsRaw?.totalOrderPrice) || 0,
+        totalIncome: Number(totalsRaw?.totalIncome) || 0,
         totalExpense: Number(totalsRaw?.totalExpense) || 0,
         totalReturnSale: Number(totalsRaw?.totalReturnSale) || 0,
         totalDiscount: Number(totalsRaw?.totalDiscount) || 0,
