@@ -839,6 +839,7 @@ export class ExcelService {
     kassaId?: string,
     reportId?: string,
     kassaReportId?: string,
+    filters?: { search?: string; sellerId?: string; cashflowTypeId?: string; fromDate?: string; toDate?: string },
   ) {
     try {
       const params = [kassaId, reportId, kassaReportId].filter(Boolean);
@@ -878,6 +879,9 @@ export class ExcelService {
 
       const headerKeys = columns.map(c => c.key);
 
+      // Numeric column keys for forcing number type in cells
+      const numericKeys = new Set(['price', 'plastic', 'count', 'discount', 'profit']);
+
       // Helper: create and append sheet
       const appendSheet = (data: any[], name: string) => {
         if (!data?.length) return;
@@ -894,6 +898,19 @@ export class ExcelService {
           const cellAddress = XLSX.utils.encode_cell({ r: 0, c: idx });
           sheet[cellAddress] = { t: 's', v: col.header };
         });
+
+        // Force numeric cells to number type
+        for (let row = 1; row <= data.length; row++) {
+          columns.forEach((col, colIdx) => {
+            if (numericKeys.has(col.key)) {
+              const cellAddress = XLSX.utils.encode_cell({ r: row, c: colIdx });
+              if (sheet[cellAddress]) {
+                sheet[cellAddress].t = 'n';
+                sheet[cellAddress].v = Number(sheet[cellAddress].v) || 0;
+              }
+            }
+          });
+        }
 
         // Column widths + hidden column
         sheet['!cols'] = columns.map((c) => ({
@@ -964,21 +981,16 @@ export class ExcelService {
           'color.title AS color',
           'COALESCE(order.x, 0)::numeric AS count',
           'COALESCE(order.discountSum, 0)::numeric AS discount',
-          'COALESCE(order.additionalProfitSum)::numeric AS profit',
+          'COALESCE(order.additionalProfitSum, 0)::numeric AS profit',
           'factory.title AS factory',
           'country.title AS country',
-          `
-          COALESCE(order.comment, cashflow.comment) as comment
-          `,
-          `
-         CASE 
-          WHEN seller.id IS NOT NULL THEN 
-            CONCAT(seller.firstName, ' ', seller.lastName)
-          ELSE 
-            CONCAT(c_seller.firstName, ' ', c_seller.lastName)
-          END AS seller
-        `,
-          'CONCAT(createdBy.firstName, \' \', createdBy.lastName) AS createdBy',
+          `COALESCE(order.comment, cashflow.comment) as comment`,
+          `CASE
+            WHEN seller.id IS NOT NULL THEN CONCAT(seller.firstName, ' ', seller.lastName)
+            WHEN createdBy.id IS NOT NULL THEN CONCAT(createdBy.firstName, ' ', createdBy.lastName)
+            ELSE ''
+          END AS seller`,
+          'CONCAT(createdBy.firstName, \' \', createdBy.lastName) AS "createdBy"',
           'filial.title AS filial',
         ])
         .leftJoin('cashflow.createdBy', 'createdBy')
@@ -995,8 +1007,33 @@ export class ExcelService {
         .leftJoin('bar_code.model', 'model')
         .orderBy('cashflow.date', 'DESC');
 
-      if (kassaId) qb.andWhere('cashflow.kassa.id = :kassaId', { kassaId });
-      if (reportId) qb.andWhere('cashflow.report.id = :reportId', { reportId });
+      if (kassaId) qb.andWhere('cashflow.kassaId = :kassaId', { kassaId });
+      if (reportId) qb.andWhere('cashflow.reportId = :reportId', { reportId });
+
+      // Always exclude pending, rejected and cancelled orders
+      qb.andWhere(
+        `(order.id IS NULL OR order.status NOT IN ('pending', 'rejected', 'canceled'))`,
+      );
+
+      // Apply filters
+      if (filters?.search) {
+        qb.andWhere(
+          `(collection.title ILIKE :search OR model.title ILIKE :search OR size.title ILIKE :search OR color.title ILIKE :search OR bar_code.code ILIKE :search)`,
+          { search: `%${filters.search}%` },
+        );
+      }
+      if (filters?.sellerId) {
+        qb.andWhere('seller.id = :sellerId', { sellerId: filters.sellerId });
+      }
+      if (filters?.cashflowTypeId) {
+        qb.andWhere('cashflow_type.id = :cashflowTypeId', { cashflowTypeId: filters.cashflowTypeId });
+      }
+      if (filters?.fromDate) {
+        qb.andWhere('cashflow.date >= :fromDate', { fromDate: filters.fromDate });
+      }
+      if (filters?.toDate) {
+        qb.andWhere('cashflow.date <= :toDate', { toDate: filters.toDate });
+      }
 
       const cashflows = await qb.getRawMany();
 
@@ -1005,6 +1042,11 @@ export class ExcelService {
         date: item.date
           ? dayjs(item.date).tz(this.systemTz).format('YYYY-MM-DD HH:mm')
           : '',
+        price: Number(item.price) || 0,
+        plastic: Number(item.plastic) || 0,
+        count: Number(item.count) || 0,
+        discount: Number(item.discount) || 0,
+        profit: Number(item.profit) || 0,
       }));
 
       appendSheet(
