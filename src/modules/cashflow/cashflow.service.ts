@@ -2667,16 +2667,33 @@ WHERE k.id = $1;
       const isOrder = (cashflow.tip as string) === CashflowTipEnum.ORDER;
 
       // Kassa status check
-      if (kassa && kassa.status === KassaProgresEnum.ACCEPTED) {
-        throw new BadRequestException('Qabul qilingan kassadagi cashflowni update qilib bo\'lmaydi');
+      if (kassa && (kassa.status === KassaProgresEnum.ACCEPTED || kassa.status === KassaProgresEnum.CLOSED)) {
+        throw new BadRequestException('Yopilgan yoki qabul qilingan kassadagi cashflowni update qilib bo\'lmaydi');
       }
 
-      // Date validation — different month requires WARNING kassa
+      // Date validation — different month requires kassa transfer
+      let isMonthChange = false;
+      let targetKassa: Kassa | null = null;
       if (data.date !== undefined && kassa) {
         const oldMonth = dayjs(cashflow.date).format('YYYY-MM');
         const newMonth = dayjs(data.date).format('YYYY-MM');
-        if (oldMonth !== newMonth && kassa.status !== KassaProgresEnum.WARNING) {
-          throw new BadRequestException('Boshqa oydagi sana uchun kassa WARNING statusda bo\'lishi kerak');
+        if (oldMonth !== newMonth) {
+          isMonthChange = true;
+          if (kassa.status !== KassaProgresEnum.WARNING && kassa.status !== KassaProgresEnum.OPEN) {
+            throw new BadRequestException('Joriy kassa WARNING yoki OPEN statusda bo\'lishi kerak');
+          }
+          const targetYear = dayjs(data.date).year();
+          const targetMonth = dayjs(data.date).month() + 1;
+          targetKassa = await queryRunner.manager.findOne(Kassa, {
+            where: { filial: { id: kassa.filial.id }, year: targetYear, month: targetMonth },
+            relations: { report: true, filial: true },
+          });
+          if (!targetKassa) {
+            throw new BadRequestException('Maqsad oy uchun kassa topilmadi');
+          }
+          if (targetKassa.status !== KassaProgresEnum.OPEN && targetKassa.status !== KassaProgresEnum.WARNING) {
+            throw new BadRequestException('Maqsad oy kassasi OPEN yoki WARNING statusda bo\'lishi kerak');
+          }
         }
       }
 
@@ -2694,45 +2711,115 @@ WHERE k.id = $1;
         const newPlasticSum = data.plasticSum !== undefined ? Math.abs(data.plasticSum) : oldPlasticSum;
         const newCashflowPrice = newOrderPrice + newPlasticSum;
 
-        // Recalculate additionalProfitSum = price + plasticSum - (priceMeter * kv)
+        // Recalculate profit using correct formulas (matching order create logic)
         const collectionPrice = order.product?.bar_code?.collection?.collection_prices?.[0];
         const priceMeter = collectionPrice?.priceMeter || 0;
-        const newAdditionalProfit = newOrderPrice + newPlasticSum - (priceMeter * order.kv);
+        const comingPrice = order.product?.comingPrice || 0;
+        const baseCost = priceMeter * order.kv;
+        const revenue = newOrderPrice + newPlasticSum;
+        const grossProfit = (priceMeter - comingPrice) * order.kv;
+        const newAdditionalProfit = Math.max(revenue - baseCost, 0);
+        const newDiscountSum = Math.max(baseCost - revenue, 0);
+        const newNetProfit = grossProfit - newDiscountSum;
 
         // If APPROVED, update kassa and report
         if (cashflow.status === CashflowStatusEnum.APPROVED && kassa) {
-          const cashflowPriceDiff = newCashflowPrice - oldCashflowPrice;
-          const orderPriceDiff = newOrderPrice - oldOrderPrice;
-          const plasticDiff = newPlasticSum - oldPlasticSum;
-          const additionalProfitDiff = newAdditionalProfit - oldAdditionalProfit;
+          if (isMonthChange && targetKassa) {
+            // --- TRANSFER: remove from old kassa, add to new kassa ---
+            if (!order.isDebt) kassa.in_hand -= oldOrderPrice;
+            kassa.plasticSum -= oldPlasticSum;
+            kassa.sale -= oldCashflowPrice;
+            kassa.additionalProfitTotalSum -= oldAdditionalProfit;
+            kassa.netProfitTotalSum -= order.netProfitSum;
+            kassa.discount -= order.discountSum;
+            kassa.totalSellCount -= 1;
+            kassa.totalSize -= order.kv;
 
-          if (!order.isDebt) {
-            kassa.in_hand += orderPriceDiff;
+            const oldReport = (await queryRunner.manager.findOne(Kassa, {
+              where: { id: kassa.id }, relations: { report: true },
+            }))?.report;
+            if (oldReport) {
+              oldReport.totalSale -= oldCashflowPrice;
+              oldReport.totalPlasticSum -= oldPlasticSum;
+              oldReport.accountantSum -= oldPlasticSum;
+              oldReport.additionalProfitTotalSum -= oldAdditionalProfit;
+              oldReport.netProfitTotalSum -= order.netProfitSum;
+              oldReport.totalDiscount -= order.discountSum;
+              oldReport.totalSellCount -= 1;
+              oldReport.totalSize -= order.kv;
+              await queryRunner.manager.save(oldReport);
+            }
+            await queryRunner.manager.save(kassa);
+
+            // Add to target kassa with NEW values
+            if (!order.isDebt) targetKassa.in_hand += newOrderPrice;
+            targetKassa.plasticSum += newPlasticSum;
+            targetKassa.sale += newCashflowPrice;
+            targetKassa.additionalProfitTotalSum += newAdditionalProfit;
+            targetKassa.netProfitTotalSum += newNetProfit;
+            targetKassa.discount += newDiscountSum;
+            targetKassa.totalSellCount += 1;
+            targetKassa.totalSize += order.kv;
+
+            const newReport = targetKassa.report;
+            if (newReport) {
+              newReport.totalSale += newCashflowPrice;
+              newReport.totalPlasticSum += newPlasticSum;
+              newReport.accountantSum += newPlasticSum;
+              newReport.additionalProfitTotalSum += newAdditionalProfit;
+              newReport.netProfitTotalSum += newNetProfit;
+              newReport.totalDiscount += newDiscountSum;
+              newReport.totalSellCount += 1;
+              newReport.totalSize += order.kv;
+              await queryRunner.manager.save(newReport);
+            }
+            await queryRunner.manager.save(targetKassa);
+
+            order.kassa = targetKassa;
+            cashflow.kassa = targetKassa;
+          } else {
+            // --- SAME KASSA: apply diffs ---
+            const cashflowPriceDiff = newCashflowPrice - oldCashflowPrice;
+            const orderPriceDiff = newOrderPrice - oldOrderPrice;
+            const plasticDiff = newPlasticSum - oldPlasticSum;
+            const additionalProfitDiff = newAdditionalProfit - oldAdditionalProfit;
+            const netProfitDiff = newNetProfit - order.netProfitSum;
+            const discountDiff = newDiscountSum - order.discountSum;
+
+            if (!order.isDebt) kassa.in_hand += orderPriceDiff;
+            kassa.plasticSum += plasticDiff;
+            kassa.sale += cashflowPriceDiff;
+            kassa.additionalProfitTotalSum += additionalProfitDiff;
+            kassa.netProfitTotalSum += netProfitDiff;
+            kassa.discount += discountDiff;
+
+            const kassaWithReport = await queryRunner.manager.findOne(Kassa, {
+              where: { id: kassa.id }, relations: { report: true },
+            });
+            const oneReport = kassaWithReport?.report;
+            if (oneReport) {
+              oneReport.totalSale += cashflowPriceDiff;
+              oneReport.totalPlasticSum += plasticDiff;
+              oneReport.accountantSum += plasticDiff;
+              oneReport.additionalProfitTotalSum += additionalProfitDiff;
+              oneReport.netProfitTotalSum += netProfitDiff;
+              oneReport.totalDiscount += discountDiff;
+              await queryRunner.manager.save(oneReport);
+            }
+            await queryRunner.manager.save(kassa);
           }
-          kassa.plasticSum += plasticDiff;
-          kassa.sale += cashflowPriceDiff;
-          kassa.additionalProfitTotalSum += additionalProfitDiff;
-
-          const kassaWithReport = await queryRunner.manager.findOne(Kassa, {
-            where: { id: kassa.id },
-            relations: { report: true },
-          });
-          const oneReport = kassaWithReport?.report;
-          if (oneReport) {
-            oneReport.totalSale += cashflowPriceDiff;
-            oneReport.totalPlasticSum += plasticDiff;
-            oneReport.accountantSum += plasticDiff;
-            oneReport.additionalProfitTotalSum += additionalProfitDiff;
-            await queryRunner.manager.save(oneReport);
-          }
-
-          await queryRunner.manager.save(kassa);
+        } else if (isMonthChange && targetKassa) {
+          // PENDING order — just move kassa relation (no totals)
+          order.kassa = targetKassa;
+          cashflow.kassa = targetKassa;
         }
 
         // Update order
         order.price = newOrderPrice;
         order.plasticSum = newPlasticSum;
         order.additionalProfitSum = newAdditionalProfit;
+        order.netProfitSum = newNetProfit;
+        order.discountSum = newDiscountSum;
         if (data.comment !== undefined) order.comment = data.comment;
         if (data.date !== undefined) order.date = data.date;
         await queryRunner.manager.save(order);
@@ -2748,82 +2835,146 @@ WHERE k.id = $1;
         const oldPrice = cashflow.price;
         const newPrice = data.price !== undefined ? Math.abs(data.price) : oldPrice;
         const priceDiff = newPrice - oldPrice;
+        const oldSlug = cashflow.cashflow_type?.slug;
 
-        // --- Kassa effects ---
-        if (priceDiff !== 0 && kassa) {
-          if (cashflow.type === CashFlowEnum.InCome) {
-            if (cashflow.cashflow_type?.slug === 'Перечисление') {
-              kassa.plasticSum += priceDiff;
-              kassa.income += priceDiff;
-              const kassaWithReport = await queryRunner.manager.findOne(Kassa, {
-                where: { id: kassa.id },
-                relations: { report: true },
-              });
-              const oneReport = kassaWithReport?.report;
-              if (oneReport) {
-                oneReport.totalPlasticSum += priceDiff;
-                oneReport.accountantSum += priceDiff;
-                await queryRunner.manager.save(oneReport);
-              }
+        // Check if cashflow_type is changing
+        let newCashflowType = cashflow.cashflow_type;
+        let isTypeChange = false;
+        if (data.cashflow_type && data.cashflow_type !== cashflow.cashflow_type?.id) {
+          newCashflowType = await queryRunner.manager.findOne(CashflowType, {
+            where: { id: data.cashflow_type },
+          });
+          if (!newCashflowType) throw new BadRequestException('Cashflow type topilmadi');
+          isTypeChange = true;
+        }
+        const newSlug = newCashflowType?.slug;
+
+        // Helper: apply kassa effects for a cashflow (positive = add, negative = remove)
+        const applyKassaEffects = (k: Kassa, price: number, slug: string, type: CashFlowEnum, isOnline: boolean, sign: number) => {
+          if (type === CashFlowEnum.InCome) {
+            if (slug === 'Перечисление') {
+              k.plasticSum += price * sign;
+              k.income += price * sign;
             } else {
-              kassa.income += priceDiff;
-              if (cashflow.is_online) {
-                kassa.plasticSum += priceDiff;
+              k.income += price * sign;
+              if (isOnline) {
+                k.plasticSum += price * sign;
               } else {
-                kassa.in_hand += priceDiff;
+                k.in_hand += price * sign;
               }
             }
-          } else if (cashflow.type === CashFlowEnum.Consumption) {
-            kassa.in_hand -= priceDiff;
-            kassa.expense += priceDiff;
-            if (cashflow.is_online) {
-              kassa.plasticSum -= priceDiff;
+          } else if (type === CashFlowEnum.Consumption) {
+            k.in_hand -= price * sign;
+            k.expense += price * sign;
+            if (isOnline) {
+              k.plasticSum -= price * sign;
             }
-            if (cashflow.cashflow_type?.slug === 'Инкассация') {
-              kassa.cash_collection += priceDiff;
-              const kassaWithReport = await queryRunner.manager.findOne(Kassa, {
-                where: { id: kassa.id },
-                relations: { report: true },
-              });
-              const oneReport = kassaWithReport?.report;
-              if (oneReport) {
-                oneReport.totalCashCollection += priceDiff;
-                oneReport.accountantSum += priceDiff;
-                await queryRunner.manager.save(oneReport);
-              }
+            if (slug === 'Инкассация') {
+              k.cash_collection += price * sign;
             }
           }
-          await queryRunner.manager.save(kassa);
+        };
+
+        // Helper: apply report effects for slug-specific cashflows
+        const applyReportSlugEffects = async (k: Kassa, price: number, slug: string, type: CashFlowEnum, sign: number) => {
+          const kassaWithReport = await queryRunner.manager.findOne(Kassa, {
+            where: { id: k.id }, relations: { report: true },
+          });
+          const r = kassaWithReport?.report;
+          if (!r) return;
+          if (type === CashFlowEnum.InCome && slug === 'Перечисление') {
+            r.totalPlasticSum += price * sign;
+            r.accountantSum += price * sign;
+          }
+          if (type === CashFlowEnum.Consumption && slug === 'Инкассация') {
+            r.totalCashCollection += price * sign;
+            r.accountantSum += price * sign;
+          }
+          await queryRunner.manager.save(r);
+        };
+
+        // --- Kassa effects ---
+        if (kassa && (priceDiff !== 0 || isTypeChange || isMonthChange)) {
+          if (isMonthChange && targetKassa) {
+            // TRANSFER: reverse old effects from old kassa, apply new to target
+            applyKassaEffects(kassa, oldPrice, oldSlug, cashflow.type, cashflow.is_online, -1);
+            await applyReportSlugEffects(kassa, oldPrice, oldSlug, cashflow.type, -1);
+            await queryRunner.manager.save(kassa);
+
+            applyKassaEffects(targetKassa, newPrice, newSlug, cashflow.type, cashflow.is_online, 1);
+            await applyReportSlugEffects(targetKassa, newPrice, newSlug, cashflow.type, 1);
+            await queryRunner.manager.save(targetKassa);
+
+            cashflow.kassa = targetKassa;
+          } else if (isTypeChange) {
+            // TYPE CHANGE: reverse old slug effects, apply new slug effects
+            applyKassaEffects(kassa, oldPrice, oldSlug, cashflow.type, cashflow.is_online, -1);
+            await applyReportSlugEffects(kassa, oldPrice, oldSlug, cashflow.type, -1);
+            applyKassaEffects(kassa, newPrice, newSlug, cashflow.type, cashflow.is_online, 1);
+            await applyReportSlugEffects(kassa, newPrice, newSlug, cashflow.type, 1);
+            await queryRunner.manager.save(kassa);
+          } else if (priceDiff !== 0) {
+            // SAME TYPE, price diff only
+            applyKassaEffects(kassa, priceDiff, oldSlug, cashflow.type, cashflow.is_online, 1);
+            await applyReportSlugEffects(kassa, priceDiff, oldSlug, cashflow.type, 1);
+            await queryRunner.manager.save(kassa);
+          }
         }
 
         // --- Report effects (M_MANAGER cashflows) ---
-        if (priceDiff !== 0 && cashflow.report) {
+        if ((priceDiff !== 0 || isMonthChange) && cashflow.report) {
           const report = cashflow.report;
           const user = await queryRunner.manager.findOne(User, {
             where: { id: cashflow.createdBy?.id },
             relations: ['position'],
           });
-          if (cashflow.type === CashFlowEnum.InCome) {
-            report.totalIncome += priceDiff;
-            if (user?.position?.role === UserRoleEnum.ACCOUNTANT) {
-              report.accountantSum += priceDiff;
+          const isAccountant = user?.position?.role === UserRoleEnum.ACCOUNTANT;
+
+          if (isMonthChange && targetKassa) {
+            // Reverse from old report
+            if (cashflow.type === CashFlowEnum.InCome) {
+              report.totalIncome -= oldPrice;
+              if (isAccountant) report.accountantSum -= oldPrice;
+              else report.managerSum -= oldPrice;
             } else {
-              report.managerSum += priceDiff;
+              report.totalExpense -= oldPrice;
+              if (isAccountant) report.accountantSum += oldPrice;
+              else report.managerSum += oldPrice;
             }
-          } else if (cashflow.type === CashFlowEnum.Consumption) {
-            report.totalExpense += priceDiff;
-            if (user?.position?.role === UserRoleEnum.ACCOUNTANT) {
-              report.accountantSum -= priceDiff;
+            await queryRunner.manager.save(report);
+
+            // Add to new report
+            const newReport = targetKassa.report;
+            if (newReport) {
+              if (cashflow.type === CashFlowEnum.InCome) {
+                newReport.totalIncome += newPrice;
+                if (isAccountant) newReport.accountantSum += newPrice;
+                else newReport.managerSum += newPrice;
+              } else {
+                newReport.totalExpense += newPrice;
+                if (isAccountant) newReport.accountantSum -= newPrice;
+                else newReport.managerSum -= newPrice;
+              }
+              await queryRunner.manager.save(newReport);
+              cashflow.report = newReport;
+            }
+          } else if (priceDiff !== 0) {
+            if (cashflow.type === CashFlowEnum.InCome) {
+              report.totalIncome += priceDiff;
+              if (isAccountant) report.accountantSum += priceDiff;
+              else report.managerSum += priceDiff;
             } else {
-              report.managerSum -= priceDiff;
+              report.totalExpense += priceDiff;
+              if (isAccountant) report.accountantSum -= priceDiff;
+              else report.managerSum -= priceDiff;
             }
+            await queryRunner.manager.save(report);
           }
-          await queryRunner.manager.save(report);
         }
 
         // --- Debt effects ---
         if (priceDiff !== 0 && cashflow.debt) {
-          const isDebtFlow = ['dolg', 'Долг', 'Кент'].includes(cashflow.cashflow_type?.slug);
+          const isDebtFlow = ['dolg', 'Долг', 'Кент'].includes(oldSlug);
           if (isDebtFlow) {
             const debt = await this.debtService.findOne(cashflow.debt.id);
             if (debt) {
@@ -2838,42 +2989,146 @@ WHERE k.id = $1;
           }
         }
 
-        // --- Child cashflows auto-update ---
-        if (cashflow.child?.length) {
+        // --- Child cashflow handling ---
+        const childCreatingSlugs = ['manager', 'bugalter', 'Инкассация'];
+        const oldHasChildren = childCreatingSlugs.includes(oldSlug);
+        const newHasChildren = childCreatingSlugs.includes(newSlug);
+
+        if (isTypeChange && oldHasChildren && cashflow.child?.length) {
+          // Type changed — reverse child report effects and delete old children
+          for (const child of cashflow.child) {
+            if (child.report) {
+              const childReport = await queryRunner.manager.findOne(Report, {
+                where: { id: child.report.id },
+              });
+              if (childReport) {
+                childReport.totalIncome -= oldPrice;
+                if (oldSlug === 'bugalter' || oldSlug === 'Инкассация') {
+                  childReport.accountantSum -= oldPrice;
+                }
+                if (oldSlug === 'manager') {
+                  childReport.managerSum -= oldPrice;
+                }
+                await queryRunner.manager.save(childReport);
+              }
+            }
+            await queryRunner.manager.remove(child);
+          }
+          cashflow.child = [];
+        }
+
+        if (isTypeChange && newHasChildren) {
+          // New type requires children — create them (matching create logic)
+          let targetUser = null;
+          if (newSlug === 'manager') {
+            targetUser = await queryRunner.manager.findOne(User, {
+              where: { position: { role: UserRoleEnum.M_MANAGER } },
+            });
+          } else {
+            targetUser = await queryRunner.manager.findOne(User, {
+              where: { position: { role: UserRoleEnum.ACCOUNTANT } },
+            });
+          }
+          if (targetUser) {
+            const activeKassa = isMonthChange && targetKassa ? targetKassa : kassa;
+            const childCashflowType = await this.getOneBySlug(newSlug === 'Инкассация' ? 'Инкассация' : 'kassa');
+            let comment = `${activeKassa?.filial?.title || ''} filialidan kassa qabul qilindi - ${data.comment || cashflow.comment || ''}`;
+            if (newSlug === 'Инкассация') {
+              comment = `${activeKassa?.filial?.title || ''} filialini kassasidan "Инкассация" qabul qilindi - ${data.comment || cashflow.comment || ''}`;
+            }
+
+            const kassaReport = activeKassa?.report;
+            const childData = {
+              createdBy: targetUser.id,
+              price: newPrice,
+              filial: activeKassa?.filial?.id,
+              report: kassaReport?.id,
+              type: CashFlowEnum.InCome,
+              tip: CashflowTipEnum.CASHFLOW,
+              comment,
+              cashflow_type: childCashflowType?.id,
+              date: data.date ? new Date(data.date) : new Date(cashflow.date),
+              is_online: cashflow.is_online || newSlug === 'Инкассация',
+              is_static: false,
+              parent: cashflow.id,
+            };
+            await queryRunner.manager.createQueryBuilder()
+              .insert().into(Cashflow)
+              .values(childData as unknown as Cashflow)
+              .execute();
+
+            if (kassaReport) {
+              if (newSlug === 'bugalter' || newSlug === 'Инкассация') {
+                kassaReport.accountantSum += newPrice;
+              } else {
+                kassaReport.managerSum += newPrice;
+              }
+              kassaReport.totalIncome += newPrice;
+              await queryRunner.manager.save(kassaReport);
+            }
+          }
+        } else if (!isTypeChange && cashflow.child?.length) {
+          // Same type — cascade update to children
           for (const child of cashflow.child) {
             if (priceDiff !== 0) child.price = newPrice;
             if (data.date !== undefined) child.date = data.date as any;
             if (data.comment !== undefined) {
-              const slug = cashflow.cashflow_type?.slug;
-              if (slug === 'Инкассация') {
+              if (oldSlug === 'Инкассация') {
                 child.comment = `${kassa?.filial?.title || ''} filialini kassasidan "Инкассация" qabul qilindi - ${data.comment || ''}`;
               } else {
                 child.comment = `${kassa?.filial?.title || ''} filialidan kassa qabul qilindi - ${data.comment || ''}`;
               }
             }
-            await queryRunner.manager.save(child);
 
-            // Child report effects (only on price change)
-            if (priceDiff !== 0 && child.report) {
+            // Child report transfer on month change
+            if (isMonthChange && targetKassa?.report && child.report) {
+              const oldChildReport = await queryRunner.manager.findOne(Report, {
+                where: { id: child.report.id },
+              });
+              if (oldChildReport) {
+                oldChildReport.totalIncome -= oldPrice;
+                if (oldSlug === 'bugalter' || oldSlug === 'Инкассация') {
+                  oldChildReport.accountantSum -= oldPrice;
+                }
+                if (oldSlug === 'manager') {
+                  oldChildReport.managerSum -= oldPrice;
+                }
+                await queryRunner.manager.save(oldChildReport);
+              }
+              child.report = targetKassa.report;
+              const newChildReport = targetKassa.report;
+              newChildReport.totalIncome += newPrice;
+              if (oldSlug === 'bugalter' || oldSlug === 'Инкассация') {
+                newChildReport.accountantSum += newPrice;
+              }
+              if (oldSlug === 'manager') {
+                newChildReport.managerSum += newPrice;
+              }
+              await queryRunner.manager.save(newChildReport);
+            } else if (priceDiff !== 0 && child.report) {
+              // Same month — apply price diff to child report
               const childReport = await queryRunner.manager.findOne(Report, {
                 where: { id: child.report.id },
               });
               if (childReport) {
                 childReport.totalIncome += priceDiff;
-                if (cashflow.cashflow_type?.slug === 'bugalter' || cashflow.cashflow_type?.slug === 'Инкассация') {
+                if (oldSlug === 'bugalter' || oldSlug === 'Инкассация') {
                   childReport.accountantSum += priceDiff;
                 }
-                if (cashflow.cashflow_type?.slug === 'manager') {
+                if (oldSlug === 'manager') {
                   childReport.managerSum += priceDiff;
                 }
                 await queryRunner.manager.save(childReport);
               }
             }
+
+            await queryRunner.manager.save(child);
           }
         }
 
         // Update cashflow fields
         cashflow.price = newPrice;
+        if (isTypeChange) cashflow.cashflow_type = newCashflowType;
         if (data.comment !== undefined) cashflow.comment = data.comment;
         if (data.date !== undefined) cashflow.date = data.date as any;
         await queryRunner.manager.save(cashflow);

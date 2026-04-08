@@ -65,6 +65,14 @@ class UpdateCashflowDto {
   @IsOptional()
   @IsString()
   readonly createdBy: string;
+
+  @ApiProperty({
+    description: `cashflow_type id`,
+    example: 'uuid',
+  })
+  @IsOptional()
+  @IsString()
+  readonly cashflow_type: string;
 }
 
 export default UpdateCashflowDto;
