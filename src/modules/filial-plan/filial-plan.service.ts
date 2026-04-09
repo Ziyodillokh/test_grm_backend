@@ -511,17 +511,23 @@ export class FilialPlanService {
       .orderBy('o.date', 'ASC')
       .getMany();
 
+    // Local kun (Asia/Tashkent) bo'yicha kalit — UTC siljishini oldini oladi
+    const getDateKey = (d: Date | string) => {
+      const dt = new Date(d);
+      return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+    };
+
     // Orderlarni kunlarga guruhlash
     const ordersByDate: Record<string, typeof orders> = {};
     for (const order of orders) {
-      const dateKey = new Date(order.date).toISOString().split('T')[0];
+      const dateKey = getDateKey(order.date);
       if (!ordersByDate[dateKey]) ordersByDate[dateKey] = [];
       ordersByDate[dateKey].push(order);
     }
 
     return {
       days: dailyData.map((d) => {
-        const dateKey = new Date(d.date).toISOString().split('T')[0];
+        const dateKey = getDateKey(d.date);
         return {
           date: d.date,
           count: Number(d.count),
