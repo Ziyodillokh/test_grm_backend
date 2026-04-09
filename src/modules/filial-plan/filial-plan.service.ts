@@ -496,15 +496,54 @@ export class FilialPlanService {
 
     const progress = planPrice > 0 ? Math.round((totals.earn / planPrice) * 100) : 0;
 
+    // 4. Har kunning orderlari (batafsil)
+    const orders = await this.orderRepo
+      .createQueryBuilder('o')
+      .leftJoinAndSelect('o.bar_code', 'bar_code')
+      .leftJoinAndSelect('bar_code.size', 'size')
+      .leftJoinAndSelect('bar_code.color', 'color')
+      .leftJoinAndSelect('bar_code.shape', 'shape')
+      .leftJoinAndSelect('bar_code.collection', 'collection')
+      .where('o.sellerId = :sellerId', { sellerId })
+      .andWhere('o.status = :status', { status: 'accepted' })
+      .andWhere('o.date >= :fromDate', { fromDate })
+      .andWhere('o.date < :toDate', { toDate })
+      .orderBy('o.date', 'ASC')
+      .getMany();
+
+    // Orderlarni kunlarga guruhlash
+    const ordersByDate: Record<string, typeof orders> = {};
+    for (const order of orders) {
+      const dateKey = new Date(order.date).toISOString().split('T')[0];
+      if (!ordersByDate[dateKey]) ordersByDate[dateKey] = [];
+      ordersByDate[dateKey].push(order);
+    }
+
     return {
-      days: dailyData.map((d) => ({
-        date: d.date,
-        count: Number(d.count),
-        kv: +Number(d.kv).toFixed(2),
-        earn: +Number(d.earn).toFixed(2),
-        discount: +Number(d.discount).toFixed(2),
-        plastic: +Number(d.plastic).toFixed(2),
-      })),
+      days: dailyData.map((d) => {
+        const dateKey = new Date(d.date).toISOString().split('T')[0];
+        return {
+          date: d.date,
+          count: Number(d.count),
+          kv: +Number(d.kv).toFixed(2),
+          earn: +Number(d.earn).toFixed(2),
+          discount: +Number(d.discount).toFixed(2),
+          plastic: +Number(d.plastic).toFixed(2),
+          orders: (ordersByDate[dateKey] || []).map((o) => ({
+            id: o.id,
+            date: o.date,
+            price: o.price,
+            kv: o.kv,
+            x: o.x,
+            plasticSum: o.plasticSum,
+            discountSum: o.discountSum,
+            collection: o.bar_code?.collection?.title || null,
+            size: o.bar_code?.size?.title || null,
+            color: o.bar_code?.color?.title || null,
+            shape: o.bar_code?.shape?.title || null,
+          })),
+        };
+      }),
       totals,
       plan: { planPrice, progress },
       seller: seller
