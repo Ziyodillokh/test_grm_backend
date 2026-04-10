@@ -108,13 +108,13 @@ export class QrBaseController {
     );
   }
 
-  @Get(':id')
+  @Get('find-by/:code')
   @Roles(Role.BOSS, Role.M_MANAGER, Role.W_MANAGER, Role.F_MANAGER, Role.SELLER, Role.I_MANAGER)
-  @ApiOperation({ summary: 'Get a QR base by ID' })
+  @ApiOperation({ summary: 'Get a QR base by code (find-by alias)' })
   @ApiOkResponse({ description: 'QR base returned successfully' })
   @HttpCode(HttpStatus.OK)
-  async findOne(@Param('id', ParseUUIDPipe) id: string): Promise<QrBase> {
-    return this.qrBaseService.findOne(id);
+  async findByCodeAlias(@Param('code') code: string): Promise<QrBase> {
+    return this.qrBaseService.getOneByCode(code);
   }
 
   @Get('code/:code')
@@ -128,6 +128,15 @@ export class QrBaseController {
       throw new Error(`QrBase with code "${code}" not found`);
     }
     return entity;
+  }
+
+  @Get(':id')
+  @Roles(Role.BOSS, Role.M_MANAGER, Role.W_MANAGER, Role.F_MANAGER, Role.SELLER, Role.I_MANAGER)
+  @ApiOperation({ summary: 'Get a QR base by ID' })
+  @ApiOkResponse({ description: 'QR base returned successfully' })
+  @HttpCode(HttpStatus.OK)
+  async findOne(@Param('id', ParseUUIDPipe) id: string): Promise<QrBase> {
+    return this.qrBaseService.findOne(id);
   }
 
   @Post()
