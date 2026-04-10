@@ -425,9 +425,14 @@ export class SalesReportService {
           SUM(o.kv) AS sold_kv,
           SUM(o.price + o."plasticSum") AS sold_sum,
           SUM(o."netProfitSum") AS profit,
-          SUM(o."discountSum") AS discount
+          SUM(o."discountSum") AS discount,
+          SUM(o.kv * COALESCE(pcpr."factoryPricePerKv", 0)) AS coming_sum,
+          SUM(o.kv * COALESCE(pcpr."overheadPerKv", 0)) AS overhead_sum
         FROM "order" o
         JOIN product p ON o."productId" = p.id
+        JOIN qrbase q ON p."barCodeId" = q.id
+        LEFT JOIN "partiya-collection-price" pcpr
+          ON pcpr."partiyaId" = p."partiyaId" AND pcpr."collectionId" = q."collectionId"
         WHERE o.status = 'accepted'
           AND EXTRACT(YEAR FROM o.date) = $1
           AND EXTRACT(MONTH FROM o.date) = $2
@@ -439,13 +444,17 @@ export class SalesReportService {
           SUM(t.kv) AS sold_kv,
           SUM(t.kv * pcp."dealerPriceMeter") AS sold_sum,
           SUM(t.kv * (pcp."dealerPriceMeter" - t."comingPrice")) AS profit,
-          SUM(t.kv * (p."priceMeter" - pcp."dealerPriceMeter")) AS discount
+          SUM(t.kv * (p."priceMeter" - pcp."dealerPriceMeter")) AS discount,
+          SUM(t.kv * COALESCE(pcpr."factoryPricePerKv", 0)) AS coming_sum,
+          SUM(t.kv * COALESCE(pcpr."overheadPerKv", 0)) AS overhead_sum
         FROM transfer t
         JOIN product p ON t."productId" = p.id
         JOIN package_transfer pt ON t."packageId" = pt.id
         JOIN qrbase q ON p."barCodeId" = q.id
         LEFT JOIN "package-collection-price" pcp
           ON pcp."packageId" = pt.id AND pcp."collectionId" = q."collectionId"
+        LEFT JOIN "partiya-collection-price" pcpr
+          ON pcpr."partiyaId" = p."partiyaId" AND pcpr."collectionId" = q."collectionId"
         WHERE t.for_dealer = true
           AND t.progres = 'Accepted'
           AND pt.status = 'accepted'
@@ -463,7 +472,9 @@ export class SalesReportService {
         COALESCE(os.sold_kv, 0) + COALESCE(ds.sold_kv, 0) AS "soldKv",
         COALESCE(os.sold_sum, 0) + COALESCE(ds.sold_sum, 0) AS "soldSum",
         COALESCE(os.profit, 0) + COALESCE(ds.profit, 0) AS "profit",
-        COALESCE(os.discount, 0) + COALESCE(ds.discount, 0) AS "discount"
+        COALESCE(os.discount, 0) + COALESCE(ds.discount, 0) AS "discount",
+        COALESCE(os.coming_sum, 0) + COALESCE(ds.coming_sum, 0) AS "comingSum",
+        COALESCE(os.overhead_sum, 0) + COALESCE(ds.overhead_sum, 0) AS "overheadSum"
       FROM partiya pa
       LEFT JOIN partiya_number pn ON pa."partiyaNoId" = pn.id
       LEFT JOIN country c ON pa."countryId" = c.id
@@ -485,9 +496,14 @@ export class SalesReportService {
           SUM(o.kv) AS sold_kv,
           SUM(o.price + o."plasticSum") AS sold_sum,
           SUM(o."netProfitSum") AS profit,
-          SUM(o."discountSum") AS discount
+          SUM(o."discountSum") AS discount,
+          SUM(o.kv * COALESCE(pcpr."factoryPricePerKv", 0)) AS coming_sum,
+          SUM(o.kv * COALESCE(pcpr."overheadPerKv", 0)) AS overhead_sum
         FROM "order" o
         JOIN product p ON o."productId" = p.id
+        JOIN qrbase q ON p."barCodeId" = q.id
+        LEFT JOIN "partiya-collection-price" pcpr
+          ON pcpr."partiyaId" = p."partiyaId" AND pcpr."collectionId" = q."collectionId"
         WHERE o.status = 'accepted'
           AND EXTRACT(YEAR FROM o.date) = $1
           AND EXTRACT(MONTH FROM o.date) = $2
@@ -499,13 +515,17 @@ export class SalesReportService {
           SUM(t.kv) AS sold_kv,
           SUM(t.kv * pcp."dealerPriceMeter") AS sold_sum,
           SUM(t.kv * (pcp."dealerPriceMeter" - t."comingPrice")) AS profit,
-          SUM(t.kv * (p."priceMeter" - pcp."dealerPriceMeter")) AS discount
+          SUM(t.kv * (p."priceMeter" - pcp."dealerPriceMeter")) AS discount,
+          SUM(t.kv * COALESCE(pcpr."factoryPricePerKv", 0)) AS coming_sum,
+          SUM(t.kv * COALESCE(pcpr."overheadPerKv", 0)) AS overhead_sum
         FROM transfer t
         JOIN product p ON t."productId" = p.id
         JOIN package_transfer pt ON t."packageId" = pt.id
         JOIN qrbase q ON p."barCodeId" = q.id
         LEFT JOIN "package-collection-price" pcp
           ON pcp."packageId" = pt.id AND pcp."collectionId" = q."collectionId"
+        LEFT JOIN "partiya-collection-price" pcpr
+          ON pcpr."partiyaId" = p."partiyaId" AND pcpr."collectionId" = q."collectionId"
         WHERE t.for_dealer = true
           AND t.progres = 'Accepted'
           AND pt.status = 'accepted'
@@ -519,6 +539,8 @@ export class SalesReportService {
         COALESCE(SUM(COALESCE(os.sold_sum, 0) + COALESCE(ds.sold_sum, 0)), 0)::numeric(20,2) AS "totalSum",
         COALESCE(SUM(COALESCE(os.profit, 0) + COALESCE(ds.profit, 0)), 0)::numeric(20,2) AS "totalProfit",
         COALESCE(SUM(COALESCE(os.discount, 0) + COALESCE(ds.discount, 0)), 0)::numeric(20,2) AS "totalDiscount",
+        COALESCE(SUM(COALESCE(os.coming_sum, 0) + COALESCE(ds.coming_sum, 0)), 0)::numeric(20,2) AS "totalComingSum",
+        COALESCE(SUM(COALESCE(os.overhead_sum, 0) + COALESCE(ds.overhead_sum, 0)), 0)::numeric(20,2) AS "totalOverheadSum",
         COUNT(pa.id)::int AS "totalGroups"
       FROM partiya pa
       LEFT JOIN partiya_number pn ON pa."partiyaNoId" = pn.id
@@ -545,6 +567,8 @@ export class SalesReportService {
         soldSum: +(+r.soldSum).toFixed(2) || 0,
         profit: +(+r.profit).toFixed(2) || 0,
         discount: +(+r.discount).toFixed(2) || 0,
+        comingSum: +(+r.comingSum).toFixed(2) || 0,
+        overheadSum: +(+r.overheadSum).toFixed(2) || 0,
       })),
       meta: {
         totals: {
@@ -553,6 +577,8 @@ export class SalesReportService {
           totalSum: +totals.totalSum,
           totalProfit: +totals.totalProfit,
           totalDiscount: +totals.totalDiscount,
+          totalComingSum: +totals.totalComingSum,
+          totalOverheadSum: +totals.totalOverheadSum,
         },
         pagination: {
           page,
