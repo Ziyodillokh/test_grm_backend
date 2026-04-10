@@ -649,15 +649,19 @@ export class ExcelService {
         FROM "collection-price" cp2
         WHERE cp2."collectionId" = c.id
     ) AS "collectionPrice",
-    pe."displayPrice"
+    pe."displayPrice",
+    pcp."factoryPricePerKv",
+    pcp."overheadPerKv"
         FROM productexcel pe
           JOIN qrbase qr
         ON qr.id = pe."barCodeId"
           JOIN size s ON s.id = qr."sizeId"
           JOIN collection c ON c.id = qr."collectionId"
           JOIN partiya p ON p.id = pe."partiyaId"
+          LEFT JOIN "partiya-collection-price" pcp
+            ON pcp."partiyaId" = p.id AND pcp."collectionId" = c.id
         WHERE ${whereConditions}
-        GROUP BY c.id, c.title, pe."displayPrice"
+        GROUP BY c.id, c.title, pe."displayPrice", pcp."factoryPricePerKv", pcp."overheadPerKv"
         ORDER BY c.title
         OFFSET ${offset} LIMIT ${limit}
       `,
@@ -679,6 +683,8 @@ export class ExcelService {
       displayPrice: item.displayPrice ? item.displayPrice : 0,
       collectionPrice: item.collectionPrice?.length ? item.collectionPrice[0] : null,
       expense: partiya.expensePerKv || (partiya.expense / partiya.volume).toFixed(2),
+      factoryPricePerKv: Number(item.factoryPricePerKv) || 0,
+      overheadPerKv: Number(item.overheadPerKv) || 0,
     }));
 
     return {
