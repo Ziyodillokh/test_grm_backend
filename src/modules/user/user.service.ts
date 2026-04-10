@@ -142,6 +142,25 @@ export class UserService {
     });
   }
 
+  async findManagersByFilial(
+    filialId: string,
+    options: IPaginationOptions,
+    search?: string,
+  ): Promise<Pagination<User>> {
+    const where: FindOptionsWhere<User> = {
+      filial: { id: filialId },
+      isActive: true,
+    };
+    if (search) {
+      where.firstName = ILike(`%${search}%`);
+    }
+    return paginate<User>(this.userRepository, options, {
+      where,
+      relations: { position: true, avatar: true, filial: true },
+      order: { firstName: 'ASC' },
+    });
+  }
+
   /** Find a user by phone where position role is CLIENT (iMarket) */
   async getImarketuserbyPhone(phone: string): Promise<User | null> {
     return this.userRepository.findOne({

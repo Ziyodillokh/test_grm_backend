@@ -89,6 +89,23 @@ export class UserController {
     return { items: users };
   }
 
+  @Get('managers/:filialId')
+  @Roles(Role.BOSS, Role.M_MANAGER, Role.ACCOUNTANT)
+  @ApiOperation({ summary: 'Get managers/users by filial (warehouse) ID' })
+  @ApiOkResponse({ description: 'Users returned successfully' })
+  @HttpCode(HttpStatus.OK)
+  async findManagersByFilial(
+    @Route() route: string,
+    @Param('filialId', ParseUUIDPipe) filialId: string,
+    @Query() query: QueryUserDto,
+  ) {
+    return this.userService.findManagersByFilial(
+      filialId,
+      { page: query.page || 1, limit: query.limit || 20, route },
+      query.search,
+    );
+  }
+
   @Get(':id')
   @Roles(Role.BOSS, Role.M_MANAGER, Role.ACCOUNTANT, Role.HR, Role.F_MANAGER)
   @ApiOperation({ summary: 'Get a user by ID' })
