@@ -48,6 +48,7 @@ import { FilialReportModule } from './modules/filial-report/filial-report.module
 import { GrmSocketModule } from './modules/web-socket/web-socket.module';
 import { IncrementModule } from './modules/increment/increment.module';
 import { InventoryReportModule } from './modules/inventory-report/inventory-report.module';
+import { SalesReportModule } from './modules/sales-report/sales-report.module';
 import { KassaModule } from './modules/kassa/kassa.module';
 import { MagazinInfoModule } from './modules/magazin-info/magazin-info.module';
 import { MediaModule } from './modules/media/media.module';
@@ -178,6 +179,7 @@ import { VideoMessageModule } from './modules/video-message/video-message.module
     CountryReportItemModule,
     PaperReportModule,
     InventoryReportModule,
+    SalesReportModule,
 
     // ─── Planning ─────────────────────────────────────────────────
     PlanYearModule,
