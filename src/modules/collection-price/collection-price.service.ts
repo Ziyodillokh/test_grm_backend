@@ -86,13 +86,17 @@ export class CollectionPriceService {
       collection: { id: data.collectionId },
     });
 
-    await this.productService.updateProdByCollection(data.collectionId, {
-      comingPrice: data.comingPrice,
-      secondPrice: data.secondPrice,
-      priceMeter: data.priceMeter,
-    });
+    const saved = await this.collectionPriceRepository.save(collectionPrice);
 
-    return await this.collectionPriceRepository.save(collectionPrice);
+    // BUG C — propagate new priceMeter + FK to existing products in the matching filial bucket.
+    await this.productService.propagateCollectionPrice(
+      data.collectionId,
+      type,
+      Number(data.priceMeter) || 0,
+      saved.id,
+    );
+
+    return saved;
   }
 
   async update(id: string, data: UpdateCollectionPriceDto): Promise<CollectionPrice> {
@@ -103,18 +107,23 @@ export class CollectionPriceService {
       },
     });
 
-    if (!collectionPrice.id) {
+    if (!collectionPrice?.id) {
       throw new NotFoundException('Collection price not found');
     }
 
-    await this.productService.updateProdByCollection(collectionPrice.collection.id, {
-      comingPrice: data.comingPrice,
-      secondPrice: data.secondPrice,
-      priceMeter: data.priceMeter,
-    });
-
     const collection = { id: collectionPrice.collection.id };
     await this.collectionPriceRepository.update(id, { ...data, collection });
+
+    // BUG C — propagate updated priceMeter to products in the matching filial bucket.
+    const newPriceMeter =
+      data.priceMeter !== undefined ? Number(data.priceMeter) : Number(collectionPrice.priceMeter) || 0;
+    await this.productService.propagateCollectionPrice(
+      collectionPrice.collection.id,
+      collectionPrice.type,
+      newPriceMeter,
+      id,
+    );
+
     return await this.findOne(id);
   }
 
@@ -151,6 +160,8 @@ export class CollectionPriceService {
         relations: { discounts: true },
       });
 
+      let targetCpId: string;
+
       if (collectionPrice) {
         await this.collectionPriceRepository.update(
           { id: collectionPrice.id },
@@ -160,6 +171,7 @@ export class CollectionPriceService {
             ...(data.secondPrice !== undefined && { secondPrice: data.secondPrice }),
           },
         );
+        targetCpId = collectionPrice.id;
 
         if (Array.isArray(collectionPrice.discounts)) {
           for (const discount of collectionPrice.discounts) {
@@ -182,9 +194,9 @@ export class CollectionPriceService {
           .returning('id')
           .execute();
 
-        const newCollectionPriceId = insertResult.raw[0].id;
+        targetCpId = insertResult.raw[0].id;
         const newCollectionPrice = await this.collectionPriceRepository.findOne({
-          where: { id: newCollectionPriceId },
+          where: { id: targetCpId },
           relations: { discounts: true },
         });
         if (Array.isArray(newCollectionPrice?.discounts)) {
@@ -194,6 +206,14 @@ export class CollectionPriceService {
           }
         }
       }
+
+      // BUG C — propagate priceMeter + FK to matching products.
+      await this.productService.propagateCollectionPrice(
+        data.collectionId,
+        type,
+        Number(data.priceMeter) || 0,
+        targetCpId,
+      );
     }
   }
 

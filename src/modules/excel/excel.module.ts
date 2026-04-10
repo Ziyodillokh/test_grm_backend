@@ -19,6 +19,8 @@ import { QrBaseModule } from '../qr-base/qr-base.module';
 import { ActionModule } from '../action/action.module';
 import { CountryModule } from '../country/country.module';
 import { CollectionPriceModule } from '../collection-price/collection-price.module';
+import { CollectionPrice } from '../collection-price/collection-price.entity';
+import { PartiyaCollectionPriceModule } from '../partiya-collection-price/partiya-collection-price.module';
 import { Cashflow } from '../cashflow/cashflow.entity';
 import { Product } from '@modules/product/product.entity';
 import { Kassa } from '@modules/kassa/kassa.entity';
@@ -26,7 +28,7 @@ import { Report } from '@modules/report/report.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Excel, ProductExcel, Cashflow, Product, Kassa, Report]),
+    TypeOrmModule.forFeature([Excel, ProductExcel, Cashflow, Product, Kassa, Report, CollectionPrice]),
     ActionModule,
     FileModule,
     forwardRef(() => PartiyaModule),
@@ -41,6 +43,7 @@ import { Report } from '@modules/report/report.entity';
     QrBaseModule,
     CountryModule,
     CollectionPriceModule,
+    PartiyaCollectionPriceModule,
   ],
   controllers: [ExcelController],
   providers: [ExcelService],

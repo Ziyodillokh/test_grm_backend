@@ -10,4 +10,5 @@ export enum TransferStatus {
   ACCEPT = 'Accepted',
   ACCEPT_F = 'Accepted_F',
   OTHER = 'other',
+  RETURNED = 'Returned',
 }

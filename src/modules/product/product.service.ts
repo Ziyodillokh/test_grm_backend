@@ -10,6 +10,7 @@ import { Product } from './product.entity';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { QueryProductDto } from './dto/query-product.dto';
+import { CollectionPriceEnum, FilialTypeEnum } from '../../infra/shared/enum';
 
 @Injectable()
 export class ProductService {
@@ -135,7 +136,10 @@ export class ProductService {
     });
   }
 
-  /** Update products by collection */
+  /**
+   * @deprecated Buggy (WHERE clause does not work with relation path). Use
+   * {@link propagateCollectionPrice} instead.
+   */
   async updateProdByCollection(collectionId: string, data: Partial<Product>): Promise<void> {
     await this.productRepository
       .createQueryBuilder()
@@ -144,6 +148,56 @@ export class ProductService {
       .where('bar_code.collection = :collectionId', { collectionId })
       .execute()
       .catch(() => {});
+  }
+
+  /**
+   * Propagate a new/updated CollectionPrice to existing products (BUG C).
+   *
+   * Business rule: A collection's `priceMeter` must be identical across all
+   * products of that collection within the filial bucket that matches the
+   * CollectionPrice's `type`:
+   *   cp.type = 'filial' → filial.type IN (filial, warehouse)
+   *   cp.type = 'dealer' → filial.type = dealer
+   *   cp.type = 'market' → filial.type = market
+   *
+   * When a new CollectionPrice row is created we update every matching
+   * product's `priceMeter` and `collectionPriceId` (FK to the latest row).
+   * `comingPrice` is NOT propagated here — that is partiya-specific.
+   */
+  async propagateCollectionPrice(
+    collectionId: string,
+    cpType: CollectionPriceEnum,
+    priceMeter: number,
+    collectionPriceId: string,
+  ): Promise<void> {
+    if (!collectionId || !collectionPriceId) return;
+
+    const filialTypes: FilialTypeEnum[] =
+      cpType === CollectionPriceEnum.filial
+        ? [FilialTypeEnum.FILIAL, FilialTypeEnum.WAREHOUSE]
+        : cpType === CollectionPriceEnum.dealer
+          ? [FilialTypeEnum.DEALER]
+          : cpType === CollectionPriceEnum.market
+            ? [FilialTypeEnum.MARKET]
+            : [];
+
+    if (!filialTypes.length) return;
+
+    await this.productRepository.query(
+      `
+        UPDATE "product"
+        SET    "priceMeter"        = $1,
+               "collectionPriceId" = $2
+        WHERE  "barCodeId" IN (
+                 SELECT "id" FROM "qrbase" WHERE "collectionId" = $3
+               )
+          AND  "filialId" IN (
+                 SELECT "id" FROM "filial" WHERE "type" = ANY($4::text[])
+               )
+          AND  "is_deleted" = false
+      `,
+      [priceMeter, collectionPriceId, collectionId, filialTypes],
+    );
   }
 
   /** Get internet product by index (data-sender) */

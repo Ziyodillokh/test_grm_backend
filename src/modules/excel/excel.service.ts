@@ -21,8 +21,10 @@ import { CreateQrBaseDto } from '../qr-base/dto';
 import { ActionService } from '../action/action.service';
 import { IPaginationOptions, paginate, Pagination } from 'nestjs-typeorm-paginate';
 import { Search } from './utils';
-import { PartiyaProductsEnum, ProductReportEnum } from '../../infra/shared/enum';
+import { CollectionPriceEnum, FilialTypeEnum, PartiyaProductsEnum, ProductReportEnum } from '../../infra/shared/enum';
 import { CollectionPriceService } from '../collection-price/collection-price.service';
+import { CollectionPrice } from '../collection-price/collection-price.entity';
+import { PartiyaCollectionPriceService } from '../partiya-collection-price/partiya-collection-price.service';
 import { Response } from 'express';
 import { Cashflow } from '../cashflow/cashflow.entity';
 import { CreateProductDto } from '../product/dto';
@@ -51,6 +53,8 @@ export class ExcelService {
     private readonly productRepository: Repository<Product>,
     @InjectRepository(Report)
     private readonly reportRepository: Repository<Report>,
+    @InjectRepository(CollectionPrice)
+    private readonly collectionPriceRepository: Repository<CollectionPrice>,
     private readonly fileService: FileService,
     @Inject(forwardRef(() => PartiyaService))
     private readonly partiyaService: PartiyaService,
@@ -58,8 +62,24 @@ export class ExcelService {
     private readonly filialService: FilialService,
     private readonly qrBaseService: QrBaseService,
     private readonly collectionPriceService: CollectionPriceService,
+    private readonly partiyaCollectionPriceService: PartiyaCollectionPriceService,
     private readonly dataSource: DataSource,
   ) {}
+
+  /**
+   * Map a filial type to the matching CollectionPrice.type used for sale-price lookups.
+   * Warehouse and regular filial both use the `filial` price bucket.
+   */
+  private filialTypeToCollectionPriceType(type: FilialTypeEnum): CollectionPriceEnum {
+    switch (type) {
+      case FilialTypeEnum.DEALER:
+        return CollectionPriceEnum.dealer;
+      case FilialTypeEnum.MARKET:
+        return CollectionPriceEnum.market;
+      default:
+        return CollectionPriceEnum.filial;
+    }
+  }
 
   private readonly systemTz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Tashkent';
 
@@ -1256,25 +1276,104 @@ export class ExcelService {
       relations: {
         bar_code: {
           size: true,
+          collection: true,
         },
       },
     });
 
+    if (excelProds.length === 0) {
+      throw new BadRequestException('Вы не можете закончить партию, прежде чем вставить продукт!');
+    }
+
+    // Unique collectionlar — PartiyaCollectionPrice validatsiyasi uchun
+    const uniqueCollectionIds = Array.from(
+      new Set(
+        excelProds
+          .map((p) => p.bar_code?.collection?.id)
+          .filter((id): id is string => !!id),
+      ),
+    );
+
+    // BUG A1: hamma collection uchun factoryPrice+overhead narxi kiritilganmi
+    await this.partiyaCollectionPriceService.assertAllCollectionsPriced(
+      partiya_id,
+      uniqueCollectionIds,
+    );
+
+    // PartiyaCollectionPrice ro'yxatini bir marta olib, map ga joylash
+    const pcpRows = await this.partiyaCollectionPriceService.getByPartiya(partiya_id);
+    const pcpByCollectionId = new Map(
+      pcpRows.map((r) => [r.collection.id, r]),
+    );
+
+    // Warehouse filial turi → CollectionPrice.type (odatda 'filial')
+    const cpType = this.filialTypeToCollectionPriceType(partiya.warehouse.type);
+
+    // Har collection uchun eng so'nggi sotuv narxi (CollectionPrice)
+    // va BUG A4 — shu collection uchun yangi CollectionPrice yozuv yaratamiz,
+    // uning comingPrice si = pcp.factoryPricePerKv + pcp.overheadPerKv
+    const latestCpByCollectionId = new Map<string, CollectionPrice>();
+
+    for (const collectionId of uniqueCollectionIds) {
+      const pcp = pcpByCollectionId.get(collectionId);
+      if (!pcp) continue; // assertAllCollectionsPriced allaqachon tekshirdi
+
+      const computedComingPrice =
+        Number(pcp.factoryPricePerKv) + Number(pcp.overheadPerKv);
+
+      // Eng so'nggi sotuv narxini olish (priceMeter ko'chirib olish uchun)
+      const existingLatest = await this.collectionPriceRepository.findOne({
+        where: { collection: { id: collectionId }, type: cpType },
+        order: { date: 'DESC' },
+      });
+
+      // BUG A4: Partiya yopilganda CollectionPrice ga yangi yozuv — yangi
+      // comingPrice saqlanadi, priceMeter esa mavjud qiymatdan ko'chiriladi
+      // (o'zgarmaydi — sotuv narxi partiyaga bog'liq emas). Bu keyinchalik
+      // partiyasiz Product qo'shilganda fallback manbai bo'ladi.
+      const newCpRow = this.collectionPriceRepository.create({
+        collection: { id: collectionId } as any,
+        type: cpType,
+        priceMeter: existingLatest?.priceMeter ?? 0,
+        secondPrice: existingLatest?.secondPrice ?? 0,
+        comingPrice: computedComingPrice,
+      });
+      const savedCp = await this.collectionPriceRepository.save(newCpRow);
+      latestCpByCollectionId.set(collectionId, savedCp);
+    }
+
+    // Endi har productni PartiyaCollectionPrice + CollectionPrice bilan yaratamiz
     const products: CreateProductDto[] = [];
     for (const product of excelProds) {
+      const collectionId = product.bar_code?.collection?.id;
+      if (!collectionId) {
+        throw new BadRequestException(
+          `Mahsulot ${product.bar_code?.id} uchun collection topilmadi`,
+        );
+      }
+
+      const pcp = pcpByCollectionId.get(collectionId);
+      const cp = latestCpByCollectionId.get(collectionId);
+
+      const comingPrice =
+        Number(pcp.factoryPricePerKv) + Number(pcp.overheadPerKv);
+
       const data: CreateProductDto = {
         partiya: partiya_id,
-        y: product.bar_code.isMetric ? +(product.check_count / 100).toFixed(2) : product.bar_code.size.y,
+        y: product.bar_code.isMetric
+          ? +(product.check_count / 100).toFixed(2)
+          : product.bar_code.size.y,
         count: product.count,
         bar_code: product.bar_code.id,
-        comingPrice: product?.displayPrice || 0,
+        comingPrice,
+        priceMeter: Number(cp?.priceMeter ?? 0),
+        collection_price: cp?.id,
         filial: partiya.warehouse.id,
       };
       products.push(data);
     }
 
-    if (excelProds.length > 0) await this.productService.create(products);
-    else throw new BadRequestException('Вы не можете закончить партию, прежде чем вставить продукт!');
+    await this.productService.create(products);
 
     await this.partiyaService.finish(partiya.id);
 

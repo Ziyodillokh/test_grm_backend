@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -8,17 +9,22 @@ import {
   paginate,
   Pagination,
 } from 'nestjs-typeorm-paginate';
-import { Repository, UpdateResult } from 'typeorm';
+import { DataSource, EntityManager, Repository, UpdateResult } from 'typeorm';
 
 import { Transfer } from './transfer.entity';
 import { CreateTransferDto, UpdateTransferDto } from './dto';
 import { TransferStatus } from '../../common/enums';
+import { Product } from '../product/product.entity';
+import { applyStockDepletion } from '../product/utils/stock-depletion.util';
 
 @Injectable()
 export class TransferService {
   constructor(
     @InjectRepository(Transfer)
     private readonly transferRepository: Repository<Transfer>,
+    @InjectRepository(Product)
+    private readonly productRepository: Repository<Product>,
+    private readonly dataSource: DataSource,
   ) {}
 
   async getAll(
@@ -83,24 +89,86 @@ export class TransferService {
     return transfer;
   }
 
+  /**
+   * Create one or more transfers. Unified transfer model (BUG D, E):
+   * stock is **deducted from the source filial immediately** and held
+   * in-progress. `acceptTransfer` later moves it to the destination;
+   * `rejectTransfer` returns it to the source.
+   */
   async create(
     data: CreateTransferDto[],
     userId: string,
   ): Promise<Transfer[]> {
-    const results: Transfer[] = [];
+    return this.dataSource.transaction(async (manager) => {
+      const transferRepo = manager.getRepository(Transfer);
+      const productRepo = manager.getRepository(Product);
+      const results: Transfer[] = [];
 
-    for (const dto of data) {
-      const transfer = this.transferRepository.create({
-        ...dto,
-        transferer: userId,
-        progress: TransferStatus.PROGRESS,
-      } as unknown as Transfer);
+      for (const dto of data) {
+        const product = await productRepo.findOne({
+          where: { id: dto.product },
+          relations: { bar_code: { size: true } },
+        });
+        if (!product) {
+          throw new NotFoundException(`Product ${dto.product} not found`);
+        }
 
-      const saved = await this.transferRepository.save(transfer);
-      results.push(saved);
-    }
+        const isMetric = !!product.bar_code?.isMetric;
+        const requestedCount = Number(dto.count) || 0;
+        if (requestedCount <= 0) {
+          throw new BadRequestException('Transfer count must be positive');
+        }
 
-    return results;
+        // Validate availability
+        if (isMetric) {
+          if (+product.count < requestedCount || +product.y <= 0) {
+            throw new BadRequestException(
+              `Manba filialda mahsulot yetarli emas: ${product.code || product.id}`,
+            );
+          }
+        } else {
+          if (+product.count < requestedCount) {
+            throw new BadRequestException(
+              `Manba filialda mahsulot yetarli emas: ${product.code || product.id}`,
+            );
+          }
+        }
+
+        // Compute transferred kv
+        const sizeKv =
+          product.bar_code?.size?.x && product.bar_code?.size?.y
+            ? Number(product.bar_code.size.x) * Number(product.bar_code.size.y)
+            : 0;
+        const transferredY = isMetric ? +product.y : 0; // metric: full roll moves
+        const transferredKv = isMetric
+          ? Number(product.bar_code?.size?.x || 0) * transferredY
+          : sizeKv * requestedCount;
+
+        // Deduct from source
+        if (isMetric) {
+          product.count = +product.count - requestedCount;
+          product.y = 0; // the moving piece takes all the length
+        } else {
+          product.count = +product.count - requestedCount;
+        }
+        applyStockDepletion(product, isMetric);
+        await productRepo.save(product);
+
+        const transfer = transferRepo.create({
+          ...dto,
+          transferer: userId,
+          progress: TransferStatus.PROGRESS,
+          kv: transferredKv,
+          comingPrice: +product.comingPrice || 0,
+          oldComingPrice: +product.comingPrice || 0,
+        } as unknown as Transfer);
+
+        const saved = await transferRepo.save(transfer);
+        results.push(saved);
+      }
+
+      return results;
+    });
   }
 
   async update(
@@ -122,39 +190,119 @@ export class TransferService {
       .execute();
   }
 
+  /**
+   * Accept transfers from a source filial to a destination filial.
+   * For each in-progress transfer, materializes the product on the
+   * destination filial — merging into an existing product row with the
+   * same (bar_code, partiya, comingPrice, priceMeter) or creating a new
+   * one. Source was already deducted at create-time.
+   */
   async acceptTransfer(
     data: { from: string; to: string; include?: string[]; exclude?: string[] },
     user: any,
   ): Promise<void> {
-    const qb = this.transferRepository
-      .createQueryBuilder()
-      .update()
-      .set({
-        progress: TransferStatus.ACCEPT,
-        isChecked: true,
-        cashier: user.id,
-      })
-      .where('"fromId" = :from AND "toId" = :to AND progres = :status', {
-        from: data.from,
-        to: data.to,
-        status: TransferStatus.PROGRESS,
-      });
+    await this.dataSource.transaction(async (manager) => {
+      const transferRepo = manager.getRepository(Transfer);
 
-    if (data.include?.length) {
-      qb.andWhere('id IN (:...ids)', { ids: data.include });
-    }
-    if (data.exclude?.length) {
-      qb.andWhere('id NOT IN (:...ids)', { ids: data.exclude });
-    }
+      const qb = transferRepo
+        .createQueryBuilder('transfer')
+        .leftJoinAndSelect('transfer.product', 'product')
+        .leftJoinAndSelect('product.bar_code', 'bar_code')
+        .leftJoinAndSelect('bar_code.size', 'size')
+        .leftJoinAndSelect('product.partiya', 'partiya')
+        .leftJoinAndSelect('product.collection_price', 'collection_price')
+        .where('transfer."fromId" = :from AND transfer."toId" = :to AND transfer.progres = :status', {
+          from: data.from,
+          to: data.to,
+          status: TransferStatus.PROGRESS,
+        });
 
-    await qb.execute();
+      if (data.include?.length) {
+        qb.andWhere('transfer.id IN (:...ids)', { ids: data.include });
+      }
+      if (data.exclude?.length) {
+        qb.andWhere('transfer.id NOT IN (:...ids)', { ids: data.exclude });
+      }
+
+      const transfers = await qb.getMany();
+
+      for (const transfer of transfers) {
+        await this.materializeOnDestination(manager, transfer, data.to);
+      }
+
+      if (transfers.length) {
+        await transferRepo
+          .createQueryBuilder()
+          .update()
+          .set({
+            progress: TransferStatus.ACCEPT,
+            isChecked: true,
+            cashier: user.id,
+          } as unknown as Transfer)
+          .whereInIds(transfers.map((t) => t.id))
+          .execute();
+      }
+    });
   }
 
+  /**
+   * Reject a single in-progress transfer: return stock to the source filial.
+   */
   async rejectTransfer(id: string, userId: string): Promise<void> {
-    await this.transferRepository.update(id, {
-      progress: TransferStatus.REJECT,
-      cashier: userId,
-    } as unknown as Transfer);
+    await this.dataSource.transaction(async (manager) => {
+      const transferRepo = manager.getRepository(Transfer);
+      const productRepo = manager.getRepository(Product);
+
+      const transfer = await transferRepo.findOne({
+        where: { id },
+        relations: { product: { bar_code: { size: true } }, from: true },
+      });
+      if (!transfer) {
+        throw new NotFoundException('Transfer not found');
+      }
+
+      if (transfer.progress === TransferStatus.ACCEPT) {
+        throw new BadRequestException('Qabul qilingan transferni rad etib bo\'lmaydi');
+      }
+      if (transfer.progress === TransferStatus.REJECT) {
+        return; // already rejected — idempotent
+      }
+
+      if (transfer.product) {
+        const product = await productRepo.findOne({
+          where: { id: transfer.product.id },
+          relations: { bar_code: { size: true } },
+        });
+        if (product) {
+          const isMetric = !!product.bar_code?.isMetric;
+          const returnedCount = Number(transfer.count) || 0;
+
+          if (isMetric) {
+            product.count = +product.count + returnedCount;
+            // Restore the roll length from the transfer's kv / size.x
+            const sizeX = Number(product.bar_code?.size?.x || 0);
+            if (sizeX > 0) {
+              product.y = +product.y + Number(transfer.kv || 0) / sizeX;
+            }
+          } else {
+            product.count = +product.count + returnedCount;
+          }
+
+          // Stock is back — clear depletion flags
+          if ((isMetric && +product.y > 0) || (!isMetric && +product.count > 0)) {
+            product.is_deleted = false;
+            product.deletedDate = null;
+          }
+
+          await productRepo.save(product);
+        }
+      }
+
+      await transferRepo.update(id, {
+        progress: TransferStatus.REJECT,
+        cashier: userId,
+      } as unknown as Transfer);
+    });
   }
 
   async remove(id: string): Promise<void> {
@@ -185,5 +333,81 @@ export class TransferService {
       where: { to: { id: filialId } },
       relations: { product: true, from: true, to: true },
     });
+  }
+
+  // -----------------------------------------------------------------------
+  // Internals
+  // -----------------------------------------------------------------------
+
+  /**
+   * Place the transfer's payload on the destination filial. Merges into an
+   * existing Product row with the same identity (bar_code + partiya +
+   * comingPrice + priceMeter); otherwise clones a new Product row keeping
+   * all pricing/partiya FKs intact.
+   */
+  private async materializeOnDestination(
+    manager: EntityManager,
+    transfer: Transfer,
+    destinationFilialId: string,
+  ): Promise<void> {
+    const productRepo = manager.getRepository(Product);
+    const source = transfer.product;
+    if (!source) return;
+
+    const isMetric = !!source.bar_code?.isMetric;
+    const transferredCount = Number(transfer.count) || 0;
+    const sizeX = Number(source.bar_code?.size?.x || 0);
+    const transferredY = isMetric && sizeX > 0 ? Number(transfer.kv || 0) / sizeX : 0;
+
+    // Look for an existing product on the destination that can absorb this transfer.
+    const existing = await productRepo.findOne({
+      where: {
+        bar_code: { id: source.bar_code.id },
+        filial: { id: destinationFilialId },
+        partiya: source.partiya ? { id: source.partiya.id } : undefined,
+        is_deleted: false,
+      },
+      relations: { bar_code: true },
+    });
+
+    if (
+      existing &&
+      Number(existing.comingPrice) === Number(source.comingPrice) &&
+      Number(existing.priceMeter) === Number(source.priceMeter)
+    ) {
+      existing.count = +existing.count + transferredCount;
+      if (isMetric) {
+        existing.y = +existing.y + transferredY;
+      }
+      existing.is_deleted = false;
+      existing.deletedDate = null;
+      await productRepo.save(existing);
+      return;
+    }
+
+    // Clone a new product row on the destination filial
+    const clone: Partial<Product> = {
+      code: source.code,
+      count: transferredCount,
+      price: source.price,
+      secondPrice: source.secondPrice,
+      priceMeter: source.priceMeter,
+      comingPrice: source.comingPrice,
+      draft_priceMeter: source.draft_priceMeter,
+      draft_comingPrice: source.draft_comingPrice,
+      x: source.x,
+      y: isMetric ? transferredY : source.y,
+      totalSize: source.totalSize,
+      isInternetShop: false,
+      is_deleted: false,
+      partiya_title: source.partiya_title,
+      bar_code: source.bar_code,
+      filial: { id: destinationFilialId } as any,
+      collection_price: source.collection_price,
+      partiya: source.partiya,
+    };
+
+    const created = productRepo.create(clone as Product);
+    await productRepo.save(created);
   }
 }

@@ -37,6 +37,7 @@ import { FilialService } from '../filial/filial.service';
 import { OrderBasketService } from '../order-basket/order-basket.service';
 import { User } from '../user/user.entity';
 import { calcProdProfit } from './utils/functions';
+import { applyStockDepletion } from '../product/utils/stock-depletion.util';
 import { TransferService } from '../transfer/transfer.service';
 import { UserRoleEnum } from '../../infra/shared/enum';
 import CashflowTipEnum from '../../infra/shared/enum/cashflow/cashflow-tip.enum';
@@ -325,35 +326,52 @@ export class OrderService {
   }
 
   async change(value: UpdateOrderDto, id: string) {
-    if (value.price) {
+    // Unified profit formula (BUG B). Whenever price/x/plasticSum changes we
+    // recompute kv + both profit sums from product.priceMeter/comingPrice.
+    const triggersRecalc =
+      value.price !== undefined || value.x !== undefined || value.plasticSum !== undefined;
+
+    if (triggersRecalc) {
       const order = await this.orderRepository.findOne({
         where: { id },
-        relations: { kassa: true, product: { bar_code: { size: true }, collection_price: true } },
+        relations: { kassa: true, product: { bar_code: { size: true } } },
       });
-      const kassa = await this.kassaService.getById(order.kassa.id);
 
-      if (order.product.bar_code.isMetric) {
-        if (value.x) {
-          value.additionalProfitSum =
-            value.price - (order.product?.collection_price?.priceMeter || 0) * value.x * order.product.y;
-        }
-      } else {
-        value.additionalProfitSum =
-          value.price - (order.product?.collection_price?.priceMeter || 0) * order.product.bar_code.size.kv;
-      }
+      const priceMeter = +order.product.priceMeter || 0;
+      const comingPrice = +order.product.comingPrice || 0;
+      const size = order.product.bar_code.size;
+      const isMetric = order.product.bar_code.isMetric;
+
+      const newX = value.x ?? order.x;
+      const newPrice = value.price ?? order.price;
+      const newPlastic = value.plasticSum ?? order.plasticSum ?? 0;
+
+      const kv = isMetric
+        ? (newX / 100) * size.x
+        : +(newX * size.x * size.y).toFixed(3);
+
+      const baseCost = kv * priceMeter;
+      const revenue = newPrice + newPlastic;
+      const discount = Math.max(baseCost - revenue, 0);
+      const grossProfit = (priceMeter - comingPrice) * kv;
+
+      value.additionalProfitSum = Math.max(revenue - baseCost, 0);
+      value.netProfitSum = grossProfit - discount;
+      (value as any).kv = kv;
 
       if (order.status === OrderEnum.Accept) {
-        kassa.additionalProfitTotalSum = kassa.additionalProfitTotalSum - order.additionalProfitSum;
-        kassa.additionalProfitTotalSum = kassa.additionalProfitTotalSum + value.additionalProfitSum;
+        const kassa = await this.kassaService.getById(order.kassa.id);
+        kassa.additionalProfitTotalSum =
+          kassa.additionalProfitTotalSum - order.additionalProfitSum + value.additionalProfitSum;
 
-        if (value.plasticSum) {
-          kassa.plasticSum = kassa.plasticSum - order.plasticSum;
-          kassa.plasticSum = kassa.plasticSum + value.plasticSum;
+        if (value.plasticSum !== undefined) {
+          kassa.plasticSum = kassa.plasticSum - order.plasticSum + value.plasticSum;
         }
 
         await this.saveRepo(kassa);
       }
     }
+
     return await this.orderRepository
       .createQueryBuilder()
       .update()
@@ -403,11 +421,16 @@ export class OrderService {
       value.kv = product.bar_code.size.kv * value.x;
     }
 
-    const priceMeter = product?.collection_price?.priceMeter || 0;
+    // BUG G — canonical stock-depletion rule
+    applyStockDepletion(product, value.isMetric);
+
+    // Unified profit formula (BUG B) — single source of truth: product.priceMeter, product.comingPrice
+    const priceMeter = +product.priceMeter || 0;
+    const comingPrice = +product.comingPrice || 0;
     const baseCost = priceMeter * value.kv;
     const revenue = value.price + (value?.plasticSum || 0);
     const discount = Math.max(baseCost - revenue, 0);
-    const grossProfit = (priceMeter - product.comingPrice) * value.kv;
+    const grossProfit = (priceMeter - comingPrice) * value.kv;
     additionalProfitSum = Math.max(revenue - baseCost, 0);
     netProfitSum = grossProfit - discount;
 
@@ -1106,9 +1129,9 @@ export class OrderService {
     },
   ) {
     const size = product.bar_code.size;
-    const collection = product.bar_code.collection?.collection_prices?.[0] || { priceMeter: 0, comingPrice: 0 };
-    const priceMeter = +collection.priceMeter || 0;
-    const comingPrice = product.comingPrice || +collection.comingPrice || 0;
+    // Unified profit formula (BUG B) — single source of truth: product.priceMeter, product.comingPrice
+    const priceMeter = +product.priceMeter || 0;
+    const comingPrice = +product.comingPrice || 0;
 
     let kv = 0;
     let additionalProfitSum = 0;
@@ -1130,9 +1153,8 @@ export class OrderService {
     additionalProfitSum = Math.max(revenue - baseCost, 0);
     netProfitSum = grossProfit - discount;
 
-    if (product.y < 0.2 || product.count < 1) {
-      product.is_deleted = true;
-    }
+    // BUG G — canonical stock-depletion rule
+    applyStockDepletion(product, basket.isMetric);
 
     product.bar_code.isMetric = basket.isMetric;
     await this.saveRepo(product);

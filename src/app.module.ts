@@ -47,6 +47,7 @@ import { FilialPlanModule } from '@modules/filial-plan/filial-plan.module';
 import { FilialReportModule } from './modules/filial-report/filial-report.module';
 import { GrmSocketModule } from './modules/web-socket/web-socket.module';
 import { IncrementModule } from './modules/increment/increment.module';
+import { InventoryReportModule } from './modules/inventory-report/inventory-report.module';
 import { KassaModule } from './modules/kassa/kassa.module';
 import { MagazinInfoModule } from './modules/magazin-info/magazin-info.module';
 import { MediaModule } from './modules/media/media.module';
@@ -56,6 +57,8 @@ import { OrderModule } from './modules/order/order.module';
 import { OrderBasketModule } from './modules/order-basket/order-basket.module';
 import { PaperReportModule } from './modules/paper-report/paper-report.module';
 import { PartiyaModule } from './modules/partiya/partiya.module';
+import { PackageCollectionPriceModule } from './modules/package-collection-price/package-collection-price.module';
+import { PartiyaCollectionPriceModule } from './modules/partiya-collection-price/partiya-collection-price.module';
 import { PartiyaNumberModule } from './modules/partiya_number/partiya_number.module';
 import { PartiyaStatusModule } from './modules/partiya-status/partiya-status.module';
 import { PayrollModule } from './modules/payroll/payroll.module';
@@ -128,10 +131,12 @@ import { VideoMessageModule } from './modules/video-message/video-message.module
 
     // ─── Supply Chain ─────────────────────────────────────────────
     PartiyaModule,
+    PartiyaCollectionPriceModule,
     PartiyaNumberModule,
     PartiyaStatusModule,
     TransferModule,
     TransferCacheModule,
+    PackageCollectionPriceModule,
 
     // ─── Sales & Orders ───────────────────────────────────────────
     OrderModule,
@@ -172,6 +177,7 @@ import { VideoMessageModule } from './modules/video-message/video-message.module
     FactoryReportItemModule,
     CountryReportItemModule,
     PaperReportModule,
+    InventoryReportModule,
 
     // ─── Planning ─────────────────────────────────────────────────
     PlanYearModule,

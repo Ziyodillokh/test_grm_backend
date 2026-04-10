@@ -6,10 +6,11 @@ import { TransferService } from './transfer.service';
 import { TransferController } from './transfer.controller';
 import { TransferCacheModule } from '../transfer-cache/transfer-cache.module';
 import { PackageTransferModule } from '../package-transfer/package-transfer.module';
+import { Product } from '../product/product.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Transfer]),
+    TypeOrmModule.forFeature([Transfer, Product]),
     TransferCacheModule,
     PackageTransferModule,
   ],

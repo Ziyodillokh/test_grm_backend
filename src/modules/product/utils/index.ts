@@ -9,3 +9,4 @@ export { default as internetInfoBulkUpdate } from './update-bulk-internet-shop';
 export { default as productImgBulkUpdate } from './bulk-update-product-img';
 export { default as productSecondPriceBulkUpdate } from './second-price-update';
 export { default as productReportUtil } from './product-report.util';
+export { applyStockDepletion } from './stock-depletion.util';

@@ -9,6 +9,7 @@ import { PartiyaNumber } from '../partiya_number/partiya_number.entity';
 import { Filial } from '../filial/filial.entity';
 import { PartiyaStatusEnum } from '../../infra/shared/enum';
 import { BaseEntity } from '../../common/database/base.entity';
+import { PartiyaCollectionPrice } from '../partiya-collection-price/partiya-collection-price.entity';
 
 @Entity('partiya')
 export class Partiya extends BaseEntity{
@@ -56,6 +57,9 @@ export class Partiya extends BaseEntity{
 
   @OneToMany(() => ProductExcel, (product) => product.partiya, { cascade: true })
   productsExcel: ProductExcel[];
+
+  @OneToMany(() => PartiyaCollectionPrice, (pcp) => pcp.partiya, { cascade: true })
+  collection_prices: PartiyaCollectionPrice[];
 
   @ManyToOne(() => Filial, warehouse => warehouse.partiyas, { onDelete: 'SET NULL' })
   @JoinColumn()
