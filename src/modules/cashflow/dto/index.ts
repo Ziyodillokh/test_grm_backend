@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsBoolean, IsNotEmpty, IsNumber, IsOptional, IsString, IsUUID } from 'class-validator';
+import { IsBoolean, IsDateString, IsNotEmpty, IsNumber, IsOptional, IsString, IsUUID } from 'class-validator';
 
 export { default as CreateCashflowDto } from './create-cashflow.dto';
 export { default as UpdateCashflowDto } from './update-cashflow.dto';
@@ -23,12 +23,12 @@ export class createDealerCashflowDto {
   readonly is_online: boolean;
 
   @ApiProperty({
-    description: `price`,
-    example: '1600',
+    description: `kassa id`,
+    example: 'uuid',
   })
   @IsNotEmpty()
   @IsUUID('4')
-  readonly kassa_report: string;
+  readonly kassa: string;
 
   @ApiProperty({
     description: `comment`,
@@ -37,4 +37,13 @@ export class createDealerCashflowDto {
   @IsOptional()
   @IsString()
   readonly comment: string;
+
+  @ApiProperty({
+    description: `date`,
+    example: '2026-04-10T12:00:00',
+    required: false,
+  })
+  @IsOptional()
+  @IsDateString()
+  date?: string;
 }

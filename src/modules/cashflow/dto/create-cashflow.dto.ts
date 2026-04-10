@@ -1,4 +1,4 @@
-import { IsEnum, IsNotEmpty, IsNumber, IsOptional, IsString, IsUUID } from 'class-validator';
+import { IsDateString, IsEnum, IsNotEmpty, IsNumber, IsOptional, IsString, IsUUID } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { CashFlowEnum } from '../../../infra/shared/enum';
 import CashflowTipEnum from '../../../infra/shared/enum/cashflow/cashflow-tip.enum';
@@ -84,6 +84,15 @@ class CreateCashflowDto {
   @IsOptional()
   @IsEnum(CashflowTipEnum)
   readonly tip: CashflowTipEnum;
+
+  @ApiProperty({
+    description: `date`,
+    example: '2026-04-10T12:00:00',
+    required: false,
+  })
+  @IsOptional()
+  @IsDateString()
+  date?: string;
 
   @ApiProperty({
     description: `is online`,

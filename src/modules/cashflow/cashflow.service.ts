@@ -2199,11 +2199,10 @@ WHERE k.id = $1;
   }
 
   async dealerCashflow(body) {
-    const { is_online, kassa_report, price, comment } = body;
+    const { is_online, kassa, price, comment, date: bodyDate } = body;
 
-    // kassa_report now refers to a Kassa id
     const kassaEntity = await this.kassaRepository.findOne({
-      where: { id: kassa_report },
+      where: { id: kassa },
       relations: {
         filial: true,
       },
@@ -2240,7 +2239,7 @@ WHERE k.id = $1;
     }
 
     // === Common reusable parts ===
-    const now = new Date().toISOString();
+    const now = bodyDate || new Date().toISOString();
     const cashflow_types = await this.cashflowTypeRepository.find({ where: { slug: In(['Перечисление', 'delaer']) } });
     const dealerType = cashflow_types.find(el => el.slug === 'delaer');
     const transferType = cashflow_types.find(el => el.slug === 'Перечисление');
@@ -2308,7 +2307,7 @@ WHERE k.id = $1;
         },
       ),
 
-      this.kassaRepository.update(kassa_report, {
+      this.kassaRepository.update(kassa, {
         income: Number(kassaEntity?.income || 0) + parsedPrice,
         ...(is_online ? { plasticSum: Number(kassaEntity.plasticSum) + parsedPrice } : { in_hand: Number(kassaEntity.in_hand) + parsedPrice }),
       }),
