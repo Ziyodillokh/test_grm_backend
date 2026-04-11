@@ -1095,6 +1095,7 @@ export class CashflowService {
           cashflow_type: true,
           kassa: true,
           debt: true,
+          factory: true,
           child: { report: true },
         },
       });
@@ -1217,6 +1218,16 @@ export class CashflowService {
           debt.given -= price;
           debt.totalDebt = Math.max(0, debt.owed - debt.given);
           await queryRunner.manager.save(debt);
+        }
+
+        // Factory to'lov reverse
+        if (cashflow.factory?.id) {
+          const factory = await queryRunner.manager.findOne(Factory, { where: { id: cashflow.factory.id } });
+          if (factory) {
+            factory.given = Number(factory.given) - price;
+            factory.totalDebt = Number(factory.owed) - Number(factory.given);
+            await queryRunner.manager.save(factory);
+          }
         }
       }
 
@@ -1573,6 +1584,7 @@ export class CashflowService {
           kassa: { filial: true },
           report: true,
           debt: true,
+          factory: true,
           parent: true,
           child: { report: true },
         },
@@ -1751,6 +1763,16 @@ export class CashflowService {
             childReport.accountantSum -= price;
           }
           await queryRunner.manager.save(childReport);
+        }
+      }
+
+      // Factory to'lov reverse
+      if (cashflow.factory?.id && cashflow.type === 'Расход') {
+        const factory = await queryRunner.manager.findOne(Factory, { where: { id: cashflow.factory.id } });
+        if (factory) {
+          factory.given = Number(factory.given) - price;
+          factory.totalDebt = Number(factory.owed) - Number(factory.given);
+          await queryRunner.manager.save(factory);
         }
       }
 
