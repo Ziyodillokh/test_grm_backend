@@ -213,6 +213,9 @@ export class ExcelService {
     const productPromises: CreateProductExcelDto[] = [];
     for (const e of products) {
       const barcode = await this.qrBaseService.getOneByCode(e?.code || e?.bar_code);
+      if (!barcode) {
+        throw new BadRequestException(`Barcode topilmadi: ${e?.code || e?.bar_code}`);
+      }
       if (!e.bar_code) {
         e.bar_code = barcode.id;
       }
