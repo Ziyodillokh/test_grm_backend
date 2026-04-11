@@ -52,6 +52,16 @@ export class QrBaseService {
     return paginate<QrBase>(this.qrBaseRepository, options, {
       order: { date: 'DESC' },
       where,
+      relations: {
+        collection: true,
+        color: true,
+        model: true,
+        size: true,
+        shape: true,
+        style: true,
+        country: true,
+        factory: true,
+      },
     });
   }
 
