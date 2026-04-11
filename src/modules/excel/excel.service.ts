@@ -195,7 +195,8 @@ export class ExcelService {
 
   readExcelFile(path: string) {
     const workbook = XLSX.readFile(path);
-    const worksheet = workbook.Sheets['Sheet'];
+    const sheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[sheetName];
     const data: any[] = XLSX.utils.sheet_to_json(worksheet);
     deleteFile(path);
 
