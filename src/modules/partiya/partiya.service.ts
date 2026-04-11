@@ -155,21 +155,23 @@ export class PartiyaService {
 
   async correctAll(id) {
     await this.partiyaRepository.query(`
-    update productexcel as pe
-set check_count = pe.count
-where id in (select pe2.id
-             from productexcel pe2
-                      left join qrbase qb on pe2."barCodeId" = qb.id
-             where pe2."partiyaId" = $1
-               and "isMetric" = false);
+      update productexcel as pe
+      set check_count = pe.count
+      where id in (select pe2.id
+                   from productexcel pe2
+                   left join qrbase qb on pe2."barCodeId" = qb.id
+                   where pe2."partiyaId" = $1
+                     and "isMetric" = false)
+    `, [id]);
 
-update productexcel as pe
-set check_count = pe.y * 100
-where id in (select pe2.id
-             from productexcel pe2
-                      left join qrbase qb on pe2."barCodeId" = qb.id
-             where pe2."partiyaId" = $1
-               and "isMetric" = true);
+    await this.partiyaRepository.query(`
+      update productexcel as pe
+      set check_count = pe.y * 100
+      where id in (select pe2.id
+                   from productexcel pe2
+                   left join qrbase qb on pe2."barCodeId" = qb.id
+                   where pe2."partiyaId" = $1
+                     and "isMetric" = true)
     `, [id]);
 
     return 'ok';
