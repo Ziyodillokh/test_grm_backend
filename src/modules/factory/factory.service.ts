@@ -290,6 +290,7 @@ export class FactoryService {
         c.date,
         c.price AS total_cost,
         c.comment,
+        c.is_static,
         u."firstName" || ' ' || u."lastName" AS who_paid
       FROM cashflow c
       LEFT JOIN users u ON c."createdById" = u.id
