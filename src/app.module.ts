@@ -37,6 +37,7 @@ import { DataSenderModule } from './modules/data-sender/data-sender.module';
 import { DealerTransactionModule } from './modules/dealer-transaction/dealer-transaction.module';
 import { DealerTransactionItemModule } from './modules/dealer-transaction_item/dealer-transaction_item.module';
 import { DebtModule } from './modules/debt/debt.module';
+import { LogisticsModule } from './modules/logistics/logistics.module';
 import { DiscountModule } from './modules/discount/discount.module';
 import { ExcelModule } from './modules/excel/excel.module';
 import { FactoryModule } from './modules/factory/factory.module';
@@ -152,6 +153,7 @@ import { VideoMessageModule } from './modules/video-message/video-message.module
     CashflowTypeModule,
     AccountingModule,
     DebtModule,
+    LogisticsModule,
 
     // ─── CRM ──────────────────────────────────────────────────────
     ClientModule,

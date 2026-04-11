@@ -10,6 +10,7 @@ import { Filial } from '../filial/filial.entity';
 import { Report } from '../report/report.entity';
 import { Debt } from '../debt/debt.entity';
 import { Factory } from '../factory/factory.entity';
+import { Logistics } from '../logistics/logistics.entity';
 import { BaseEntity } from '../../common/database/base.entity';
 
 @Entity('cashflow')
@@ -80,6 +81,10 @@ export class Cashflow extends BaseEntity {
   @ManyToOne(() => Factory, (factory) => factory.cashflows, { onDelete: 'SET NULL' })
   @JoinColumn()
   factory: Factory;
+
+  @ManyToOne(() => Logistics, (logistics) => logistics.cashflows, { onDelete: 'SET NULL' })
+  @JoinColumn()
+  logistics: Logistics;
 
   @OneToMany(() => Cashflow, cashflow => cashflow.parent)
   child: Cashflow[];

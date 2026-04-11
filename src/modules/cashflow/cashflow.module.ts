@@ -24,6 +24,7 @@ import { CashflowType } from '@modules/cashflow-type/cashflow-type.entity';
 import { Kassa } from '@modules/kassa/kassa.entity';
 import { OrderModule } from '@modules/order/order.module';
 import { Report } from '@modules/report/report.entity';
+import { LogisticsModule } from '../logistics/logistics.module';
 @Module({
   imports: [
     TypeOrmModule.forFeature([
@@ -47,7 +48,8 @@ import { Report } from '@modules/report/report.entity';
     forwardRef(() => ReportsModule),
     forwardRef(() => OrderModule),
     forwardRef(() => CashflowTypeModule),
-    forwardRef(() => DebtModule), // bu yerda forwardRef qo‘shildi
+    forwardRef(() => DebtModule),
+    forwardRef(() => LogisticsModule),
     forwardRef(() => GrmSocketModule),
   ],
   controllers: [CashflowController],

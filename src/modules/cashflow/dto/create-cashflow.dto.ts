@@ -70,6 +70,14 @@ class CreateCashflowDto {
   factoryId?: string;
 
   @ApiProperty({
+    description: `logistics id`,
+    example: 'uuid',
+  })
+  @IsOptional()
+  @IsUUID('4')
+  logisticsId?: string;
+
+  @ApiProperty({
     description: `cashflow_type id`,
     example: 'uuid',
   })

@@ -12,6 +12,8 @@ import { PaginatedFilterCashflowDto } from './dto/paginated-filter-cashflow.dto'
 import CashflowTipEnum from '../../infra/shared/enum/cashflow/cashflow-tip.enum';
 import { DebtService } from '../debt/debt.service';
 import { Factory } from '../factory/factory.entity';
+import { Logistics } from '../logistics/logistics.entity';
+import { LogisticsService } from '../logistics/logistics.service';
 import { CashFlowEnum, CashflowStatusEnum, FilialTypeEnum, KassaProgresEnum, OrderEnum, UserRoleEnum } from '../../infra/shared/enum';
 import { Order } from '../order/order.entity';
 import { ReportService } from '../report/report.service';
@@ -78,6 +80,8 @@ export class CashflowService {
     private readonly reportService: ReportService,
     @Inject(forwardRef(() => OrderService))
     private readonly orderService: OrderService,
+    @Inject(forwardRef(() => LogisticsService))
+    private readonly logisticsService: LogisticsService,
   ) {
   }
 
@@ -636,6 +640,7 @@ export class CashflowService {
         price,
         debt: value.debtId,
         factory: value.factoryId,
+        logistics: value.logisticsId,
         ...(kassa?.filial?.id && { filial: kassa.filial.id }),
         ...(kassa?.id && { kassa: kassa.id }),
         ...(report?.filial?.id && { filial: report.filial.id }),
@@ -668,6 +673,7 @@ export class CashflowService {
           },
           cashflow_type: true,
           kassa: true,
+          logistics: true,
         },
       });
 
@@ -676,6 +682,10 @@ export class CashflowService {
 
       const order = cashflow.order;
       const isOrder = value.tip === 'order';
+
+      // Logistics flow detection — kassaga umuman dahli yo'q
+      const isLogisticsFlow = cashflow.cashflow_type &&
+        ['logistika', 'Логистика'].includes(cashflow.cashflow_type.slug) && value.logisticsId;
 
       // Report logikasi
       if (report) {
@@ -689,12 +699,15 @@ export class CashflowService {
             debt.totalDebt = debt.owed - debt.given;
             await queryRunner.manager.save(debt);
           }
-          if (user?.position?.role === UserRoleEnum.ACCOUNTANT) {
-            report.accountantSum += price;
-          } else {
-            report.managerSum += price;
+          // Logistics Приход da report ta'sirlanMAYDI
+          if (!isLogisticsFlow) {
+            if (user?.position?.role === UserRoleEnum.ACCOUNTANT) {
+              report.accountantSum += price;
+            } else {
+              report.managerSum += price;
+            }
+            report.totalIncome += price;
           }
-          report.totalIncome += price;
         } else if (value.type === 'Расход') {
           if (isDebtFlow) {
             const debt = await this.debtService.findOne(value.debtId);
@@ -735,9 +748,24 @@ export class CashflowService {
         }
       }
 
+      // Logistics flow
+      if (isLogisticsFlow) {
+        const logistics = await queryRunner.manager.findOne(Logistics, {
+          where: { id: value.logisticsId },
+        });
+        if (!logistics) throw new BadRequestException('Logistics not found');
+        if (value.type === 'Приход') {
+          logistics.owed = Number(logistics.owed) + price;
+        } else if (value.type === 'Расход') {
+          logistics.given = Number(logistics.given) + price;
+        }
+        logistics.totalDebt = Number(logistics.owed) - Number(logistics.given);
+        await queryRunner.manager.save(logistics);
+      }
+
       const today = dayjs().format('YYYY-MM-DD');
 
-      if (value.type === 'Приход' && kassa?.id) {
+      if (value.type === 'Приход' && kassa?.id && !isLogisticsFlow) {
         if (!isOrder && cashflow.cashflow_type.slug !== 'Перечисление') {
           kassa.income += price;
           if (value?.is_online) {
@@ -768,7 +796,7 @@ export class CashflowService {
           // Kassa totallari approveCashflow() da yangilanadi
         }
       }
-      else if (value.type === 'Расход' && kassa?.id) {
+      else if (value.type === 'Расход' && kassa?.id && !isLogisticsFlow) {
         kassa.in_hand -= price;
 
         // Find the report associated with this kassa
@@ -1096,6 +1124,7 @@ export class CashflowService {
           kassa: true,
           debt: true,
           factory: true,
+          logistics: true,
           child: { report: true },
         },
       });
@@ -1142,14 +1171,15 @@ export class CashflowService {
       const price = cashflow.price;
       const order = cashflow.order;
       const isOrder = (cashflow.tip as string) === CashflowTipEnum.ORDER;
+      const isLogisticsFlow = ['logistika', 'Логистика'].includes(cashflow.cashflow_type?.slug) && cashflow.logistics?.id;
 
       if (cashflow.type === 'Приход') {
         if (isOrder) {
           await this.orderService.returnOrder(cashflow.order.id, userId);
         }
 
-        // Oddiy prixod cashflow reverse
-        if (!isOrder && cashflow.cashflow_type.slug !== 'Перечисление') {
+        // Oddiy prixod cashflow reverse — logistics uchun skip (kassaga dahli yo'q)
+        if (!isOrder && cashflow.cashflow_type.slug !== 'Перечисление' && !isLogisticsFlow) {
           kassa.income -= price;
           if (cashflow?.is_online) {
             kassa.plasticSum -= price;
@@ -1180,9 +1210,19 @@ export class CashflowService {
           debt.totalDebt = Math.max(0, debt.owed - debt.given);
           await queryRunner.manager.save(debt);
         }
+
+        // Logistics Приход reverse
+        if (isLogisticsFlow) {
+          const logistics = await queryRunner.manager.findOne(Logistics, { where: { id: cashflow.logistics.id } });
+          if (logistics) {
+            logistics.owed = Number(logistics.owed) - price;
+            logistics.totalDebt = Math.max(0, Number(logistics.owed) - Number(logistics.given));
+            await queryRunner.manager.save(logistics);
+          }
+        }
       } else if (cashflow.type === 'Расход') {
-        // Oddiy rasxod cashflow reverse
-        if (!isOrder) {
+        // Oddiy rasxod cashflow reverse — logistics uchun skip (kassaga dahli yo'q)
+        if (!isOrder && !isLogisticsFlow) {
           kassa.in_hand += price;
           kassa.expense -= price;
           if (cashflow?.is_online) {
@@ -1229,9 +1269,21 @@ export class CashflowService {
             await queryRunner.manager.save(factory);
           }
         }
+
+        // Logistics Расход reverse
+        if (isLogisticsFlow) {
+          const logistics = await queryRunner.manager.findOne(Logistics, { where: { id: cashflow.logistics.id } });
+          if (logistics) {
+            logistics.given = Number(logistics.given) - price;
+            logistics.totalDebt = Math.max(0, Number(logistics.owed) - Number(logistics.given));
+            await queryRunner.manager.save(logistics);
+          }
+        }
       }
 
-      await queryRunner.manager.save(kassa);
+      if (!isLogisticsFlow) {
+        await queryRunner.manager.save(kassa);
+      }
 
       // if (isOrder && order) {
       //   order.status = OrderEnum.Progress;
@@ -1585,6 +1637,7 @@ export class CashflowService {
           report: true,
           debt: true,
           factory: true,
+          logistics: true,
           parent: true,
           child: { report: true },
         },
@@ -1618,9 +1671,10 @@ export class CashflowService {
 
       const price = Math.abs(cashflow.price);
       const { kassa, report } = cashflow;
+      const isLogisticsFlow = ['logistika', 'Логистика'].includes(cashflow.cashflow_type?.slug) && cashflow.logistics;
 
-      // Kassa logikasini teskari qilish (was KassaReport before)
-      if (kassa) {
+      // Kassa logikasini teskari qilish — logistics uchun skip (kassaga dahli yo'q)
+      if (kassa && !isLogisticsFlow) {
         const user = await this.userRepo.findOne({
           where: { id: cashflow.createdBy?.id },
           relations: ['position'],
@@ -1703,15 +1757,18 @@ export class CashflowService {
         const isDebtFlow = ['dolg', 'Долг'].includes(cashflow.cashflow_type.slug) && cashflow.debt;
 
         if (cashflow.type === 'Приход') {
-          report.totalIncome -= price;
-          if (user?.position?.role === UserRoleEnum.ACCOUNTANT) {
-            report.accountantSum -= price;
-          } else {
-            report.managerSum -= price;
-          }
+          // Logistics Приход da report ta'sirlanmagan → reverse ham kerak emas
+          if (!isLogisticsFlow) {
+            report.totalIncome -= price;
+            if (user?.position?.role === UserRoleEnum.ACCOUNTANT) {
+              report.accountantSum -= price;
+            } else {
+              report.managerSum -= price;
+            }
 
-          if (cashflow.cashflow_type.slug === 'Инкассация') {
-            report.totalCashCollection -= price;
+            if (cashflow.cashflow_type.slug === 'Инкассация') {
+              report.totalCashCollection -= price;
+            }
           }
 
           if (isDebtFlow) {
@@ -1776,6 +1833,20 @@ export class CashflowService {
           factory.given = Number(factory.given) - price;
           factory.totalDebt = Number(factory.owed) - Number(factory.given);
           await queryRunner.manager.save(factory);
+        }
+      }
+
+      // Logistics reverse
+      if (cashflow.logistics?.id) {
+        const logistics = await queryRunner.manager.findOne(Logistics, { where: { id: cashflow.logistics.id } });
+        if (logistics) {
+          if (cashflow.type === 'Приход') {
+            logistics.owed = Number(logistics.owed) - price;
+          } else if (cashflow.type === 'Расход') {
+            logistics.given = Number(logistics.given) - price;
+          }
+          logistics.totalDebt = Math.max(0, Number(logistics.owed) - Number(logistics.given));
+          await queryRunner.manager.save(logistics);
         }
       }
 
@@ -2710,6 +2781,7 @@ WHERE k.id = $1;
           child: { report: true },
           debt: true,
           factory: true,
+          logistics: true,
         },
       });
 
@@ -2897,6 +2969,7 @@ WHERE k.id = $1;
         const newPrice = data.price !== undefined ? Math.abs(data.price) : oldPrice;
         const priceDiff = newPrice - oldPrice;
         const oldSlug = cashflow.cashflow_type?.slug;
+        const isLogisticsFlow = ['logistika', 'Логистика'].includes(oldSlug) && cashflow.logistics?.id;
 
         // Check if cashflow_type is changing
         let newCashflowType = cashflow.cashflow_type;
@@ -2955,7 +3028,7 @@ WHERE k.id = $1;
         };
 
         // --- Kassa effects ---
-        if (kassa && (priceDiff !== 0 || isTypeChange || isMonthChange)) {
+        if (kassa && !isLogisticsFlow && (priceDiff !== 0 || isTypeChange || isMonthChange)) {
           if (isMonthChange && targetKassa) {
             // TRANSFER: reverse old effects from old kassa, apply new to target
             applyKassaEffects(kassa, oldPrice, oldSlug, cashflow.type, cashflow.is_online, -1);
@@ -2983,7 +3056,9 @@ WHERE k.id = $1;
         }
 
         // --- Report effects (M_MANAGER cashflows) ---
-        if ((priceDiff !== 0 || isMonthChange) && cashflow.report) {
+        // Logistics Приход da report ta'sirlanmagan → update da ham skip
+        const isLogisticsNonReportFlow = isLogisticsFlow && cashflow.type === CashFlowEnum.InCome;
+        if ((priceDiff !== 0 || isMonthChange) && cashflow.report && !isLogisticsNonReportFlow) {
           const report = cashflow.report;
           const user = await queryRunner.manager.findOne(User, {
             where: { id: cashflow.createdBy?.id },
@@ -3057,6 +3132,20 @@ WHERE k.id = $1;
             factory.given = Number(factory.given) + priceDiff;
             factory.totalDebt = Number(factory.owed) - Number(factory.given);
             await queryRunner.manager.save(factory);
+          }
+        }
+
+        // --- Logistics effects ---
+        if (priceDiff !== 0 && isLogisticsFlow) {
+          const logistics = await queryRunner.manager.findOne(Logistics, { where: { id: cashflow.logistics.id } });
+          if (logistics) {
+            if (cashflow.type === CashFlowEnum.InCome) {
+              logistics.owed = Number(logistics.owed) + priceDiff;
+            } else {
+              logistics.given = Number(logistics.given) + priceDiff;
+            }
+            logistics.totalDebt = Number(logistics.owed) - Number(logistics.given);
+            await queryRunner.manager.save(logistics);
           }
         }
 
