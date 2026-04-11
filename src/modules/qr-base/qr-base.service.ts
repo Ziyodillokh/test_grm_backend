@@ -1,16 +1,34 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { FindOptionsWhere, ILike, Repository } from 'typeorm';
 import { IPaginationOptions, paginate, Pagination } from 'nestjs-typeorm-paginate';
 import { QrBase } from './qr-base.entity';
 import { CreateQrBaseDto, UpdateQrBaseDto, QueryQrBaseDto } from './dto';
 import UpdateInternetInfo from './dto/internet-info-update.dto';
+import { CountryService } from '../country/country.service';
+import { CollectionService } from '../collection/collection.service';
+import { ColorService } from '../color/color.service';
+import { ShapeService } from '../shape/shape.service';
+import { SizeService } from '../size/size.service';
+import { StyleService } from '../style/style.service';
+import { ModelService } from '../model/model.service';
+import { FactoryService } from '../factory/factory.service';
 
 @Injectable()
 export class QrBaseService {
+  private readonly logger = new Logger(QrBaseService.name);
+
   constructor(
     @InjectRepository(QrBase)
     private readonly qrBaseRepository: Repository<QrBase>,
+    private readonly countryService: CountryService,
+    private readonly collectionService: CollectionService,
+    private readonly colorService: ColorService,
+    private readonly shapeService: ShapeService,
+    private readonly sizeService: SizeService,
+    private readonly styleService: StyleService,
+    private readonly modelService: ModelService,
+    private readonly factoryService: FactoryService,
   ) {}
 
   async findAll(
@@ -238,5 +256,58 @@ export class QrBaseService {
     const qrBase = await this.findOne(id);
     qrBase.is_active = false;
     await this.qrBaseRepository.save(qrBase);
+  }
+
+  /**
+   * Bulk create QR bases from Excel rows.
+   * Each row: { code, collection, model, color, size, country, factory, shape, style, isMetric, count }
+   */
+  async createFromExcelRows(rows: any[]): Promise<{ created: number; skipped: number }> {
+    let created = 0;
+    let skipped = 0;
+
+    for (const row of rows) {
+      if (!row.code) {
+        skipped++;
+        continue;
+      }
+
+      const code = String(row.code).trim();
+
+      // Check if barcode already exists
+      const existing = await this.qrBaseRepository.findOne({ where: { code } });
+      if (existing) {
+        skipped++;
+        continue;
+      }
+
+      // Resolve relations by name → ID
+      const countryId = row.country ? await this.countryService.findOrCreate(String(row.country)) : null;
+      const factoryId = row.factory ? await this.factoryService.findOrCreate(String(row.factory), countryId) : null;
+      const collectionId = row.collection ? await this.collectionService.findOrCreate(String(row.collection), factoryId) : null;
+      const modelId = row.model && collectionId ? await this.modelService.findOrCreate(collectionId, String(row.model)) : null;
+      const colorId = row.color ? await this.colorService.findOrCreate(String(row.color)) : null;
+      const sizeId = row.size ? await this.sizeService.findOrCreate(String(row.size)) : null;
+      const shapeId = row.shape ? await this.shapeService.findOrCreate(String(row.shape)) : null;
+      const styleId = row.style ? await this.styleService.findOrCreate(String(row.style)) : null;
+
+      const entity = this.qrBaseRepository.create({
+        code,
+        country: countryId ? { id: countryId } : null,
+        factory: factoryId ? { id: factoryId } : null,
+        collection: collectionId ? { id: collectionId } : null,
+        model: modelId ? { id: modelId } : null,
+        color: colorId ? { id: colorId } : null,
+        size: sizeId ? { id: sizeId } : null,
+        shape: shapeId ? { id: shapeId } : null,
+        style: styleId ? { id: styleId } : null,
+        isMetric: row.isMetric === true || row.isMetric === 'true',
+      } as any);
+
+      await this.qrBaseRepository.save(entity);
+      created++;
+    }
+
+    return { created, skipped };
   }
 }

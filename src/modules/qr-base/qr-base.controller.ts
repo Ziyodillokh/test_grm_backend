@@ -11,13 +11,17 @@ import {
   Post,
   Put,
   Query,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
 import {
+  ApiConsumes,
   ApiCreatedResponse,
   ApiOkResponse,
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { QrBaseService } from './qr-base.service';
 import { CreateQrBaseDto, UpdateQrBaseDto, QueryQrBaseDto } from './dto';
 import UpdateInternetInfo from './dto/internet-info-update.dto';
@@ -26,11 +30,36 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { Role } from '../../common/enums/role.enum';
 import { Route } from '../../infra/shared/decorators/route.decorator';
 import { Public } from '../auth/decorators/public.decorator';
+import { multerStorage } from '../../infra/helpers';
+import * as XLSX from 'xlsx';
+import { deleteFile } from '../../infra/helpers';
 
 @ApiTags('QrBase')
 @Controller('qr-base')
 export class QrBaseController {
   constructor(private readonly qrBaseService: QrBaseService) {}
+
+  // -----------------------------------------------------------------------
+  // Support Excel import (must be declared BEFORE :id params)
+  // -----------------------------------------------------------------------
+
+  @Post('support')
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({ summary: 'Bulk create QR bases from Excel file' })
+  @ApiCreatedResponse({ description: 'QR bases created from Excel' })
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: multerStorage('uploads/excel'),
+    }),
+  )
+  @HttpCode(HttpStatus.CREATED)
+  async importFromExcel(@UploadedFile() file: Express.Multer.File) {
+    const workbook = XLSX.readFile(file.path);
+    const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+    const data: any[] = XLSX.utils.sheet_to_json(worksheet);
+    deleteFile(file.path);
+    return this.qrBaseService.createFromExcelRows(data);
+  }
 
   // -----------------------------------------------------------------------
   // Internet Shop endpoints (must be declared BEFORE :id params)
