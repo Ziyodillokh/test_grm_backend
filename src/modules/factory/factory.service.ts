@@ -260,7 +260,7 @@ export class FactoryService {
         c.comment,
         u."firstName" || ' ' || u."lastName" AS who_paid
       FROM cashflow c
-      JOIN "user" u ON c."createdById" = u.id
+      LEFT JOIN users u ON c."createdById" = u.id
       WHERE c."factoryId" = $1
         AND c.is_cancelled = false
         AND c.date BETWEEN $2 AND $3
