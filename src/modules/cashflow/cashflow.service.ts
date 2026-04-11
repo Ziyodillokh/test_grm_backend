@@ -683,8 +683,8 @@ export class CashflowService {
           if (isDebtFlow) {
             const debt = await this.debtService.findOne(value.debtId);
             if (!debt) throw new BadRequestException('Debt not found');
-            debt.given += price;
-            debt.totalDebt = debt.given - debt.owed;
+            debt.owed += price;
+            debt.totalDebt = debt.owed - debt.given;
             await queryRunner.manager.save(debt);
           }
           if (user?.position?.role === UserRoleEnum.ACCOUNTANT) {
@@ -697,8 +697,8 @@ export class CashflowService {
           if (isDebtFlow) {
             const debt = await this.debtService.findOne(value.debtId);
             if (!debt) throw new BadRequestException('Debt not found');
-            debt.owed += price;
-            debt.totalDebt = debt.given - debt.owed;
+            debt.given += price;
+            debt.totalDebt = debt.owed - debt.given;
             await queryRunner.manager.save(debt);
           }
 
@@ -1160,8 +1160,8 @@ export class CashflowService {
           const debt = await this.debtService.findOne(cashflow.debt.id);
           if (!debt) throw new BadRequestException('Debt not found');
 
-          debt.given -= price;
-          debt.totalDebt = Math.max(0, debt.given - debt.owed);
+          debt.owed -= price;
+          debt.totalDebt = Math.max(0, debt.owed - debt.given);
           await queryRunner.manager.save(debt);
         }
       } else if (cashflow.type === 'Расход') {
@@ -1199,8 +1199,8 @@ export class CashflowService {
           const debt = await this.debtService.findOne(cashflow.debt.id);
           if (!debt) throw new BadRequestException('Debt not found');
 
-          debt.owed -= price;
-          debt.totalDebt = Math.max(0, debt.given - debt.owed);
+          debt.given -= price;
+          debt.totalDebt = Math.max(0, debt.owed - debt.given);
           await queryRunner.manager.save(debt);
         }
       }
@@ -1687,8 +1687,8 @@ export class CashflowService {
           if (isDebtFlow) {
             const debt = await this.debtService.findOne(cashflow.debt?.id);
             if (debt) {
-              debt.given -= price;
-              debt.totalDebt = debt.given - debt.owed;
+              debt.owed -= price;
+              debt.totalDebt = debt.owed - debt.given;
               if (debt.totalDebt < 0) debt.totalDebt = 0;
               await queryRunner.manager.save(debt);
             }
@@ -1705,8 +1705,8 @@ export class CashflowService {
           if (isDebtFlow) {
             const debt = await this.debtService.findOne(cashflow.debt?.id);
             if (debt) {
-              debt.owed -= price;
-              debt.totalDebt = debt.given - debt.owed;
+              debt.given -= price;
+              debt.totalDebt = debt.owed - debt.given;
               if (debt.totalDebt < 0) debt.totalDebt = 0;
               await queryRunner.manager.save(debt);
             }
@@ -2996,11 +2996,11 @@ WHERE k.id = $1;
             const debt = await this.debtService.findOne(cashflow.debt.id);
             if (debt) {
               if (cashflow.type === CashFlowEnum.InCome) {
-                debt.given += priceDiff;
-              } else {
                 debt.owed += priceDiff;
+              } else {
+                debt.given += priceDiff;
               }
-              debt.totalDebt = debt.given - debt.owed;
+              debt.totalDebt = debt.owed - debt.given;
               await queryRunner.manager.save(debt);
             }
           }

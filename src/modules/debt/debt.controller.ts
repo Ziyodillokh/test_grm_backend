@@ -1,10 +1,16 @@
 // debt.controller.ts
-import { Controller, Post, Body, Request, Get, Param, Patch, Delete, Query } from '@nestjs/common';
+import { Controller, Post, Body, Request, Get, Param, Patch, Delete, Query, Res } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
+import { Response } from 'express';
 import { DebtService } from './debt.service';
 import { DebtTransactionDto } from './dto/amount-debt-dto';
 import { CreateDebtDto } from './dto/create-debt.dto';
 import { UpdateDebtDto } from './dto/update-debt.dto';
+import { DebtReportQueryDto } from './dto/debt-report-query.dto';
+import { DebtDetailQueryDto } from './dto/debt-detail-query.dto';
+import { DebtExcelQueryDto } from './dto/debt-excel-query.dto';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { UserRoleEnum } from '@infra/shared/enum';
 
 @ApiTags('Debt')
 @Controller('debt')
@@ -20,6 +26,30 @@ export class DebtController {
     });
   }
 
+  @Get('report')
+  @Roles(UserRoleEnum.M_MANAGER, UserRoleEnum.ACCOUNTANT, UserRoleEnum.BOSS)
+  @ApiOperation({ summary: 'Kent report with year/month filtering' })
+  async getReport(@Query() dto: DebtReportQueryDto) {
+    return this.debtService.getDebtReport(dto);
+  }
+
+  @Get('report/excel')
+  @Roles(UserRoleEnum.M_MANAGER, UserRoleEnum.ACCOUNTANT, UserRoleEnum.BOSS)
+  @ApiOperation({ summary: 'Export kent report to Excel' })
+  async exportExcel(@Query() dto: DebtExcelQueryDto, @Res() res: Response) {
+    const buffer = await this.debtService.generateDebtExcel(dto);
+
+    const fileName = `Kent_hisobot_${dto.year || new Date().getFullYear()}_${dto.month || new Date().getMonth() + 1}.xlsx`;
+
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    );
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+    res.setHeader('Content-Length', buffer.byteLength);
+    res.end(buffer);
+  }
+
   @Get('next-number')
   @ApiOperation({ summary: 'Get next debt number' })
   async getNextNumber() {
@@ -30,6 +60,19 @@ export class DebtController {
   @ApiOperation({ summary: 'Get debt by ID' })
   async findOne(@Param('id') id: string) {
     return this.debtService.findOne(id);
+  }
+
+  @Get(':id/report')
+  @Roles(UserRoleEnum.M_MANAGER, UserRoleEnum.ACCOUNTANT, UserRoleEnum.BOSS)
+  @ApiOperation({ summary: 'Kent detail cashflows with year/month filtering' })
+  async getDetailReport(@Param('id') id: string, @Query() dto: DebtDetailQueryDto) {
+    return this.debtService.getDebtDetailReport(id, dto);
+  }
+
+  @Get(':id/balance')
+  @ApiOperation({ summary: 'Get debt balance' })
+  async getBalance(@Param('id') id: string) {
+    return this.debtService.getDebtBalance(id);
   }
 
   @Post()
@@ -48,12 +91,6 @@ export class DebtController {
   @ApiOperation({ summary: 'Delete a debt' })
   async remove(@Param('id') id: string) {
     return this.debtService.remove(id);
-  }
-
-  @Get(':id/balance')
-  @ApiOperation({ summary: 'Get debt balance' })
-  async getBalance(@Param('id') id: string) {
-    return this.debtService.getDebtBalance(id);
   }
 
   // Faqat bitta transaction API
