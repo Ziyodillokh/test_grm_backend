@@ -14,6 +14,8 @@ import { DebtService } from '../debt/debt.service';
 import { Factory } from '../factory/factory.entity';
 import { Logistics } from '../logistics/logistics.entity';
 import { LogisticsService } from '../logistics/logistics.service';
+import { Customs } from '../customs/customs.entity';
+import { CustomsService } from '../customs/customs.service';
 import { CashFlowEnum, CashflowStatusEnum, FilialTypeEnum, KassaProgresEnum, OrderEnum, UserRoleEnum } from '../../infra/shared/enum';
 import { Order } from '../order/order.entity';
 import { ReportService } from '../report/report.service';
@@ -82,6 +84,8 @@ export class CashflowService {
     private readonly orderService: OrderService,
     @Inject(forwardRef(() => LogisticsService))
     private readonly logisticsService: LogisticsService,
+    @Inject(forwardRef(() => CustomsService))
+    private readonly customsService: CustomsService,
   ) {
   }
 
@@ -641,6 +645,7 @@ export class CashflowService {
         debt: value.debtId,
         factory: value.factoryId,
         logistics: value.logisticsId,
+        customs: value.customsId,
         ...(kassa?.filial?.id && { filial: kassa.filial.id }),
         ...(kassa?.id && { kassa: kassa.id }),
         ...(report?.filial?.id && { filial: report.filial.id }),
@@ -674,6 +679,7 @@ export class CashflowService {
           cashflow_type: true,
           kassa: true,
           logistics: true,
+          customs: true,
         },
       });
 
@@ -687,6 +693,10 @@ export class CashflowService {
       const isLogisticsFlow = cashflow.cashflow_type &&
         ['logistika', 'Логистика'].includes(cashflow.cashflow_type.slug) && value.logisticsId;
 
+      // Customs flow detection — kassaga umuman dahli yo'q (logistika bilan bir xil)
+      const isCustomsFlow = cashflow.cashflow_type &&
+        ['tamojnya', 'Таможня'].includes(cashflow.cashflow_type.slug) && value.customsId;
+
       // Report logikasi
       if (report) {
         const isDebtFlow = ['dolg', 'Кент'].includes(cashflow.cashflow_type.slug) && value.debtId;
@@ -699,8 +709,8 @@ export class CashflowService {
             debt.totalDebt = debt.owed - debt.given;
             await queryRunner.manager.save(debt);
           }
-          // Logistics Приход da report ta'sirlanMAYDI
-          if (!isLogisticsFlow) {
+          // Logistics/Customs Приход da report ta'sirlanMAYDI
+          if (!isLogisticsFlow && !isCustomsFlow) {
             if (user?.position?.role === UserRoleEnum.ACCOUNTANT) {
               report.accountantSum += price;
             } else {
@@ -763,9 +773,24 @@ export class CashflowService {
         await queryRunner.manager.save(logistics);
       }
 
+      // Customs flow
+      if (isCustomsFlow) {
+        const customs = await queryRunner.manager.findOne(Customs, {
+          where: { id: value.customsId },
+        });
+        if (!customs) throw new BadRequestException('Customs not found');
+        if (value.type === 'Приход') {
+          customs.owed = Number(customs.owed) + price;
+        } else if (value.type === 'Расход') {
+          customs.given = Number(customs.given) + price;
+        }
+        customs.totalDebt = Number(customs.owed) - Number(customs.given);
+        await queryRunner.manager.save(customs);
+      }
+
       const today = dayjs().format('YYYY-MM-DD');
 
-      if (value.type === 'Приход' && kassa?.id && !isLogisticsFlow) {
+      if (value.type === 'Приход' && kassa?.id && !isLogisticsFlow && !isCustomsFlow) {
         if (!isOrder && cashflow.cashflow_type.slug !== 'Перечисление') {
           kassa.income += price;
           if (value?.is_online) {
@@ -796,7 +821,7 @@ export class CashflowService {
           // Kassa totallari approveCashflow() da yangilanadi
         }
       }
-      else if (value.type === 'Расход' && kassa?.id && !isLogisticsFlow) {
+      else if (value.type === 'Расход' && kassa?.id && !isLogisticsFlow && !isCustomsFlow) {
         kassa.in_hand -= price;
 
         // Find the report associated with this kassa
@@ -1125,6 +1150,7 @@ export class CashflowService {
           debt: true,
           factory: true,
           logistics: true,
+          customs: true,
           child: { report: true },
         },
       });
@@ -1172,14 +1198,15 @@ export class CashflowService {
       const order = cashflow.order;
       const isOrder = (cashflow.tip as string) === CashflowTipEnum.ORDER;
       const isLogisticsFlow = ['logistika', 'Логистика'].includes(cashflow.cashflow_type?.slug) && cashflow.logistics?.id;
+      const isCustomsFlow = ['tamojnya', 'Таможня'].includes(cashflow.cashflow_type?.slug) && cashflow.customs?.id;
 
       if (cashflow.type === 'Приход') {
         if (isOrder) {
           await this.orderService.returnOrder(cashflow.order.id, userId);
         }
 
-        // Oddiy prixod cashflow reverse — logistics uchun skip (kassaga dahli yo'q)
-        if (!isOrder && cashflow.cashflow_type.slug !== 'Перечисление' && !isLogisticsFlow) {
+        // Oddiy prixod cashflow reverse — logistics/customs uchun skip (kassaga dahli yo'q)
+        if (!isOrder && cashflow.cashflow_type.slug !== 'Перечисление' && !isLogisticsFlow && !isCustomsFlow) {
           kassa.income -= price;
           if (cashflow?.is_online) {
             kassa.plasticSum -= price;
@@ -1220,9 +1247,19 @@ export class CashflowService {
             await queryRunner.manager.save(logistics);
           }
         }
+
+        // Customs Приход reverse
+        if (isCustomsFlow) {
+          const customs = await queryRunner.manager.findOne(Customs, { where: { id: cashflow.customs.id } });
+          if (customs) {
+            customs.owed = Number(customs.owed) - price;
+            customs.totalDebt = Math.max(0, Number(customs.owed) - Number(customs.given));
+            await queryRunner.manager.save(customs);
+          }
+        }
       } else if (cashflow.type === 'Расход') {
-        // Oddiy rasxod cashflow reverse — logistics uchun skip (kassaga dahli yo'q)
-        if (!isOrder && !isLogisticsFlow) {
+        // Oddiy rasxod cashflow reverse — logistics/customs uchun skip (kassaga dahli yo'q)
+        if (!isOrder && !isLogisticsFlow && !isCustomsFlow) {
           kassa.in_hand += price;
           kassa.expense -= price;
           if (cashflow?.is_online) {
@@ -1279,9 +1316,19 @@ export class CashflowService {
             await queryRunner.manager.save(logistics);
           }
         }
+
+        // Customs Расход reverse
+        if (isCustomsFlow) {
+          const customs = await queryRunner.manager.findOne(Customs, { where: { id: cashflow.customs.id } });
+          if (customs) {
+            customs.given = Number(customs.given) - price;
+            customs.totalDebt = Math.max(0, Number(customs.owed) - Number(customs.given));
+            await queryRunner.manager.save(customs);
+          }
+        }
       }
 
-      if (!isLogisticsFlow) {
+      if (!isLogisticsFlow && !isCustomsFlow) {
         await queryRunner.manager.save(kassa);
       }
 
@@ -1638,6 +1685,7 @@ export class CashflowService {
           debt: true,
           factory: true,
           logistics: true,
+          customs: true,
           parent: true,
           child: { report: true },
         },
@@ -1672,9 +1720,10 @@ export class CashflowService {
       const price = Math.abs(cashflow.price);
       const { kassa, report } = cashflow;
       const isLogisticsFlow = ['logistika', 'Логистика'].includes(cashflow.cashflow_type?.slug) && cashflow.logistics;
+      const isCustomsFlow = ['tamojnya', 'Таможня'].includes(cashflow.cashflow_type?.slug) && cashflow.customs;
 
-      // Kassa logikasini teskari qilish — logistics uchun skip (kassaga dahli yo'q)
-      if (kassa && !isLogisticsFlow) {
+      // Kassa logikasini teskari qilish — logistics/customs uchun skip (kassaga dahli yo'q)
+      if (kassa && !isLogisticsFlow && !isCustomsFlow) {
         const user = await this.userRepo.findOne({
           where: { id: cashflow.createdBy?.id },
           relations: ['position'],
@@ -1757,8 +1806,8 @@ export class CashflowService {
         const isDebtFlow = ['dolg', 'Долг'].includes(cashflow.cashflow_type.slug) && cashflow.debt;
 
         if (cashflow.type === 'Приход') {
-          // Logistics Приход da report ta'sirlanmagan → reverse ham kerak emas
-          if (!isLogisticsFlow) {
+          // Logistics/Customs Приход da report ta'sirlanmagan → reverse ham kerak emas
+          if (!isLogisticsFlow && !isCustomsFlow) {
             report.totalIncome -= price;
             if (user?.position?.role === UserRoleEnum.ACCOUNTANT) {
               report.accountantSum -= price;
@@ -1847,6 +1896,20 @@ export class CashflowService {
           }
           logistics.totalDebt = Math.max(0, Number(logistics.owed) - Number(logistics.given));
           await queryRunner.manager.save(logistics);
+        }
+      }
+
+      // Customs reverse
+      if (cashflow.customs?.id) {
+        const customs = await queryRunner.manager.findOne(Customs, { where: { id: cashflow.customs.id } });
+        if (customs) {
+          if (cashflow.type === 'Приход') {
+            customs.owed = Number(customs.owed) - price;
+          } else if (cashflow.type === 'Расход') {
+            customs.given = Number(customs.given) - price;
+          }
+          customs.totalDebt = Math.max(0, Number(customs.owed) - Number(customs.given));
+          await queryRunner.manager.save(customs);
         }
       }
 
@@ -2782,6 +2845,7 @@ WHERE k.id = $1;
           debt: true,
           factory: true,
           logistics: true,
+          customs: true,
         },
       });
 
@@ -2970,6 +3034,7 @@ WHERE k.id = $1;
         const priceDiff = newPrice - oldPrice;
         const oldSlug = cashflow.cashflow_type?.slug;
         const isLogisticsFlow = ['logistika', 'Логистика'].includes(oldSlug) && cashflow.logistics?.id;
+        const isCustomsFlow = ['tamojnya', 'Таможня'].includes(oldSlug) && cashflow.customs?.id;
 
         // Check if cashflow_type is changing
         let newCashflowType = cashflow.cashflow_type;
@@ -3028,7 +3093,7 @@ WHERE k.id = $1;
         };
 
         // --- Kassa effects ---
-        if (kassa && !isLogisticsFlow && (priceDiff !== 0 || isTypeChange || isMonthChange)) {
+        if (kassa && !isLogisticsFlow && !isCustomsFlow && (priceDiff !== 0 || isTypeChange || isMonthChange)) {
           if (isMonthChange && targetKassa) {
             // TRANSFER: reverse old effects from old kassa, apply new to target
             applyKassaEffects(kassa, oldPrice, oldSlug, cashflow.type, cashflow.is_online, -1);
@@ -3057,7 +3122,7 @@ WHERE k.id = $1;
 
         // --- Report effects (M_MANAGER cashflows) ---
         // Logistics Приход da report ta'sirlanmagan → update da ham skip
-        const isLogisticsNonReportFlow = isLogisticsFlow && cashflow.type === CashFlowEnum.InCome;
+        const isLogisticsNonReportFlow = (isLogisticsFlow || isCustomsFlow) && cashflow.type === CashFlowEnum.InCome;
         if ((priceDiff !== 0 || isMonthChange) && cashflow.report && !isLogisticsNonReportFlow) {
           const report = cashflow.report;
           const user = await queryRunner.manager.findOne(User, {
@@ -3146,6 +3211,20 @@ WHERE k.id = $1;
             }
             logistics.totalDebt = Number(logistics.owed) - Number(logistics.given);
             await queryRunner.manager.save(logistics);
+          }
+        }
+
+        // --- Customs effects ---
+        if (priceDiff !== 0 && isCustomsFlow) {
+          const customs = await queryRunner.manager.findOne(Customs, { where: { id: cashflow.customs.id } });
+          if (customs) {
+            if (cashflow.type === CashFlowEnum.InCome) {
+              customs.owed = Number(customs.owed) + priceDiff;
+            } else {
+              customs.given = Number(customs.given) + priceDiff;
+            }
+            customs.totalDebt = Number(customs.owed) - Number(customs.given);
+            await queryRunner.manager.save(customs);
           }
         }
 

@@ -38,6 +38,7 @@ import { DealerTransactionModule } from './modules/dealer-transaction/dealer-tra
 import { DealerTransactionItemModule } from './modules/dealer-transaction_item/dealer-transaction_item.module';
 import { DebtModule } from './modules/debt/debt.module';
 import { LogisticsModule } from './modules/logistics/logistics.module';
+import { CustomsModule } from './modules/customs/customs.module';
 import { DiscountModule } from './modules/discount/discount.module';
 import { ExcelModule } from './modules/excel/excel.module';
 import { FactoryModule } from './modules/factory/factory.module';
@@ -154,6 +155,7 @@ import { VideoMessageModule } from './modules/video-message/video-message.module
     AccountingModule,
     DebtModule,
     LogisticsModule,
+    CustomsModule,
 
     // ─── CRM ──────────────────────────────────────────────────────
     ClientModule,
