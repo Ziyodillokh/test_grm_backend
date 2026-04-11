@@ -1597,9 +1597,6 @@ export class CashflowService {
       if (cashflow.parent?.id) {
         throw new BadRequestException(`filial manager o'chrshi krak`);
       }
-      if (cashflow.is_static) {
-        throw new BadRequestException('Statik cashflowni o\'chirib bo\'lmaydi');
-      }
 
       // Order bilan bog'langan cashflowlarni o'chirmaslik (faqat rejected bo'lsa ruxsat)
       const isOrder = (cashflow.tip as string) === CashflowTipEnum.ORDER;
@@ -2709,16 +2706,12 @@ WHERE k.id = $1;
           parent: true,
           child: { report: true },
           debt: true,
-          factory: true,
         },
       });
 
       if (!cashflow) throw new NotFoundException('Cashflow not found');
       if (cashflow.is_cancelled || cashflow.status === CashflowStatusEnum.CANCELLED) {
         throw new BadRequestException('Bekor qilingan cashflowni update qilib bo\'lmaydi');
-      }
-      if (cashflow.is_static) {
-        throw new BadRequestException('Statik cashflowni update qilib bo\'lmaydi');
       }
       if (cashflow.parent?.id) {
         throw new BadRequestException('Static cashflowni faqat parent orqali update qilish mumkin');
@@ -3047,16 +3040,6 @@ WHERE k.id = $1;
               debt.totalDebt = debt.owed - debt.given;
               await queryRunner.manager.save(debt);
             }
-          }
-        }
-
-        // --- Factory effects ---
-        if (priceDiff !== 0 && cashflow.factory?.id && cashflow.type === CashFlowEnum.Consumption) {
-          const factory = await queryRunner.manager.findOne(Factory, { where: { id: cashflow.factory.id } });
-          if (factory) {
-            factory.given = Number(factory.given) + priceDiff;
-            factory.totalDebt = Number(factory.owed) - Number(factory.given);
-            await queryRunner.manager.save(factory);
           }
         }
 
