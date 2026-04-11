@@ -262,8 +262,9 @@ export class QrBaseService {
    * Bulk create QR bases from Excel rows.
    * Each row: { code, collection, model, color, size, country, factory, shape, style, isMetric, count }
    */
-  async createFromExcelRows(rows: any[]): Promise<{ created: number; skipped: number }> {
+  async createFromExcelRows(rows: any[]): Promise<{ created: number; updated: number; skipped: number }> {
     let created = 0;
+    let updated = 0;
     let skipped = 0;
 
     for (const row of rows) {
@@ -273,13 +274,6 @@ export class QrBaseService {
       }
 
       const code = String(row.code).trim();
-
-      // Check if barcode already exists
-      const existing = await this.qrBaseRepository.findOne({ where: { code } });
-      if (existing) {
-        skipped++;
-        continue;
-      }
 
       // Resolve relations by name → ID
       const countryId = row.country ? await this.countryService.findOrCreate(String(row.country)) : null;
@@ -291,8 +285,7 @@ export class QrBaseService {
       const shapeId = row.shape ? await this.shapeService.findOrCreate(String(row.shape)) : null;
       const styleId = row.style ? await this.styleService.findOrCreate(String(row.style)) : null;
 
-      const entity = this.qrBaseRepository.create({
-        code,
+      const relationData = {
         country: countryId ? { id: countryId } : null,
         factory: factoryId ? { id: factoryId } : null,
         collection: collectionId ? { id: collectionId } : null,
@@ -302,12 +295,21 @@ export class QrBaseService {
         shape: shapeId ? { id: shapeId } : null,
         style: styleId ? { id: styleId } : null,
         isMetric: row.isMetric === true || row.isMetric === 'true',
-      } as any);
+      };
 
-      await this.qrBaseRepository.save(entity);
-      created++;
+      const existing = await this.qrBaseRepository.findOne({ where: { code } });
+
+      if (existing) {
+        Object.assign(existing, relationData);
+        await this.qrBaseRepository.save(existing);
+        updated++;
+      } else {
+        const entity = this.qrBaseRepository.create({ code, ...relationData } as any);
+        await this.qrBaseRepository.save(entity);
+        created++;
+      }
     }
 
-    return { created, skipped };
+    return { created, updated, skipped };
   }
 }
