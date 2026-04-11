@@ -25,10 +25,11 @@ import { Cashflow } from '../cashflow/cashflow.entity';
 import { Product } from '@modules/product/product.entity';
 import { Kassa } from '@modules/kassa/kassa.entity';
 import { Report } from '@modules/report/report.entity';
+import { Factory } from '../factory/factory.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Excel, ProductExcel, Cashflow, Product, Kassa, Report, CollectionPrice]),
+    TypeOrmModule.forFeature([Excel, ProductExcel, Cashflow, Product, Kassa, Report, CollectionPrice, Factory]),
     ActionModule,
     FileModule,
     forwardRef(() => PartiyaModule),

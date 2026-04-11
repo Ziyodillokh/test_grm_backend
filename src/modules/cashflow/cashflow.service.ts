@@ -11,6 +11,7 @@ import { GRMGateway } from '../web-socket/web-socket.gateway';
 import { PaginatedFilterCashflowDto } from './dto/paginated-filter-cashflow.dto';
 import CashflowTipEnum from '../../infra/shared/enum/cashflow/cashflow-tip.enum';
 import { DebtService } from '../debt/debt.service';
+import { Factory } from '../factory/factory.entity';
 import { CashFlowEnum, CashflowStatusEnum, FilialTypeEnum, KassaProgresEnum, OrderEnum, UserRoleEnum } from '../../infra/shared/enum';
 import { Order } from '../order/order.entity';
 import { ReportService } from '../report/report.service';
@@ -634,6 +635,7 @@ export class CashflowService {
         createdBy: userId,
         price,
         debt: value.debtId,
+        factory: value.factoryId,
         ...(kassa?.filial?.id && { filial: kassa.filial.id }),
         ...(kassa?.id && { kassa: kassa.id }),
         ...(report?.filial?.id && { filial: report.filial.id }),
@@ -718,6 +720,19 @@ export class CashflowService {
         }
 
         await queryRunner.manager.save(report);
+      }
+
+      // Factory (Поставщики) payment flow
+      if (value.factoryId) {
+        const factory = await queryRunner.manager.findOne(Factory, {
+          where: { id: value.factoryId },
+        });
+        if (!factory) throw new BadRequestException('Factory not found');
+        if (value.type === 'Расход') {
+          factory.given = Number(factory.given) + price;
+          factory.totalDebt = Number(factory.owed) - Number(factory.given);
+          await queryRunner.manager.save(factory);
+        }
       }
 
       const today = dayjs().format('YYYY-MM-DD');

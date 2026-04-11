@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Patch, Post, Query, Res } from '@nestjs/common';
 import { ApiCreatedResponse, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { FactoryService } from './factory.service';
 import { PaginationDto } from '../../infra/shared/dto';
@@ -8,6 +8,10 @@ import { UpdateResult } from 'typeorm';
 import { connectFactoriesToCountry, CreateFactoryDto, FactoryQueryDto, UpdateFactoryDto } from './dto';
 import { Put } from '@nestjs/common/decorators';
 import { Public } from '@modules/auth/decorators/public.decorator';
+import { FactoryReportQueryDto } from './dto/factory-report-query.dto';
+import { FactoryDetailQueryDto } from './dto/factory-detail-query.dto';
+import { FactoryExcelQueryDto } from './dto/factory-excel-query.dto';
+import { Response } from 'express';
 
 @ApiTags('Factory')
 @Controller('factory')
@@ -16,6 +20,42 @@ export class FactoryController {
     private readonly service: FactoryService,
   ) {
   }
+
+  // ==================== REPORT ENDPOINTS (static routes first) ====================
+
+  @Get('/report')
+  @ApiOperation({ summary: 'Method: returns factory report list' })
+  @HttpCode(HttpStatus.OK)
+  async getFactoryReport(@Query() query: FactoryReportQueryDto) {
+    return await this.service.getFactoryReport(query);
+  }
+
+  @Get('/report/excel')
+  @ApiOperation({ summary: 'Method: exports factory report as Excel' })
+  async getFactoryExcel(@Query() query: FactoryExcelQueryDto, @Res() res: Response) {
+    const buffer = await this.service.generateFactoryExcel(query);
+    res.set({
+      'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'Content-Disposition': 'attachment; filename=factory-report.xlsx',
+    });
+    res.send(buffer);
+  }
+
+  @Get('/report-enabled')
+  @ApiOperation({ summary: 'Method: returns report-enabled factories' })
+  @HttpCode(HttpStatus.OK)
+  async getReportEnabled() {
+    return await this.service.getReportEnabled();
+  }
+
+  @Get('/not-report-enabled')
+  @ApiOperation({ summary: 'Method: returns factories not in report' })
+  @HttpCode(HttpStatus.OK)
+  async getNotReportEnabled() {
+    return await this.service.getNotReportEnabled();
+  }
+
+  // ==================== EXISTING ENDPOINTS ====================
 
   @Get('/')
   @ApiOperation({ summary: 'Method: returns all data' })
@@ -35,6 +75,20 @@ export class FactoryController {
   @HttpCode(HttpStatus.OK)
   async getOne(@Param('id') id: string): Promise<Factory> {
     return await this.service.getOne(id);
+  }
+
+  @Get('/:id/report')
+  @ApiOperation({ summary: 'Method: returns factory detail report' })
+  @HttpCode(HttpStatus.OK)
+  async getFactoryDetailReport(@Param('id') id: string, @Query() query: FactoryDetailQueryDto) {
+    return await this.service.getFactoryDetailReport(id, query);
+  }
+
+  @Patch('/:id/toggle-report')
+  @ApiOperation({ summary: 'Method: toggles factory report tracking' })
+  @HttpCode(HttpStatus.OK)
+  async toggleReport(@Param('id') id: string) {
+    return await this.service.toggleReport(id);
   }
 
 

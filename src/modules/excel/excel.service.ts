@@ -31,6 +31,7 @@ import { CreateProductDto } from '../product/dto';
 import { Product } from '@modules/product/product.entity';
 import { Kassa } from '@modules/kassa/kassa.entity';
 import { Report } from '@modules/report/report.entity';
+import { Factory } from '../factory/factory.entity';
 import * as XLSX from 'xlsx';
 
 
@@ -55,6 +56,8 @@ export class ExcelService {
     private readonly reportRepository: Repository<Report>,
     @InjectRepository(CollectionPrice)
     private readonly collectionPriceRepository: Repository<CollectionPrice>,
+    @InjectRepository(Factory)
+    private readonly factoryRepository: Repository<Factory>,
     private readonly fileService: FileService,
     @Inject(forwardRef(() => PartiyaService))
     private readonly partiyaService: PartiyaService,
@@ -1380,6 +1383,38 @@ export class ExcelService {
     }
 
     await this.productService.create(products);
+
+    // Factory debt tracking — partiya factory cost → factory.owed
+    if (partiya.factory?.id) {
+      const factory = await this.factoryRepository.findOne({
+        where: { id: partiya.factory.id },
+      });
+      if (factory && factory.isReportEnabled) {
+        let totalFactoryCost = 0;
+        const kvByCollection = new Map<string, number>();
+
+        for (const product of excelProds) {
+          const collId = product.bar_code?.collection?.id;
+          if (!collId) continue;
+          const size = product.bar_code.size;
+          const kv = product.bar_code.isMetric
+            ? (product.check_count / 100) * size.x
+            : size.y * size.x * product.count;
+          kvByCollection.set(collId, (kvByCollection.get(collId) || 0) + kv);
+        }
+
+        for (const [collId, totalKv] of kvByCollection) {
+          const pcp = pcpByCollectionId.get(collId);
+          if (pcp) {
+            totalFactoryCost += totalKv * Number(pcp.factoryPricePerKv);
+          }
+        }
+
+        factory.owed = Number(factory.owed) + totalFactoryCost;
+        factory.totalDebt = Number(factory.owed) - Number(factory.given);
+        await this.factoryRepository.save(factory);
+      }
+    }
 
     await this.partiyaService.finish(partiya.id);
 
