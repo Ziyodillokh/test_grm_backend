@@ -130,7 +130,7 @@ export class PartiyaService {
 
       return await this.partiyaRepository.update({ id }, { partiya_status: status });
       //
-    } else if (status === PartiyaStatusEnum.CLOSED && user.position.role === UserRoleEnum.W_MANAGER) {
+    } else if (status === PartiyaStatusEnum.CLOSED && (user.position.role === UserRoleEnum.W_MANAGER || user.position.role === UserRoleEnum.M_MANAGER)) {
       //
       const report = await this.excelProductService.getReport(partiya.id, ProductReportEnum.INVENTORY);
       if (Number(report.volume).toFixed(2) !== Number(partiya.volume).toFixed(2))
