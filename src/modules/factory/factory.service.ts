@@ -221,12 +221,12 @@ export class FactoryService {
       endDate = dayjs(`${year}-12-31`).endOf('year').toDate();
     }
 
-    // Source A: Partiya collection entries
-    const partiyaEntries = await this.entityManager.query(`
+    // Source A: Partiya collection entries (per collection)
+    const rawPartiyaEntries = await this.entityManager.query(`
       SELECT
         p.id AS partiya_id,
-        'partiya' AS entry_type,
         p.date,
+        pn.title AS partiya_name,
         col.title AS collection_title,
         pcp."factoryPricePerKv" AS price_per_kv,
         SUM(CASE
@@ -238,6 +238,7 @@ export class FactoryService {
           ELSE s.y * s.x * pe.count
         END) * pcp."factoryPricePerKv")::NUMERIC(20,2) AS total_cost
       FROM partiya p
+      LEFT JOIN partiya_number pn ON p."partiyaNoId" = pn.id
       JOIN "partiya-collection-price" pcp ON pcp."partiyaId" = p.id
       JOIN collection col ON pcp."collectionId" = col.id
       JOIN productexcel pe ON pe."partiyaId" = p.id
@@ -246,9 +247,40 @@ export class FactoryService {
       WHERE p."factoryId" = $1
         AND p.partiya_status = 'finished'
         AND p.date BETWEEN $2 AND $3
-      GROUP BY p.id, p.date, col.title, pcp."factoryPricePerKv"
+      GROUP BY p.id, p.date, pn.title, col.title, pcp."factoryPricePerKv"
       ORDER BY p.date ASC
     `, [factoryId, startDate, endDate]);
+
+    // Group collections by partiya
+    const partiyaMap = new Map<string, any>();
+    for (const entry of rawPartiyaEntries) {
+      const key = entry.partiya_id;
+      if (!partiyaMap.has(key)) {
+        partiyaMap.set(key, {
+          id: entry.partiya_id,
+          entry_type: 'partiya',
+          date: entry.date,
+          partiya_name: entry.partiya_name || 'Partiya',
+          total_kv: 0,
+          total_cost: 0,
+          collections: [],
+        });
+      }
+      const group = partiyaMap.get(key);
+      group.total_kv += Number(entry.total_kv || 0);
+      group.total_cost += Number(entry.total_cost || 0);
+      group.collections.push({
+        collection_title: entry.collection_title,
+        price_per_kv: Number(entry.price_per_kv || 0),
+        total_kv: Number(entry.total_kv || 0),
+        total_cost: Number(entry.total_cost || 0),
+      });
+    }
+    const partiyaEntries = Array.from(partiyaMap.values()).map((e) => ({
+      ...e,
+      total_kv: Number(e.total_kv.toFixed(2)),
+      total_cost: Number(e.total_cost.toFixed(2)),
+    }));
 
     // Source B: Payment entries (cashflows)
     const paymentEntries = await this.entityManager.query(`
@@ -269,12 +301,7 @@ export class FactoryService {
 
     // Merge and sort by date
     const allEntries = [
-      ...partiyaEntries.map((e: any) => ({
-        ...e,
-        total_kv: Number(e.total_kv || 0),
-        price_per_kv: Number(e.price_per_kv || 0),
-        total_cost: Number(e.total_cost || 0),
-      })),
+      ...partiyaEntries,
       ...paymentEntries.map((e: any) => ({
         ...e,
         total_cost: Number(e.total_cost || 0),
