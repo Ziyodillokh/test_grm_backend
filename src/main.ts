@@ -61,6 +61,7 @@ async function bootstrap() {
     .setTitle('GRM uz')
     .setDescription('GRM API description')
     .setVersion('0.2')
+    .addServer('/api')
     .addBearerAuth()
     .addCookieAuth()
     .build();
