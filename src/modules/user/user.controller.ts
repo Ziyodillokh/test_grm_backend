@@ -41,6 +41,7 @@ export class UserController {
     Role.F_MANAGER,
     Role.W_MANAGER,
     Role.D_MANAGER,
+    Role.SELLER,
   )
   @ApiOperation({ summary: 'Get all users with pagination' })
   @ApiOkResponse({ description: 'Users returned successfully' })
