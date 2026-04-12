@@ -484,10 +484,17 @@ export class TransferService {
       );
     }
 
-    return paginate<Transfer>(qb, {
+    const result = await paginate<Transfer>(qb, {
       page: query.page || 1,
       limit: query.limit || 10,
     });
+
+    // Frontend expects 'progres' (column name), not 'progress' (property name)
+    for (const item of result.items as any[]) {
+      (item as any).progres = item.progress;
+    }
+
+    return result;
   }
 
   private async getDealerTransfersCollection(query: {
