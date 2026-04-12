@@ -6,6 +6,7 @@ import { ColumnNumericTransformer } from '../../infra/helpers';
 import PackageTransferEnum from '../../infra/shared/enum/package-transfer.enum';
 import { User } from '@modules/user/user.entity';
 import { PackageCollectionPrice } from '@modules/package-collection-price/package-collection-price.entity';
+import { Cashflow } from '../cashflow/cashflow.entity';
 
 @Entity('package_transfer')
 export class PackageTransfer extends BaseEntity {
@@ -84,4 +85,7 @@ export class PackageTransfer extends BaseEntity {
 
   @OneToMany(() => Transfer, transfer => transfer.package)
   transfers: Transfer[];
+
+  @OneToMany(() => Cashflow, cashflow => cashflow.packageTransfer)
+  cashflows: Cashflow[];
 }

@@ -12,6 +12,7 @@ import { Debt } from '../debt/debt.entity';
 import { Factory } from '../factory/factory.entity';
 import { Logistics } from '../logistics/logistics.entity';
 import { Customs } from '../customs/customs.entity';
+import { PackageTransfer } from '../package-transfer/package-transfer.entity';
 import { BaseEntity } from '../../common/database/base.entity';
 
 @Entity('cashflow')
@@ -90,6 +91,10 @@ export class Cashflow extends BaseEntity {
   @ManyToOne(() => Customs, (customs) => customs.cashflows, { onDelete: 'SET NULL' })
   @JoinColumn()
   customs: Customs;
+
+  @ManyToOne(() => PackageTransfer, (pt) => pt.cashflows, { onDelete: 'SET NULL' })
+  @JoinColumn()
+  packageTransfer: PackageTransfer;
 
   @OneToMany(() => Cashflow, cashflow => cashflow.parent)
   child: Cashflow[];

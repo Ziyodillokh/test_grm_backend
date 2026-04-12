@@ -604,13 +604,20 @@ export class ReportService {
       kassaStatus = 3;
     }
 
-    let report = await this.reportRepo.findOne({ where: { year, month } });
+    // Filial tipiga qarab to'g'ri reportni topish
+    const filial = await this.filialRepository.findOne({ where: { id: filialId } });
+    const filialType = filial?.type || FilialTypeEnum.FILIAL;
+
+    let report = await this.reportRepo.findOne({
+      where: { year, month, filialType },
+    });
 
     if (!report) {
       report = this.reportRepo.create({
         year,
         month,
         reportStatus: kassaStatus,
+        filialType,
       });
       report = await this.reportRepo.save(report);
     } else {
@@ -3981,5 +3988,196 @@ export class ReportService {
         totalSize: 0, debt_sum: 0, netProfitTotalSum: 0,
       },
     );
+  }
+
+  /**
+   * Dealer kassa detail — merged list of package entries (Расход) and
+   * payment entries (Приход), sorted by date and paginated.
+   * Follows the same pattern as factory detail report.
+   */
+  async getDealerKassaDetail(dealerId: string, dto: { year?: number; month?: number; page?: number; limit?: number }) {
+    const year = dto.year || dayjs().year();
+    const month = dto.month || null;
+    const page = dto.page || 1;
+    const limit = dto.limit || 50;
+
+    const dealer = await this.filialRepository.findOne({ where: { id: dealerId } });
+    if (!dealer) throw new NotFoundException('Dealer not found');
+
+    let startDate: Date;
+    let endDate: Date;
+    if (month) {
+      startDate = dayjs(`${year}-${month}-01`).startOf('month').toDate();
+      endDate = dayjs(`${year}-${month}-01`).endOf('month').toDate();
+    } else {
+      startDate = dayjs(`${year}-01-01`).startOf('year').toDate();
+      endDate = dayjs(`${year}-12-31`).endOf('year').toDate();
+    }
+
+    // Source A: Package entries (Расход) — accepted packages for this dealer
+    const rawPackageEntries = await this.entityManager.query(`
+      SELECT
+        pt.id AS package_id,
+        pt."acceptedAt" AS date,
+        pt.title,
+        pt.total_sum AS total_cost,
+        pt.total_kv,
+        pt.total_count,
+        col.title AS collection_title,
+        pcp."dealerPriceMeter" AS price_per_kv,
+        COALESCE(SUM(t.kv), 0)::NUMERIC(20,2) AS col_kv,
+        (COALESCE(SUM(t.kv), 0) * pcp."dealerPriceMeter")::NUMERIC(20,2) AS col_cost
+      FROM package_transfer pt
+      JOIN "package-collection-price" pcp ON pcp."packageId" = pt.id
+      JOIN collection col ON pcp."collectionId" = col.id
+      LEFT JOIN transfer t ON t."packageId" = pt.id
+        AND t.progres = 'accept'
+        AND EXISTS (
+          SELECT 1 FROM productexcel pe
+          JOIN qrbase qb ON pe."barCodeId" = qb.id
+          WHERE pe.id = t."productId" AND qb."collectionId" = col.id
+        )
+      WHERE pt."dealerId" = $1
+        AND pt.status = 'accepted'
+        AND pt."acceptedAt" BETWEEN $2 AND $3
+      GROUP BY pt.id, pt."acceptedAt", pt.title, pt.total_sum, pt.total_kv, pt.total_count,
+               col.title, pcp."dealerPriceMeter"
+      ORDER BY pt."acceptedAt" ASC
+    `, [dealerId, startDate, endDate]);
+
+    // Group collections by package
+    const packageMap = new Map<string, any>();
+    for (const entry of rawPackageEntries) {
+      const key = entry.package_id;
+      if (!packageMap.has(key)) {
+        packageMap.set(key, {
+          id: entry.package_id,
+          entry_type: 'package',
+          date: entry.date,
+          title: entry.title || 'Пакет',
+          total_kv: Number(entry.total_kv || 0),
+          total_cost: Number(entry.total_cost || 0),
+          total_count: Number(entry.total_count || 0),
+          collections: [],
+        });
+      }
+      const group = packageMap.get(key);
+      if (entry.collection_title) {
+        group.collections.push({
+          collection_title: entry.collection_title,
+          price_per_kv: Number(entry.price_per_kv || 0),
+          total_kv: Number(entry.col_kv || 0),
+          total_cost: Number(entry.col_cost || 0),
+        });
+      }
+    }
+    const packageEntries = Array.from(packageMap.values());
+
+    // Source B: Payment entries (Приход cashflows in dealer kassa)
+    const paymentEntries = await this.entityManager.query(`
+      SELECT
+        c.id,
+        'payment' AS entry_type,
+        c.date,
+        c.price AS total_cost,
+        c.comment,
+        c.is_online,
+        u."firstName" || ' ' || u."lastName" AS who_paid
+      FROM cashflow c
+      LEFT JOIN users u ON c."createdById" = u.id
+      JOIN kassa k ON c."kassaId" = k.id
+      WHERE k."filialId" = $1
+        AND c.type = 'Приход'
+        AND c.is_cancelled = false
+        AND c.date BETWEEN $2 AND $3
+      ORDER BY c.date ASC
+    `, [dealerId, startDate, endDate]);
+
+    // Merge and sort by date
+    const allEntries = [
+      ...packageEntries,
+      ...paymentEntries.map((e: any) => ({
+        ...e,
+        total_cost: Number(e.total_cost || 0),
+      })),
+    ].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+    // Paginate
+    const totalItems = allEntries.length;
+    const offset = (page - 1) * limit;
+    const paginatedItems = allEntries.slice(offset, offset + limit);
+
+    // Totals for period
+    const totalOwed = packageEntries.reduce((sum: number, e: any) => sum + Number(e.total_cost || 0), 0);
+    const totalGiven = paymentEntries.reduce((sum: number, e: any) => sum + Number(e.total_cost || 0), 0);
+
+    return {
+      items: paginatedItems,
+      meta: {
+        totalItems,
+        currentPage: page,
+        totalPages: Math.ceil(totalItems / limit),
+        itemCount: limit,
+      },
+      totals: {
+        period_owed: Number(totalOwed.toFixed(2)),
+        period_given: Number(totalGiven.toFixed(2)),
+        period_balance: Number((totalOwed - totalGiven).toFixed(2)),
+      },
+      dealer: {
+        id: dealer.id,
+        title: dealer.title,
+        owed: dealer.owed,
+        given: dealer.given,
+        balance: Number(((dealer.owed || 0) - (dealer.given || 0)).toFixed(2)),
+      },
+    };
+  }
+
+  /**
+   * Get collection details for a specific package transfer.
+   * Used when clicking on a Расход entry to see breakdown.
+   */
+  async getPackageCollections(packageId: string) {
+    const pkg = await this.packageTransfer.findOne({
+      where: { id: packageId },
+      relations: { collection_prices: { collection: true } },
+    });
+    if (!pkg) throw new NotFoundException('Package not found');
+
+    // For each collection price, calculate actual kv from accepted transfers
+    const results = await this.entityManager.query(`
+      SELECT
+        col.title AS collection_title,
+        pcp."dealerPriceMeter" AS price_per_kv,
+        COALESCE(SUM(t.kv), 0)::NUMERIC(20,2) AS total_kv,
+        (COALESCE(SUM(t.kv), 0) * pcp."dealerPriceMeter")::NUMERIC(20,2) AS total_cost
+      FROM "package-collection-price" pcp
+      JOIN collection col ON pcp."collectionId" = col.id
+      LEFT JOIN transfer t ON t."packageId" = $1
+        AND t.progres = 'accept'
+        AND EXISTS (
+          SELECT 1 FROM productexcel pe
+          JOIN qrbase qb ON pe."barCodeId" = qb.id
+          WHERE pe.id = t."productId" AND qb."collectionId" = col.id
+        )
+      WHERE pcp."packageId" = $1
+      GROUP BY col.title, pcp."dealerPriceMeter"
+      ORDER BY col.title
+    `, [packageId]);
+
+    return {
+      package_id: pkg.id,
+      title: pkg.title,
+      total_sum: pkg.total_sum,
+      total_kv: pkg.total_kv,
+      total_count: pkg.total_count,
+      collections: results.map((r: any) => ({
+        collection_title: r.collection_title,
+        price_per_kv: Number(r.price_per_kv || 0),
+        total_kv: Number(r.total_kv || 0),
+        total_cost: Number(r.total_cost || 0),
+      })),
+    };
   }
 }

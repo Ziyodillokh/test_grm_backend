@@ -603,6 +603,7 @@ export class KassaService {
             status: KassaProgresEnum.OPEN,
             year: nextYear,
             month: nextMonth,
+            filialType: kassa.filialType,
             report: report || undefined,
           });
           await kassaRepo.save(newKassa);

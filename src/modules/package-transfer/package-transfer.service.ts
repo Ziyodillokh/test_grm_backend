@@ -18,6 +18,14 @@ import { Product } from '@modules/product/product.entity';
 import { PackageCollectionPrice } from '@modules/package-collection-price/package-collection-price.entity';
 import { TransferStatus } from '../../common/enums';
 import { applyStockDepletion } from '@modules/product/utils/stock-depletion.util';
+import { Kassa } from '@modules/kassa/kassa.entity';
+import { Cashflow } from '@modules/cashflow/cashflow.entity';
+import { CashflowType } from '@modules/cashflow-type/cashflow-type.entity';
+import { Report } from '@modules/report/report.entity';
+import KassaProgresEnum from '@infra/shared/enum/kassa-progres-enum';
+import CashFlowEnum from '@infra/shared/enum/cashflow/cash-flow.enum';
+import CashflowTipEnum from '@infra/shared/enum/cashflow/cashflow-tip.enum';
+import FilialType from '@infra/shared/enum/filial-type.enum';
 
 @Injectable()
 export class PackageTransferService {
@@ -169,8 +177,8 @@ export class PackageTransferService {
    *       total_discount = Σ kv × (origPm   − dealerPm)
    *       total_count/kv = Σ count / Σ kv
    *  5. Save totals + `acceptedAt` on the package, mark transfers ACCEPT,
-   *     and `dealerFilial.owed += total_sum`. **No Cashflow is written** —
-   *     dealer debt is tracked only via `Filial.owed`/`Filial.given`.
+   *     and `dealerFilial.owed += total_sum`. A Расход cashflow is created
+   *     on the dealer's kassa linked to the package.
    */
   private async acceptPackage(packageId: string): Promise<void> {
     await this.dataSource.transaction(async (manager) => {
@@ -291,13 +299,88 @@ export class PackageTransferService {
       pkg.total_profit_sum = +(pkg.total_profit_sum || 0) + total_profit;
       await packageRepo.save(pkg);
 
-      // 8) Dealer filial debt: owed += total_sum (NO cashflow)
+      // 8) Dealer filial debt: owed += total_sum
       await filialRepo
         .createQueryBuilder()
         .update()
         .set({ owed: () => `owed + ${total_sum}` })
         .where('id = :id', { id: pkg.dealer.id })
         .execute();
+
+      // 9) Find or create dealer kassa for current month
+      const now = new Date();
+      const currentYear = now.getFullYear();
+      const currentMonth = now.getMonth() + 1;
+
+      const kassaRepo = manager.getRepository(Kassa);
+      const reportRepo = manager.getRepository(Report);
+
+      const dealerReport = await reportRepo.findOne({
+        where: { year: currentYear, month: currentMonth, filialType: FilialType.DEALER },
+      });
+
+      let dealerKassa = await kassaRepo.findOne({
+        where: {
+          filial: { id: pkg.dealer.id },
+          year: currentYear,
+          month: currentMonth,
+          status: KassaProgresEnum.OPEN,
+        },
+      });
+
+      if (!dealerKassa) {
+        dealerKassa = kassaRepo.create({
+          filial: { id: pkg.dealer.id } as any,
+          year: currentYear,
+          month: currentMonth,
+          status: KassaProgresEnum.OPEN,
+          isActive: true,
+          filialType: FilialType.DEALER,
+          report: dealerReport || undefined,
+        });
+        dealerKassa = await kassaRepo.save(dealerKassa);
+      }
+
+      // 10) Find dealer_package cashflow type
+      const dealerPackageType = await manager.getRepository(CashflowType).findOne({
+        where: { slug: 'dealer_package' },
+      });
+
+      // 11) Create Расход cashflow linked to package
+      const cashflowRepo = manager.getRepository(Cashflow);
+      const expenseCashflow = cashflowRepo.create({
+        price: total_sum,
+        type: CashFlowEnum.Consumption,
+        tip: CashflowTipEnum.CASHFLOW,
+        date: new Date(),
+        is_static: true,
+        comment: `Пакет ${pkg.title} qabul qilindi`,
+        kassa: dealerKassa,
+        filial: { id: pkg.dealer.id } as any,
+        packageTransfer: { id: packageId } as any,
+        cashflow_type: dealerPackageType || undefined,
+      });
+      await cashflowRepo.save(expenseCashflow);
+
+      // 12) Update dealer kassa: debt stats + discount
+      await kassaRepo.update(dealerKassa.id, {
+        debt_count: Number(dealerKassa.debt_count || 0) + total_count,
+        debt_kv: Number(dealerKassa.debt_kv || 0) + total_kv,
+        debt_sum: Number(dealerKassa.debt_sum || 0) + total_sum,
+        debt_profit_sum: Number(dealerKassa.debt_profit_sum || 0) + total_profit,
+        discount: Number(dealerKassa.discount || 0) + total_discount,
+      });
+
+      // 13) Update D-Manager report: debt stats
+      if (dealerReport) {
+        await reportRepo.update(dealerReport.id, {
+          debt_count: Number(dealerReport.debt_count || 0) + total_count,
+          debt_kv: Number(dealerReport.debt_kv || 0) + total_kv,
+          debt_sum: Number(dealerReport.debt_sum || 0) + total_sum,
+          debt_profit_sum: Number(dealerReport.debt_profit_sum || 0) + total_profit,
+          totalDiscount: Number(dealerReport.totalDiscount || 0) + total_discount,
+        });
+      }
     });
   }
 

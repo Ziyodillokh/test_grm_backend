@@ -2504,10 +2504,11 @@ WHERE k.id = $1;
         totalIncome: Number(dealerReport?.totalIncome || 0) + parsedPrice,
         ...(is_online
           ? {
-            totalPlasticSum: Number(filialReport?.totalPlasticSum || 0) + parsedPrice,
+            totalPlasticSum: Number(dealerReport?.totalPlasticSum || 0) + parsedPrice,
+            accountantSum: Number(dealerReport?.accountantSum || 0) + parsedPrice,
           }
           : {
-            in_hand: Number(dealerReport?.totalIncome || 0) + parsedPrice,
+            in_hand: Number(dealerReport?.in_hand || 0) + parsedPrice,
           }),
       }),
     ]);
@@ -2517,7 +2518,7 @@ WHERE k.id = $1;
     // === 1 Fetch the target cashflow with relations ===
     const cashflow = await this.cashflowRepository.findOne({
       where: { id: cashflow_id },
-      relations: ['kassa', 'report', 'cashflow_type', 'parent'],
+      relations: ['kassa', 'kassa.filial', 'report', 'cashflow_type', 'parent'],
     });
 
     if (!cashflow) {
@@ -2525,6 +2526,10 @@ WHERE k.id = $1;
     }
 
     const { price, is_online, kassa: kassaEntity, report: filialReport } = cashflow;
+
+    if (!kassaEntity?.filial) {
+      throw new BadRequestException('Kassa or filial not found');
+    }
 
     // === 2 Fetch related reports ===
     const { year, month } = kassaEntity as any;
@@ -2538,11 +2543,23 @@ WHERE k.id = $1;
 
     const parsedPrice = Number(price || 0);
 
-    // === 3 Reverse report & kassa values ===
+    // === 3 Reverse report, kassa & filial values ===
     await Promise.all([
-      // Kassa update
+      // Filial given/owed reverse
+      this.filialRepository.update(
+        { id: kassaEntity.filial.id },
+        {
+          given: () => `given - ${parsedPrice}`,
+          owed: () => `owed + ${parsedPrice}`,
+        },
+      ),
+
+      // Kassa update — reverse income + plasticSum/in_hand
       this.kassaRepository.update(kassaEntity.id, {
         income: Number(kassaEntity?.income || 0) - parsedPrice,
+        ...(is_online
+          ? { plasticSum: Number(kassaEntity.plasticSum || 0) - parsedPrice }
+          : { in_hand: Number(kassaEntity.in_hand || 0) - parsedPrice }),
       }),
 
       // Filial report update
@@ -2558,9 +2575,15 @@ WHERE k.id = $1;
           }),
       }),
 
-      // Dealer report update
+      // Dealer report update — reverse totalIncome + totalPlasticSum/in_hand + accountantSum
       this.reportService.update(dealerReport.id, {
         totalIncome: Number(dealerReport?.totalIncome || 0) - parsedPrice,
+        ...(is_online
+          ? {
+            totalPlasticSum: Number(dealerReport?.totalPlasticSum || 0) - parsedPrice,
+            accountantSum: Number(dealerReport?.accountantSum || 0) - parsedPrice,
+          }
+          : { in_hand: Number(dealerReport?.in_hand || 0) - parsedPrice }),
       }),
     ]);
 
