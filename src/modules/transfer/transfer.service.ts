@@ -179,11 +179,26 @@ export class TransferService {
     });
   }
 
-  async createFromBasket(dto: CreateTransferBasketDto, user: User): Promise<Transfer[]> {
-    const baskets: OrderBasket[] = await this.orderBasketService.findAllForTransfer(user);
+  async createFromBasket(dto: CreateTransferBasketDto, user: any): Promise<Transfer[]> {
+    // Load full user with filial
+    const fullUser = await this.dataSource.getRepository(User).findOne({
+      where: { id: user.id || user },
+      relations: { filial: true },
+    });
+    if (!fullUser) {
+      throw new BadRequestException('User not found');
+    }
+
+    const baskets: OrderBasket[] = await this.orderBasketService.findAllForTransfer(fullUser);
     if (!baskets.length) {
       throw new BadRequestException('Корзина пуста');
     }
+
+    // Load dealer filial with manager
+    const dealerFilial = await this.dataSource.getRepository(Filial).findOne({
+      where: { id: dto.to },
+      relations: { manager: true },
+    });
 
     const transferDtos: CreateTransferDto[] = baskets.map((basket) => ({
       product: basket.product.id,
@@ -194,30 +209,36 @@ export class TransferService {
       isMetric: basket.isMetric,
     })) as unknown as CreateTransferDto[];
 
-    const results = await this.create(transferDtos, user.id);
+    const results = await this.create(transferDtos, fullUser.id);
 
     // Create/find PackageTransfer and link transfers to it
-    const dealerFilial = await this.dataSource.getRepository(Filial).findOne({
-      where: { id: dto.to },
-      relations: { manager: true },
-    });
-
     if (dealerFilial) {
-      const packageId = await this.packageTransferService.findOrCreate(
+      const packageId = await this.createOrFindPackageForDealer(
         dealerFilial,
-        user,
+        fullUser,
         dto.courier,
       );
 
-      // Link each transfer to the package and update totals
+      // Build group string: "FirstName LastName-count-kv-HH:mm dd.MM.yyyy"
+      const now = new Date();
+      const pad = (n: number) => String(n).padStart(2, '0');
+      const timeStr = `${pad(now.getHours())}:${pad(now.getMinutes())} ${pad(now.getDate())}.${pad(now.getMonth() + 1)}.${now.getFullYear()}`;
+
       let totalCount = 0;
       let totalKv = 0;
       for (const transfer of results) {
-        await this.transferRepository.update(transfer.id, {
-          package: { id: packageId },
-        } as any);
         totalCount += Number(transfer.count) || 0;
         totalKv += Number(transfer.kv) || 0;
+      }
+
+      const groupStr = `${fullUser.firstName || ''} ${fullUser.lastName || ''}-${totalCount}-${totalKv.toFixed(1)}-${timeStr}`.trim();
+
+      // Link transfers to package and set group
+      for (const transfer of results) {
+        await this.transferRepository.update(transfer.id, {
+          package: { id: packageId },
+          group: groupStr,
+        } as any);
       }
 
       // Update package running totals
@@ -230,9 +251,41 @@ export class TransferService {
       });
     }
 
-    await this.orderBasketService.clearTransferBasket(user.id);
+    await this.orderBasketService.clearTransferBasket(fullUser.id);
 
     return results;
+  }
+
+  /**
+   * Create or find a PackageTransfer for a dealer.
+   * Handles missing dealer.manager gracefully.
+   */
+  private async createOrFindPackageForDealer(
+    dealer: Filial,
+    user: User,
+    courier: string,
+  ): Promise<string> {
+    try {
+      return await this.packageTransferService.findOrCreate(dealer, user, courier);
+    } catch {
+      // If findOrCreate fails (e.g. dealer.manager is null), create directly
+      const { packageTransferCodeGenerator } = require('../../infra/helpers');
+      const pkgRepo = this.dataSource.getRepository('PackageTransfer');
+      const existing = await pkgRepo.findOne({
+        where: { dealer: { id: dealer.id }, status: 'progress' },
+      });
+      if (existing) return (existing as any).id;
+
+      const created = pkgRepo.create({
+        from: user.filial?.id || null,
+        dealer: dealer.id,
+        courier,
+        title: 'TR-' + packageTransferCodeGenerator(),
+        d_manager: dealer.manager?.id || user.id,
+      } as any);
+      const saved = await pkgRepo.save(created);
+      return (saved as any).id;
+    }
   }
 
   async update(
