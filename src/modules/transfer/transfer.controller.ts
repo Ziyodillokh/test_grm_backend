@@ -34,11 +34,15 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 import { Role } from '../../common/enums';
+import { PackageTransferService } from '../package-transfer/package-transfer.service';
 
 @ApiTags('Transfer')
 @Controller('transfer')
 export class TransferController {
-  constructor(private readonly transferService: TransferService) {}
+  constructor(
+    private readonly transferService: TransferService,
+    private readonly packageTransferService: PackageTransferService,
+  ) {}
 
   @Public()
   @Get('/')
@@ -54,6 +58,49 @@ export class TransferController {
       req.where || {},
       query.search,
     );
+  }
+
+  @Get('/dealer')
+  @ApiOperation({ summary: 'Get transfers for a dealer package' })
+  @ApiOkResponse({ description: 'Dealer transfers returned successfully' })
+  @HttpCode(HttpStatus.OK)
+  async getDealerTransfers(@Query() query: any) {
+    return this.transferService.getDealerTransfers(query);
+  }
+
+  @Post('/give-price')
+  @ApiOperation({ summary: 'Set dealer price for collection in package' })
+  @ApiOkResponse({ description: 'Price updated' })
+  @HttpCode(HttpStatus.OK)
+  async givePrice(@Body() dto: ChangePriceDto) {
+    return this.transferService.givePrice(dto);
+  }
+
+  @Patch('/accept-package/accepted/:id')
+  @ApiOperation({ summary: 'Accept a package transfer' })
+  @ApiOkResponse({ description: 'Package accepted' })
+  @HttpCode(HttpStatus.OK)
+  async acceptPackage(
+    @Param('id') id: string,
+    @CurrentUser() user: any,
+  ) {
+    return this.packageTransferService.changeStatus(id, 'accepted' as any);
+  }
+
+  @Patch('/accept-package/rejected/:id')
+  @ApiOperation({ summary: 'Reject a package transfer' })
+  @ApiOkResponse({ description: 'Package rejected' })
+  @HttpCode(HttpStatus.OK)
+  async rejectPackage(@Param('id') id: string) {
+    return this.packageTransferService.changeStatus(id, 'rejected' as any);
+  }
+
+  @Patch('/reject/dealer-transfer/:id')
+  @ApiOperation({ summary: 'Reject a single dealer transfer from package' })
+  @ApiOkResponse({ description: 'Dealer transfer rejected' })
+  @HttpCode(HttpStatus.OK)
+  async rejectDealerTransfer(@Param('id') id: string) {
+    return this.transferService.rejectDealerTransfer(id);
   }
 
   @Get('/:id')

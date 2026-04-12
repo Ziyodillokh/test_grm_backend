@@ -12,13 +12,15 @@ import {
 import { DataSource, EntityManager, Repository, UpdateResult } from 'typeorm';
 
 import { Transfer } from './transfer.entity';
-import { CreateTransferBasketDto, CreateTransferDto, UpdateTransferDto } from './dto';
+import { ChangePriceDto, CreateTransferBasketDto, CreateTransferDto, UpdateTransferDto } from './dto';
 import { TransferStatus } from '../../common/enums';
 import { Product } from '../product/product.entity';
 import { applyStockDepletion } from '../product/utils/stock-depletion.util';
 import { OrderBasketService } from '../order-basket/order-basket.service';
 import { OrderBasket } from '../order-basket/order-basket.entity';
 import { User } from '../user/user.entity';
+import { PackageTransferService } from '../package-transfer/package-transfer.service';
+import { PackageCollectionPrice } from '../package-collection-price/package-collection-price.entity';
 
 @Injectable()
 export class TransferService {
@@ -29,6 +31,7 @@ export class TransferService {
     private readonly productRepository: Repository<Product>,
     private readonly dataSource: DataSource,
     private readonly orderBasketService: OrderBasketService,
+    private readonly packageTransferService: PackageTransferService,
   ) {}
 
   async getAll(
@@ -337,6 +340,210 @@ export class TransferService {
       throw new NotFoundException('Transfer not found');
     }
     await this.transferRepository.delete(id);
+  }
+
+  // -----------------------------------------------------------------------
+  // Dealer transfer endpoints (used by D-Manager frontend)
+  // -----------------------------------------------------------------------
+
+  /**
+   * GET /transfer/dealer — returns transfers for a given package.
+   * mode=list  → individual transfers with full product relations
+   * mode=collection → aggregated by collection with pricing
+   */
+  async getDealerTransfers(query: {
+    package_id: string;
+    mode?: string;
+    search?: string;
+    page?: number;
+    limit?: number;
+  }) {
+    if (query.mode === 'collection') {
+      return this.getDealerTransfersCollection(query);
+    }
+    return this.getDealerTransfersList(query);
+  }
+
+  private async getDealerTransfersList(query: {
+    package_id: string;
+    search?: string;
+    page?: number;
+    limit?: number;
+  }) {
+    const qb = this.transferRepository
+      .createQueryBuilder('transfer')
+      .leftJoinAndSelect('transfer.product', 'product')
+      .leftJoinAndSelect('product.bar_code', 'bar_code')
+      .leftJoinAndSelect('bar_code.model', 'model')
+      .leftJoinAndSelect('bar_code.collection', 'collection')
+      .leftJoinAndSelect('bar_code.color', 'color')
+      .leftJoinAndSelect('bar_code.size', 'size')
+      .leftJoinAndSelect('bar_code.shape', 'shape')
+      .leftJoinAndSelect('bar_code.style', 'style')
+      .leftJoinAndSelect('bar_code.country', 'country')
+      .leftJoinAndSelect('transfer.transferer', 'transferer')
+      .leftJoinAndSelect('transferer.avatar', 'transferer_avatar')
+      .leftJoinAndSelect('transfer.courier', 'courier')
+      .leftJoinAndSelect('courier.avatar', 'courier_avatar')
+      .where('transfer."packageId" = :packageId', { packageId: query.package_id })
+      .orderBy('transfer.group', 'ASC')
+      .addOrderBy('transfer.date', 'DESC');
+
+    if (query.search) {
+      qb.andWhere(
+        '(model.title ILIKE :search OR collection.title ILIKE :search)',
+        { search: `%${query.search}%` },
+      );
+    }
+
+    return paginate<Transfer>(qb, {
+      page: query.page || 1,
+      limit: query.limit || 10,
+    });
+  }
+
+  private async getDealerTransfersCollection(query: {
+    package_id: string;
+    search?: string;
+  }) {
+    const pcpRepo = this.dataSource.getRepository(PackageCollectionPrice);
+
+    // Get collection prices for this package
+    const collectionPrices = await pcpRepo.find({
+      where: { package: { id: query.package_id } },
+      relations: { collection: true },
+    });
+
+    // Get all transfers for this package
+    const qb = this.transferRepository
+      .createQueryBuilder('transfer')
+      .leftJoinAndSelect('transfer.product', 'product')
+      .leftJoinAndSelect('product.bar_code', 'bar_code')
+      .leftJoinAndSelect('bar_code.collection', 'collection')
+      .leftJoinAndSelect('bar_code.size', 'size')
+      .where('transfer."packageId" = :packageId', { packageId: query.package_id });
+
+    if (query.search) {
+      qb.andWhere('collection.title ILIKE :search', { search: `%${query.search}%` });
+    }
+
+    const transfers = await qb.getMany();
+
+    // Aggregate by collection
+    const collectionMap = new Map<string, {
+      title: string;
+      total_kv: number;
+      total_count: number;
+      total_profit_sum: number;
+    }>();
+
+    for (const transfer of transfers) {
+      const collId = transfer.product?.bar_code?.collection?.id;
+      if (!collId) continue;
+
+      const existing = collectionMap.get(collId) || {
+        title: transfer.product.bar_code.collection.title || '',
+        total_kv: 0,
+        total_count: 0,
+        total_profit_sum: 0,
+      };
+      existing.total_kv += Number(transfer.kv || 0);
+      existing.total_count += Number(transfer.count || 0);
+      collectionMap.set(collId, existing);
+    }
+
+    // Build items merging collection prices and transfer aggregates
+    const seenIds = new Set<string>();
+    const items = [];
+
+    for (const cp of collectionPrices) {
+      const collId = cp.collection.id;
+      seenIds.add(collId);
+      const agg = collectionMap.get(collId) || { title: cp.collection.title, total_kv: 0, total_count: 0, total_profit_sum: 0 };
+      items.push({
+        id: collId,
+        title: agg.title || cp.collection.title,
+        total_kv: agg.total_kv,
+        total_count: agg.total_count,
+        comingPrice: cp.dealerPriceMeter,
+        total_profit_sum: agg.total_profit_sum,
+        collection_prices: [cp],
+      });
+    }
+
+    // Add collections that have transfers but no price set yet
+    for (const [collId, agg] of collectionMap.entries()) {
+      if (!seenIds.has(collId)) {
+        items.push({
+          id: collId,
+          title: agg.title,
+          total_kv: agg.total_kv,
+          total_count: agg.total_count,
+          comingPrice: 0,
+          total_profit_sum: 0,
+          collection_prices: [],
+        });
+      }
+    }
+
+    return {
+      items,
+      meta: {
+        totalItems: items.length,
+        itemCount: items.length,
+        itemsPerPage: items.length,
+        totalPages: 1,
+        currentPage: 1,
+      },
+    };
+  }
+
+  /**
+   * POST /transfer/give-price — set dealer price for a collection in a package
+   */
+  async givePrice(dto: ChangePriceDto): Promise<void> {
+    const pcpRepo = this.dataSource.getRepository(PackageCollectionPrice);
+
+    const existing = await pcpRepo.findOne({
+      where: {
+        package: { id: dto.package_id },
+        collection: { id: dto.collection },
+      },
+    });
+
+    if (existing) {
+      existing.dealerPriceMeter = dto.price;
+      await pcpRepo.save(existing);
+    } else {
+      const created = pcpRepo.create({
+        package: { id: dto.package_id } as any,
+        collection: { id: dto.collection } as any,
+        dealerPriceMeter: dto.price,
+      });
+      await pcpRepo.save(created);
+    }
+  }
+
+  /**
+   * PATCH /transfer/reject/dealer-transfer/:id
+   * Reject a single transfer from within a package (before accept).
+   */
+  async rejectDealerTransfer(transferId: string): Promise<void> {
+    const transfer = await this.transferRepository.findOne({
+      where: { id: transferId },
+      relations: { package: true },
+    });
+    if (!transfer) {
+      throw new NotFoundException('Transfer not found');
+    }
+    if (transfer.package) {
+      await this.packageTransferService.cancelTransferFromPackage(
+        transfer.package.id,
+        transferId,
+      );
+    } else {
+      throw new BadRequestException('Transfer is not part of a package');
+    }
   }
 
   // -----------------------------------------------------------------------
