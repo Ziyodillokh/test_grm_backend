@@ -403,7 +403,13 @@ export class OrderBasketService {
       `DELETE FROM order_basket WHERE "sellerId" = $1 AND is_transfer = true`,
       [id],
     );
+  }
 
+  async clearTransferBasket(sellerId: string) {
+    await this.orderBasketRepository.query(
+      `DELETE FROM order_basket WHERE "sellerId" = $1 AND is_transfer = true`,
+      [sellerId],
+    );
   }
 
   async update(id: string, value: orderBasketUpdateDto): Promise<UpdateResult> {

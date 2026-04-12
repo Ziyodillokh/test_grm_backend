@@ -7,12 +7,14 @@ import { TransferController } from './transfer.controller';
 import { TransferCacheModule } from '../transfer-cache/transfer-cache.module';
 import { PackageTransferModule } from '../package-transfer/package-transfer.module';
 import { Product } from '../product/product.entity';
+import { OrderBasketModule } from '../order-basket/order-basket.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Transfer, Product]),
     TransferCacheModule,
     PackageTransferModule,
+    OrderBasketModule,
   ],
   controllers: [TransferController],
   providers: [TransferService],

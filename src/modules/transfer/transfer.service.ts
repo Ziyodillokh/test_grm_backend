@@ -12,10 +12,13 @@ import {
 import { DataSource, EntityManager, Repository, UpdateResult } from 'typeorm';
 
 import { Transfer } from './transfer.entity';
-import { CreateTransferDto, UpdateTransferDto } from './dto';
+import { CreateTransferBasketDto, CreateTransferDto, UpdateTransferDto } from './dto';
 import { TransferStatus } from '../../common/enums';
 import { Product } from '../product/product.entity';
 import { applyStockDepletion } from '../product/utils/stock-depletion.util';
+import { OrderBasketService } from '../order-basket/order-basket.service';
+import { OrderBasket } from '../order-basket/order-basket.entity';
+import { User } from '../user/user.entity';
 
 @Injectable()
 export class TransferService {
@@ -25,6 +28,7 @@ export class TransferService {
     @InjectRepository(Product)
     private readonly productRepository: Repository<Product>,
     private readonly dataSource: DataSource,
+    private readonly orderBasketService: OrderBasketService,
   ) {}
 
   async getAll(
@@ -169,6 +173,28 @@ export class TransferService {
 
       return results;
     });
+  }
+
+  async createFromBasket(dto: CreateTransferBasketDto, user: User): Promise<Transfer[]> {
+    const baskets: OrderBasket[] = await this.orderBasketService.findAllForTransfer(user);
+    if (!baskets.length) {
+      throw new BadRequestException('Корзина пуста');
+    }
+
+    const transferDtos: CreateTransferDto[] = baskets.map((basket) => ({
+      product: basket.product.id,
+      count: basket.x,
+      from: dto.from,
+      to: dto.to,
+      courier: dto.courier,
+      isMetric: basket.isMetric,
+    })) as unknown as CreateTransferDto[];
+
+    const results = await this.create(transferDtos, user.id);
+
+    await this.orderBasketService.clearTransferBasket(user.id);
+
+    return results;
   }
 
   async update(

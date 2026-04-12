@@ -75,6 +75,17 @@ export class TransferController {
     return this.transferService.create(data, userId);
   }
 
+  @Post('/basket')
+  @ApiOperation({ summary: 'Create transfers from basket' })
+  @ApiCreatedResponse({ description: 'Transfers created from basket successfully' })
+  @HttpCode(HttpStatus.CREATED)
+  async createFromBasket(
+    @Body() data: CreateTransferBasketDto,
+    @CurrentUser() user: any,
+  ) {
+    return this.transferService.createFromBasket(data, user);
+  }
+
   @Roles(Role.M_MANAGER, Role.BOSS, Role.F_MANAGER, Role.W_MANAGER, Role.I_MANAGER)
   @Put('/accept')
   @ApiOperation({ summary: 'Accept transfers' })
