@@ -21,6 +21,7 @@ import { OrderBasket } from '../order-basket/order-basket.entity';
 import { User } from '../user/user.entity';
 import { PackageTransferService } from '../package-transfer/package-transfer.service';
 import { PackageCollectionPrice } from '../package-collection-price/package-collection-price.entity';
+import { Filial } from '../filial/filial.entity';
 
 @Injectable()
 export class TransferService {
@@ -194,6 +195,40 @@ export class TransferService {
     })) as unknown as CreateTransferDto[];
 
     const results = await this.create(transferDtos, user.id);
+
+    // Create/find PackageTransfer and link transfers to it
+    const dealerFilial = await this.dataSource.getRepository(Filial).findOne({
+      where: { id: dto.to },
+      relations: { manager: true },
+    });
+
+    if (dealerFilial) {
+      const packageId = await this.packageTransferService.findOrCreate(
+        dealerFilial,
+        user,
+        dto.courier,
+      );
+
+      // Link each transfer to the package and update totals
+      let totalCount = 0;
+      let totalKv = 0;
+      for (const transfer of results) {
+        await this.transferRepository.update(transfer.id, {
+          package: { id: packageId },
+        } as any);
+        totalCount += Number(transfer.count) || 0;
+        totalKv += Number(transfer.kv) || 0;
+      }
+
+      // Update package running totals
+      await this.packageTransferService.bulkCreateTransfers({
+        count: totalCount,
+        kv: totalKv,
+        price: 0,
+        netProfitSum: 0,
+        package_transfer: packageId,
+      });
+    }
 
     await this.orderBasketService.clearTransferBasket(user.id);
 
