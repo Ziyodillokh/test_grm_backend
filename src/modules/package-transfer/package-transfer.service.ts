@@ -389,6 +389,21 @@ export class PackageTransferService {
           totalDiscount: Number(dealerReport.totalDiscount || 0) + total_discount,
         });
       }
+
+      // 14) Update FILIAL report: debt stats (mirrors addDealerToFilialReport)
+      const filialReport = await reportRepo.findOne({
+        where: { year: currentYear, month: currentMonth, filialType: FilialType.FILIAL },
+      });
+
+      if (filialReport) {
+        await reportRepo.update(filialReport.id, {
+          debt_count: Number(filialReport.debt_count || 0) + total_count,
+          debt_kv: Number(filialReport.debt_kv || 0) + total_kv,
+          debt_sum: Number(filialReport.debt_sum || 0) + total_sum,
+          debt_profit_sum: Number(filialReport.debt_profit_sum || 0) + total_profit,
+          totalDiscount: Number(filialReport.totalDiscount || 0) + total_discount,
+        });
+      }
     });
   }
 
