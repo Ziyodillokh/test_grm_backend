@@ -579,7 +579,7 @@ export class TransferService {
       });
     }
 
-    const page = query.page || 1;
+    const page = Number(query.page) || 1;
     return {
       items: page === 1 ? items : [],
       meta: {
