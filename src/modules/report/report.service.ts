@@ -4119,7 +4119,7 @@ export class ReportService {
         ...e,
         total_cost: Number(e.total_cost || 0),
       })),
-    ].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
     // Paginate
     const totalItems = allEntries.length;
