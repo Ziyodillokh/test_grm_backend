@@ -4,7 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { FindOptionsWhere, ILike, In, Repository } from 'typeorm';
+import { FindOptionsWhere, In, Repository } from 'typeorm';
 import { IPaginationOptions, paginate, Pagination } from 'nestjs-typeorm-paginate';
 import { Product } from './product.entity';
 import { CreateProductDto } from './dto/create-product.dto';
@@ -23,38 +23,41 @@ export class ProductService {
     options: IPaginationOptions,
     query: QueryProductDto,
   ): Promise<Pagination<Product>> {
-    const where: FindOptionsWhere<Product> = {};
+    const qb = this.productRepository
+      .createQueryBuilder('product')
+      .leftJoinAndSelect('product.filial', 'filial')
+      .leftJoinAndSelect('product.bar_code', 'bar_code')
+      .leftJoinAndSelect('bar_code.size', 'size')
+      .leftJoinAndSelect('bar_code.color', 'color')
+      .leftJoinAndSelect('bar_code.style', 'style')
+      .leftJoinAndSelect('bar_code.model', 'model')
+      .leftJoinAndSelect('model.collection', 'modelCollection')
+      .leftJoinAndSelect('bar_code.collection', 'collection')
+      .leftJoinAndSelect('collection.collection_prices', 'collection_prices')
+      .leftJoinAndSelect('bar_code.shape', 'shape')
+      .leftJoinAndSelect('bar_code.imgUrl', 'imgUrl')
+      .orderBy('product.date', 'DESC');
 
     if (query.is_deleted !== undefined) {
-      where.is_deleted = query.is_deleted === 'true';
+      qb.andWhere('product.is_deleted = :isDeleted', { isDeleted: query.is_deleted === 'true' });
     } else {
-      where.is_deleted = false;
-    }
-
-    if (query.search) {
-      where.code = ILike(`%${query.search}%`);
+      qb.andWhere('product.is_deleted = false');
     }
 
     if (query.filialId) {
-      where.filial = { id: query.filialId };
+      qb.andWhere('filial.id = :filialId', { filialId: query.filialId });
     } else if (query.filial) {
-      where.filial = { id: query.filial };
+      qb.andWhere('filial.id = :filialId', { filialId: query.filial });
     }
 
-    return paginate<Product>(this.productRepository, options, {
-      order: { date: 'DESC' },
-      where,
-      relations: {
-        filial: true,
-        bar_code: {
-          size: true,
-          color: true,
-          style: true,
-          model: { collection: true },
-          collection: { collection_prices: true },
-        },
-      },
-    });
+    if (query.search) {
+      qb.andWhere(
+        '(product.code ILIKE :search OR bar_code.code ILIKE :search OR model.title ILIKE :search OR collection.title ILIKE :search OR color.title ILIKE :search)',
+        { search: `%${query.search}%` },
+      );
+    }
+
+    return paginate<Product>(qb, options);
   }
 
   async findOne(id: string): Promise<Product> {
