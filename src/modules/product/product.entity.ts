@@ -131,6 +131,10 @@ export class Product extends BaseEntity {
 
   // --- Relations ---
 
+  @ManyToOne(() => Transfer, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn()
+  sourceTransfer: Transfer;
+
   @ManyToOne(() => QrBase, (qrBase) => qrBase.products, { onDelete: 'SET NULL' })
   @JoinColumn()
   bar_code: QrBase;

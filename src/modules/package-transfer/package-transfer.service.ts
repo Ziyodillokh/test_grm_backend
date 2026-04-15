@@ -187,7 +187,7 @@ export class PackageTransferService {
       const filialRepo = manager.getRepository(Filial);
       const pcpRepo = manager.getRepository(PackageCollectionPrice);
 
-      // 1) Load package with dealer and per-collection prices
+      // 1) Load package with dealer and per-collection prices (pessimistic lock to prevent race conditions)
       const pkg = await packageRepo.findOne({
         where: { id: packageId },
         relations: {
@@ -195,6 +195,7 @@ export class PackageTransferService {
           from: true,
           collection_prices: { collection: true },
         },
+        lock: { mode: 'pessimistic_write' },
       });
       if (!pkg) {
         throw new NotFoundException(`Package ${packageId} not found`);
@@ -277,7 +278,7 @@ export class PackageTransferService {
         total_profit += kv * (dealerPm - comingPrice);
         total_discount += kv * (origPm - dealerPm);
 
-        await this.materializeOnDealer(manager, transfer, pkg.dealer.id, dealerPm);
+        await this.materializeOnDealer(manager, transfer, pkg.dealer.id, dealerPm, transfer.id);
       }
 
       // 6) Update transfers to ACCEPT in bulk
@@ -396,6 +397,7 @@ export class PackageTransferService {
     transfer: Transfer,
     dealerFilialId: string,
     dealerPriceMeter: number,
+    transferId?: string,
   ): Promise<void> {
     const productRepo = manager.getRepository(Product);
     const source = transfer.product;
@@ -454,6 +456,7 @@ export class PackageTransferService {
       filial: { id: dealerFilialId } as any,
       collection_price: source.collection_price,
       partiya: source.partiya,
+      ...(transferId ? { sourceTransfer: { id: transferId } as any } : {}),
     };
 
     const created = productRepo.create(clone as Product);
@@ -746,6 +749,43 @@ export class PackageTransferService {
       pkg.total_kv = Math.max(+(pkg.total_kv || 0) - kv, 0);
       pkg.total_profit_sum = Math.max(+(pkg.total_profit_sum || 0) - rowProfit, 0);
       await packageRepo.save(pkg);
+
+      // 6b) Decrement dealer kassa and report debt stats
+      const now = new Date();
+      const kassaRepo = manager.getRepository(Kassa);
+      const reportRepo = manager.getRepository(Report);
+
+      const dealerKassa = await kassaRepo.findOne({
+        where: {
+          filial: { id: pkg.dealer.id },
+          year: now.getFullYear(),
+          month: now.getMonth() + 1,
+        },
+      });
+
+      if (dealerKassa) {
+        await kassaRepo.update(dealerKassa.id, {
+          debt_count: Math.max(Number(dealerKassa.debt_count || 0) - count, 0),
+          debt_kv: Math.max(Number(dealerKassa.debt_kv || 0) - kv, 0),
+          debt_sum: Math.max(Number(dealerKassa.debt_sum || 0) - rowSum, 0),
+          debt_profit_sum: Math.max(Number(dealerKassa.debt_profit_sum || 0) - rowProfit, 0),
+          discount: Math.max(Number(dealerKassa.discount || 0) - rowDiscount, 0),
+        });
+      }
+
+      const dealerReport = await reportRepo.findOne({
+        where: { year: now.getFullYear(), month: now.getMonth() + 1, filialType: FilialType.DEALER },
+      });
+
+      if (dealerReport) {
+        await reportRepo.update(dealerReport.id, {
+          debt_count: Math.max(Number(dealerReport.debt_count || 0) - count, 0),
+          debt_kv: Math.max(Number(dealerReport.debt_kv || 0) - kv, 0),
+          debt_sum: Math.max(Number(dealerReport.debt_sum || 0) - rowSum, 0),
+          debt_profit_sum: Math.max(Number(dealerReport.debt_profit_sum || 0) - rowProfit, 0),
+          totalDiscount: Math.max(Number(dealerReport.totalDiscount || 0) - rowDiscount, 0),
+        });
+      }
 
       // 7) Decrement dealer debt
       await filialRepo

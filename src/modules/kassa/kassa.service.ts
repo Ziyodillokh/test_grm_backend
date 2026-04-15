@@ -952,38 +952,48 @@ export class KassaService {
         throw new BadRequestException('Joriy yoki kelajak oyni yakunlab bo\'lmaydi');
       }
 
-      // Balansni keyingi oyga o'tkazish
-      const nextMonth = kassa.month === 12 ? 1 : kassa.month + 1;
-      const nextYear = kassa.month === 12 ? kassa.year + 1 : kassa.year;
+      // Balansni keyingi oyga o'tkazish (faqat FILIAL kassalar uchun, diller kassalarida yurmaydi)
+      const isDealerKassa = kassa.filialType === FilialTypeEnum.DEALER
+        || kassa.filialType === (FilialType.DEALER as unknown as FilialTypeEnum);
 
-      const nextKassa = await this.kassaRepository.findOne({
-        where: { month: nextMonth, year: nextYear, filial: { id: kassa.filial.id } },
-        relations: { filial: true },
-      });
+      if (!isDealerKassa) {
+        const nextMonth = kassa.month === 12 ? 1 : kassa.month + 1;
+        const nextYear = kassa.month === 12 ? kassa.year + 1 : kassa.year;
 
-      const price = kassa.in_hand;
+        const nextKassa = await this.kassaRepository.findOne({
+          where: { month: nextMonth, year: nextYear, filial: { id: kassa.filial.id } },
+          relations: { filial: true },
+        });
 
-      if (Number(price) > 0 && nextKassa) {
-        const slugSaldo = await this.getOneBySlug('Balance');
-        await this.cashflowRepository.save(
-          this.cashflowRepository.create({
-            price: price,
-            type: CashFlowEnum.InCome,
-            tip: CashflowTipEnum.CASHFLOW,
-            comment: `${this.getMonthName(kassa.month)} oyidan o'tgan pul ${kassa.year}`,
-            cashflow_type: slugSaldo,
-            date: new Date().toISOString(),
-            kassa: nextKassa,
-            createdBy: kassa?.filial?.manager,
-            is_online: false,
-            is_static: true,
-          }),
-        );
+        const price = kassa.in_hand;
 
-        nextKassa.opening_balance = (nextKassa.opening_balance || 0) + price;
-        nextKassa.in_hand = (nextKassa.in_hand || 0) + price;
-        nextKassa.income = (nextKassa.income || 0) + (price > 0 ? price : 0);
-        await this.kassaRepository.save(nextKassa);
+        if (Number(price) > 0 && nextKassa) {
+          const slugSaldo = await this.getOneBySlug('Balance');
+          await this.cashflowRepository.save(
+            this.cashflowRepository.create({
+              price: price,
+              type: CashFlowEnum.InCome,
+              tip: CashflowTipEnum.CASHFLOW,
+              comment: `${this.getMonthName(kassa.month)} oyidan o'tgan pul ${kassa.year}`,
+              cashflow_type: slugSaldo,
+              date: new Date().toISOString(),
+              kassa: nextKassa,
+              createdBy: kassa?.filial?.manager,
+              is_online: false,
+              is_static: true,
+            }),
+          );
+
+          nextKassa.opening_balance = (nextKassa.opening_balance || 0) + price;
+          nextKassa.in_hand = (nextKassa.in_hand || 0) + price;
+          nextKassa.income = (nextKassa.income || 0) + (price > 0 ? price : 0);
+          await this.kassaRepository.save(nextKassa);
+        } else if (nextKassa) {
+          // Nol yoki manfiy balance — cashflow yaratmasdan faqat opening_balance yozish
+          nextKassa.opening_balance = (nextKassa.opening_balance || 0) + Number(price);
+          nextKassa.in_hand = (nextKassa.in_hand || 0) + Number(price);
+          await this.kassaRepository.save(nextKassa);
+        }
       }
     }
 
