@@ -476,8 +476,7 @@ export class TransferService {
       .leftJoinAndSelect('transfer.from', 'fromFilial')
       .leftJoinAndSelect('transfer.package', 'package')
       .where('transfer."packageId" = :packageId', { packageId: query.package_id })
-      .orderBy('transfer.group', 'ASC')
-      .addOrderBy('transfer.date', 'DESC');
+      .orderBy('transfer.date', 'DESC');
 
     if (query.search) {
       qb.andWhere(
