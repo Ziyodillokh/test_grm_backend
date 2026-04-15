@@ -81,11 +81,12 @@ export class KassaService {
   }
 
   async getReport(options: IPaginationOptions, user, where) {
-    const filialId = where.filial?.id || user?.filial?.id;
+    const filialId = where.filial?.id || (!where.report?.id ? user?.filial?.id : undefined);
 
     const queryWhere: any = {
       ...(where.year && { year: where.year }),
       ...(filialId && { filial: { id: filialId } }),
+      ...(where.report?.id && { report: { id: where.report.id } }),
     };
 
     return paginate<Kassa>(this.kassaRepository, options, {
@@ -683,6 +684,45 @@ export class KassaService {
     });
 
     return this.kassaRepository.save(kassa);
+  }
+
+  /**
+   * Creates kassas for ALL dealer filials for the given month/year,
+   * linking each to the global dealer report for that period.
+   * Skips dealers that already have a kassa for that month.
+   */
+  async ensureDealerKassasForMonth(year: number, month: number): Promise<void> {
+    const dealers = await this.filialRepository.find({
+      where: { type: FilialType.DEALER, isDeleted: false },
+    });
+
+    const report = await this.reportService.findOneByYearMonthAndFilialType(
+      year, month, FilialType.DEALER as unknown as FilialTypeEnum,
+    );
+
+    for (const dealer of dealers) {
+      const exists = await this.kassaRepository.findOne({
+        where: { filial: { id: dealer.id }, year, month },
+      });
+      if (exists) {
+        if (!exists.report && report) {
+          exists.report = report;
+          await this.kassaRepository.save(exists);
+        }
+        continue;
+      }
+
+      const kassa = this.kassaRepository.create({
+        filial: dealer,
+        year,
+        month,
+        report: report || undefined,
+        filialType: FilialType.DEALER as unknown as FilialTypeEnum,
+        isActive: true,
+        status: KassaProgresEnum.OPEN,
+      });
+      await this.kassaRepository.save(kassa);
+    }
   }
 
   /**

@@ -35,14 +35,16 @@ export class KassaReportsAliasController {
     @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit: number,
     @Query('year') year: string,
     @Query('filialId') filialId: string,
+    @Query('reportId') reportId: string,
     @Req() req,
   ) {
     const user = req['user'];
-    if (!user?.filial?.id) return { items: [], meta: { totalItems: 0 } };
+    if (!user?.filial?.id && !reportId) return { items: [], meta: { totalItems: 0 } };
     const where = {
       ...(req.where || {}),
       ...(year && { year: +year }),
       ...(filialId && { filial: { id: filialId } }),
+      ...(reportId && { report: { id: reportId } }),
     };
     return this.kassaService.getReport({ page, limit }, user, where);
   }
@@ -69,6 +71,17 @@ export class KassaReportsAliasController {
     const fId = filialId || user?.filial?.id;
     if (!fId) return {};
     return this.reportService.getReportTotalsByFilial(fId);
+  }
+
+  @Get('ensure-dealer-kassas/:year/:month')
+  @ApiOperation({ summary: 'Ensure all dealer kassas exist for given month' })
+  @HttpCode(HttpStatus.OK)
+  async ensureDealerKassas(
+    @Param('year', ParseIntPipe) year: number,
+    @Param('month', ParseIntPipe) month: number,
+  ) {
+    await this.kassaService.ensureDealerKassasForMonth(year, month);
+    return { message: `Dealer kassas ensured for ${year}-${month}` };
   }
 
   @Get(':id')

@@ -83,6 +83,13 @@ export class CronTaskService {
         this.logger.log('📅 Last day of the month detected — running end-of-month logic...');
         await this.kassaService.handleEndOfMonth();
         await this.reportService.changeStatusByMonth();
+
+        // Create dealer kassas for the new month and link to the new report
+        const nextMonth = today.add(1, 'month');
+        await this.kassaService.ensureDealerKassasForMonth(
+          nextMonth.year(),
+          nextMonth.month() + 1,
+        );
         this.logger.log('✅ End-of-month process completed successfully.');
       } else {
         this.logger.debug('Not the last day of the month — skipping end-of-month logic.');
