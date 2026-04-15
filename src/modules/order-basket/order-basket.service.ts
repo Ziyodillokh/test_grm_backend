@@ -9,6 +9,7 @@ import { CollectionPriceService } from '../collection-price/collection-price.ser
 import { CollectionPriceEnum, UserRoleEnum } from '../../infra/shared/enum';
 import { QrCodeService } from '../qr-code/qr-code.service';
 import { QrBaseService } from '../qr-base/qr-base.service';
+import { ProductService } from '../product/product.service';
 
 function isBooleanString(value: any): boolean {
   return value === 'true' || value === 'false';
@@ -22,6 +23,7 @@ export class OrderBasketService {
     private readonly collectionPrice: CollectionPriceService,
     private readonly qrCodeService: QrCodeService,
     private readonly qrBaseService: QrBaseService,
+    private readonly productService: ProductService,
   ) {}
 
   async find(
@@ -179,22 +181,17 @@ export class OrderBasketService {
       throw new BadRequestException('Это не ваш продукт!');
     }
 
-    // Fetch existing baskets
-    const existingBaskets = await this.orderBasketRepository.find({
-      where: { product: { id: value.product } },
-    });
-    console.log('existingBasket ================>', existingBaskets.length);
-    // Quantity validation
-    if (value.isMetric) {
-      const total = existingBaskets.reduce((sum, b) => sum + b.x / 100, value.x / 100);
-      if (product.y < value.x / 100 || product.y < total) {
-        throw new BadRequestException('Недостаточно счетчика продукта!');
-      }
-    } else {
-      const total = existingBaskets.reduce((sum, b) => sum + b.x, value.x);
-      if (product.count < value.x || product.count < total) {
-        throw new BadRequestException('Недостаточное количество товаров!');
-      }
+    // Availability check: booking_count ni hisobga olish
+    const bookingCount = Number(product.booking_count) || 0;
+    const requestedCount = value.isMetric ? value.x / 100 : value.x;
+    const availableCount = value.isMetric
+      ? Number(product.y) - bookingCount
+      : Number(product.count) - bookingCount;
+
+    if (requestedCount > availableCount) {
+      throw new BadRequestException(
+        `Mahsulot yetarli emas! Mavjud: ${availableCount}, So'ralgan: ${requestedCount}`,
+      );
     }
 
     value.seller = user.id;
@@ -238,12 +235,24 @@ export class OrderBasketService {
         x: value.x + oldBasket.x,
       });
 
+      // booking_count oshirish
+      await this.productService.changeBookCount({
+        id: product.id,
+        booking_count: bookingCount + requestedCount,
+      });
+
       oldBasket.x += value.x;
       return oldBasket;
     } else {
       value.order_index = (biggest?.order_index || 0) + 1;
       const basket = this.orderBasketRepository.create(value as unknown as OrderBasket);
       await this.orderBasketRepository.save(basket);
+
+      // booking_count oshirish
+      await this.productService.changeBookCount({
+        id: product.id,
+        booking_count: bookingCount + requestedCount,
+      });
 
       return this.orderBasketRepository.findOne({
         where: { id: basket.id },
@@ -320,20 +329,17 @@ export class OrderBasketService {
         throw new BadRequestException('Это не ваш продукт!');
       }
 
-      const existingBaskets = await this.orderBasketRepository.find({
-        where: { product: { id: value.product as string } },
-      });
+      // Availability check: booking_count ni hisobga olish
+      const bookingCount = Number(product.booking_count) || 0;
+      const requestedCount = value.isMetric ? value.x / 100 : value.x;
+      const availableCount = value.isMetric
+        ? Number(product.y) - bookingCount
+        : Number(product.count) - bookingCount;
 
-      if (value.isMetric) {
-        const total = existingBaskets.reduce((sum, b) => sum + b.x / 100, value.x / 100);
-        if (product.y < value.x / 100 || product.y < total) {
-          throw new BadRequestException('Недостаточно счетчика продукта!');
-        }
-      } else {
-        const total = existingBaskets.reduce((sum, b) => sum + b.x, value.x);
-        if (product.count < value.x || product.count < total) {
-          throw new BadRequestException('Недостаточное количество товаров!');
-        }
+      if (requestedCount > availableCount) {
+        throw new BadRequestException(
+          `Mahsulot yetarli emas! Mavjud: ${availableCount}, So'ralgan: ${requestedCount}`,
+        );
       }
 
       value.seller = user.id;
@@ -360,11 +366,22 @@ export class OrderBasketService {
         await this.orderBasketRepository.update(oldBasket.id, {
           x: value.x + oldBasket.x,
         });
+        // booking_count oshirish
+        await this.productService.changeBookCount({
+          id: product.id,
+          booking_count: bookingCount + requestedCount,
+        });
         oldBasket.x += value.x;
         results.push(oldBasket);
       } else {
         const basket = this.orderBasketRepository.create(value as unknown as OrderBasket);
         await this.orderBasketRepository.save(basket);
+
+        // booking_count oshirish
+        await this.productService.changeBookCount({
+          id: product.id,
+          booking_count: bookingCount + requestedCount,
+        });
 
         const fullBasket = await this.orderBasketRepository.findOne({
           where: { id: basket.id },
@@ -389,15 +406,42 @@ export class OrderBasketService {
   }
 
   async delete(id: string) {
-    await this.orderBasketRepository.delete(id);
-    return await this.orderBasketRepository.query(`DELETE FROM order_basket WHERE id = $1`, [id]);
-
+    // Basketni topib, booking_count ni kamaytirish
+    const basket = await this.orderBasketRepository.findOne({
+      where: { id },
+      relations: { product: true },
+    });
+    if (basket?.product) {
+      const releasedCount = basket.isMetric ? basket.x / 100 : basket.x;
+      const newBookCount = Math.max(Number(basket.product.booking_count || 0) - releasedCount, 0);
+      await this.productService.changeBookCount({
+        id: basket.product.id,
+        booking_count: newBookCount,
+      });
+    }
+    return await this.orderBasketRepository.delete(id);
   }
+
   async restore(id: string) {
     return await this.orderBasketRepository.restore(id);
   }
 
   async bulkDelete(id: string) {
+    // Barcha basketlarni topib, booking_count larni kamaytirish
+    const baskets = await this.orderBasketRepository.find({
+      where: { seller: { id } },
+      relations: { product: true },
+    });
+    for (const basket of baskets) {
+      if (basket.product) {
+        const releasedCount = basket.isMetric ? basket.x / 100 : basket.x;
+        const newBookCount = Math.max(Number(basket.product.booking_count || 0) - releasedCount, 0);
+        await this.productService.changeBookCount({
+          id: basket.product.id,
+          booking_count: newBookCount,
+        });
+      }
+    }
     await this.orderBasketRepository.delete({ seller: { id }, is_transfer: false });
     await this.orderBasketRepository.query(
       `DELETE FROM order_basket WHERE "sellerId" = $1 AND is_transfer = true`,
@@ -406,6 +450,21 @@ export class OrderBasketService {
   }
 
   async clearTransferBasket(sellerId: string) {
+    // Transfer basketlarni topib, booking_count larni kamaytirish
+    const baskets = await this.orderBasketRepository.find({
+      where: { seller: { id: sellerId }, is_transfer: true },
+      relations: { product: true },
+    });
+    for (const basket of baskets) {
+      if (basket.product) {
+        const releasedCount = basket.isMetric ? basket.x / 100 : basket.x;
+        const newBookCount = Math.max(Number(basket.product.booking_count || 0) - releasedCount, 0);
+        await this.productService.changeBookCount({
+          id: basket.product.id,
+          booking_count: newBookCount,
+        });
+      }
+    }
     await this.orderBasketRepository.query(
       `DELETE FROM order_basket WHERE "sellerId" = $1 AND is_transfer = true`,
       [sellerId],
@@ -414,11 +473,28 @@ export class OrderBasketService {
 
   async update(id: string, value: orderBasketUpdateDto): Promise<UpdateResult> {
     const basket = await this.orderBasketRepository.findOne({ where: { id }, relations: { product: true } });
-    if (basket.isMetric) {
-      if (basket.product.y < value.x / 100) throw new BadRequestException('Can not change upper than product length!');
-    } else {
-      if (basket.product.count < value.x) throw new BadRequestException('Can not change upper than product count!');
+
+    const newRequestedCount = basket.isMetric ? value.x / 100 : value.x;
+    const oldRequestedCount = basket.isMetric ? basket.x / 100 : basket.x;
+    const bookingCount = Number(basket.product.booking_count) || 0;
+    const availableCount = basket.isMetric
+      ? Number(basket.product.y) - bookingCount + oldRequestedCount
+      : Number(basket.product.count) - bookingCount + oldRequestedCount;
+
+    if (newRequestedCount > availableCount) {
+      throw new BadRequestException(
+        `Mahsulot yetarli emas! Mavjud: ${availableCount}, So'ralgan: ${newRequestedCount}`,
+      );
     }
+
+    // booking_count ni moslashtirish (eski count ni olib tashlab, yangi count ni qo'shish)
+    const diff = newRequestedCount - oldRequestedCount;
+    const newBookCount = Math.max(bookingCount + diff, 0);
+    await this.productService.changeBookCount({
+      id: basket.product.id,
+      booking_count: newBookCount,
+    });
+
     return await this.orderBasketRepository.update(id, value);
   }
 

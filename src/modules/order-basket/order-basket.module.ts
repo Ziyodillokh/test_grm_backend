@@ -6,9 +6,10 @@ import { OrderBasketService } from './order-basket.service';
 import { CollectionPriceModule } from '../collection-price/collection-price.module';
 import { QrCodeModule } from '../qr-code/qr-code.module';
 import { QrBaseModule } from '../qr-base/qr-base.module';
+import { ProductModule } from '../product/product.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([OrderBasket]), CollectionPriceModule, QrCodeModule, QrBaseModule],
+  imports: [TypeOrmModule.forFeature([OrderBasket]), CollectionPriceModule, QrCodeModule, QrBaseModule, ProductModule],
   controllers: [OrderBasketController],
   providers: [OrderBasketService],
   exports: [OrderBasketService],
