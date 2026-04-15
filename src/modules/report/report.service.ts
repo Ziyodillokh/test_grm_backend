@@ -4060,6 +4060,7 @@ export class ReportService {
         AND pt."acceptedAt" BETWEEN $2 AND $3
       GROUP BY pt.id, pt."acceptedAt", pt.title, pt.total_sum, pt.total_kv, pt.total_count,
                col.title, pcp."dealerPriceMeter"
+      HAVING COALESCE(SUM(t.kv), 0) > 0
       ORDER BY pt."acceptedAt" ASC
     `, [dealerId, startDate, endDate]);
 
@@ -4181,6 +4182,7 @@ export class ReportService {
         )
       WHERE pcp."packageId" = $1
       GROUP BY col.title, pcp."dealerPriceMeter"
+      HAVING COALESCE(SUM(t.kv), 0) > 0
       ORDER BY col.title
     `, [packageId]);
 
