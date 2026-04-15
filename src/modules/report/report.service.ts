@@ -4031,11 +4031,11 @@ export class ReportService {
       JOIN "package-collection-price" pcp ON pcp."packageId" = pt.id
       JOIN collection col ON pcp."collectionId" = col.id
       LEFT JOIN transfer t ON t."packageId" = pt.id
-        AND t.progres = 'accept'
+        AND t.progres = 'Accepted'
         AND EXISTS (
-          SELECT 1 FROM productexcel pe
-          JOIN qrbase qb ON pe."barCodeId" = qb.id
-          WHERE pe.id = t."productId" AND qb."collectionId" = col.id
+          SELECT 1 FROM product p
+          JOIN qrbase qb ON p."barCodeId" = qb.id
+          WHERE p.id = t."productId" AND qb."collectionId" = col.id
         )
       WHERE pt."dealerId" = $1
         AND pt.status = 'accepted'
@@ -4155,11 +4155,11 @@ export class ReportService {
       FROM "package-collection-price" pcp
       JOIN collection col ON pcp."collectionId" = col.id
       LEFT JOIN transfer t ON t."packageId" = $1
-        AND t.progres = 'accept'
+        AND t.progres = 'Accepted'
         AND EXISTS (
-          SELECT 1 FROM productexcel pe
-          JOIN qrbase qb ON pe."barCodeId" = qb.id
-          WHERE pe.id = t."productId" AND qb."collectionId" = col.id
+          SELECT 1 FROM product p
+          JOIN qrbase qb ON p."barCodeId" = qb.id
+          WHERE p.id = t."productId" AND qb."collectionId" = col.id
         )
       WHERE pcp."packageId" = $1
       GROUP BY col.title, pcp."dealerPriceMeter"
