@@ -787,6 +787,21 @@ export class PackageTransferService {
         });
       }
 
+      // 6c) Decrement FILIAL report debt stats (mirroring addDealerToFilialReport)
+      const filialReport = await reportRepo.findOne({
+        where: { year: now.getFullYear(), month: now.getMonth() + 1, filialType: FilialType.FILIAL },
+      });
+
+      if (filialReport) {
+        await reportRepo.update(filialReport.id, {
+          debt_count: Math.max(Number(filialReport.debt_count || 0) - count, 0),
+          debt_kv: Math.max(Number(filialReport.debt_kv || 0) - kv, 0),
+          debt_sum: Math.max(Number(filialReport.debt_sum || 0) - rowSum, 0),
+          debt_profit_sum: Math.max(Number(filialReport.debt_profit_sum || 0) - rowProfit, 0),
+          totalDiscount: Math.max(Number(filialReport.totalDiscount || 0) - rowDiscount, 0),
+        });
+      }
+
       // 7) Decrement dealer debt
       await filialRepo
         .createQueryBuilder()
