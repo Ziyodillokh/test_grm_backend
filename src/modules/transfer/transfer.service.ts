@@ -547,7 +547,7 @@ export class TransferService {
         total_count: 0,
         total_profit_sum: 0,
         priceMeter: Number(transfer.product?.priceMeter || 0),
-        comingPrice: Number(transfer.product?.comingPrice || 0),
+        comingPrice: Number(transfer.product?.comingPrice) || Number(transfer.product?.bar_code?.collection?.comingPrice) || 0,
       };
       existing.total_kv += Number(transfer.kv || 0);
       existing.total_count += Number(transfer.count || 0);

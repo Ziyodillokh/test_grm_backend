@@ -265,7 +265,7 @@ export class PackageTransferService {
         const product = transfer.product;
         const collId = product.bar_code.collection.id;
         const dealerPm = priceMap.get(collId) || 0;
-        const comingPrice = Number(product.comingPrice) || 0;
+        const comingPrice = Number(product.comingPrice) || Number(product.bar_code?.collection?.comingPrice) || 0;
         const origPm = Number(product.priceMeter) || 0;
         const kv = Number(transfer.kv) || 0;
         const count = Number(transfer.count) || 0;
