@@ -19,6 +19,13 @@ export class PackageTransferController {
     return await this.service.getAll(query)
   }
 
+  @Get('/:id')
+  @ApiOperation({ summary: 'Method: returns a single package by id' })
+  @HttpCode(HttpStatus.OK)
+  async getById(@Param('id') id: string) {
+    return await this.service.getById(id);
+  }
+
   @Patch('/:id/change-status')
   @ApiOperation({ summary: 'Method: change status' })
   @ApiOkResponse({
