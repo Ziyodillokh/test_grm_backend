@@ -77,6 +77,26 @@ export class ReportReportController {
     return { message: 'Reports created for all months of the current year' };
   }
 
+  @Get('dealer/package/:packageId/collections')
+  async getPackageCollections(@Param('packageId') packageId: string) {
+    return this.reportService.getPackageCollections(packageId);
+  }
+
+  @Get('dealer/:dealerId')
+  @ApiQuery({ name: 'year', required: false })
+  @ApiQuery({ name: 'month', required: false })
+  @ApiQuery({ name: 'page', required: false })
+  @ApiQuery({ name: 'limit', required: false })
+  async getDealerKassaDetail(
+    @Param('dealerId') dealerId: string,
+    @Query('year') year?: number,
+    @Query('month') month?: number,
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+  ) {
+    return this.reportService.getDealerKassaDetail(dealerId, { year: +year, month: +month, page: +page, limit: +limit });
+  }
+
   @Get('dealer-closed-by-d')
   async getDealerClosedByDReports(@Query('year') year: number, @Query('month') month: number) {
     return this.reportService.getDealerClosedByDReports(year, month);
