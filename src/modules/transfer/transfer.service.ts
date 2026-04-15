@@ -530,6 +530,7 @@ export class TransferService {
       total_kv: number;
       total_count: number;
       total_profit_sum: number;
+      priceMeter: number;
     }>();
 
     for (const transfer of transfers) {
@@ -541,6 +542,7 @@ export class TransferService {
         total_kv: 0,
         total_count: 0,
         total_profit_sum: 0,
+        priceMeter: Number(transfer.product.bar_code.collection.priceMeter || 0),
       };
       existing.total_kv += Number(transfer.kv || 0);
       existing.total_count += Number(transfer.count || 0);
@@ -574,6 +576,7 @@ export class TransferService {
         total_kv: agg.total_kv,
         total_count: agg.total_count,
         comingPrice: priceMap.get(collId) || 0,
+        priceMeter: agg.priceMeter,
         total_profit_sum: agg.total_profit_sum,
         collection_prices: [],
       });
