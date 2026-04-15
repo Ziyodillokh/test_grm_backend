@@ -538,24 +538,23 @@ export class OrderBasketService {
   }
 
   async getCountsByUser(user){
-    const transfer = await this.orderBasketRepository.count({
-      where: {
-        seller: {
-          id: user.id
-        },
-        is_transfer: true
-      }
-    });
+    const transferResult = await this.orderBasketRepository
+      .createQueryBuilder('ob')
+      .select('COALESCE(SUM(ob.x), 0)', 'total')
+      .where('ob."sellerId" = :userId', { userId: user.id })
+      .andWhere('ob.is_transfer = true')
+      .getRawOne();
 
-    const order = await this.orderBasketRepository.count({
-      where: {
-        seller: {
-          id: user.id
-        },
-        is_transfer: false
-      }
-    })
+    const orderResult = await this.orderBasketRepository
+      .createQueryBuilder('ob')
+      .select('COALESCE(SUM(ob.x), 0)', 'total')
+      .where('ob."sellerId" = :userId', { userId: user.id })
+      .andWhere('ob.is_transfer = false')
+      .getRawOne();
 
-    return {order, transfer};
+    return {
+      order: Number(orderResult?.total || 0),
+      transfer: Number(transferResult?.total || 0),
+    };
   }
 }
