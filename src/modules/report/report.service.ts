@@ -1075,6 +1075,13 @@ export class ReportService {
     filialReport.managerSum += dealerReport.totalIncome ?? 0;
     filialReport.managerSum -= dealerReport.totalPlasticSum ?? 0;
 
+    // Dealer debt fieldlarni FILIAL reportga qo'shish
+    filialReport.debt_count += dealerReport.debt_count ?? 0;
+    filialReport.debt_kv += dealerReport.debt_kv ?? 0;
+    filialReport.debt_sum += dealerReport.debt_sum ?? 0;
+    filialReport.debt_profit_sum += dealerReport.debt_profit_sum ?? 0;
+    filialReport.totalDiscount += dealerReport.totalDiscount ?? 0;
+
     await reportRepo.save(filialReport);
   }
 
@@ -3898,6 +3905,10 @@ export class ReportService {
       totalExpense: 0,
       managerSum: 0,
       accountantSum: 0,
+      debt_count: 0,
+      debt_kv: 0,
+      debt_sum: 0,
+      debt_profit_sum: 0,
     };
 
     const f_kassas = await this.kassaRepo.find({ where: { report: { id: report.id } } });
@@ -3932,19 +3943,26 @@ export class ReportService {
       data.totalCashCollection += k.cash_collection;
       data.totalDiscount += k.discount;
       data.accountantSum += k.plasticSum;
+      data.debt_count += k.debt_count || 0;
+      data.debt_kv += k.debt_kv || 0;
+      data.debt_sum += k.debt_sum || 0;
+      data.debt_profit_sum += k.debt_profit_sum || 0;
     }
 
     for (const k of d_kassas) {
-      data.totalSellCount += k.totalSellCount;
-      data.additionalProfitTotalSum += k.additionalProfitTotalSum;
-      data.netProfitTotalSum += k.netProfitTotalSum;
-      data.totalSize += k.totalSize;
-      data.totalPlasticSum += k.plasticSum;
-      data.totalSale += k.sale;
-      data.totalSaleReturn += k.totalSaleReturn;
-      data.totalCashCollection += k.cash_collection;
-      data.totalDiscount += k.discount;
-      data.accountantSum += k.plasticSum;
+      data.totalSellCount += k.totalSellCount || 0;
+      data.netProfitTotalSum += k.debt_profit_sum || 0;
+      data.totalSize += k.debt_kv || 0;
+      data.totalPlasticSum += k.plasticSum || 0;
+      data.totalSale += k.sale || 0;
+      data.totalSaleReturn += k.totalSaleReturn || 0;
+      data.totalCashCollection += k.cash_collection || 0;
+      data.totalDiscount += k.discount || 0;
+      data.accountantSum += k.plasticSum || 0;
+      data.debt_count += k.debt_count || 0;
+      data.debt_kv += k.debt_kv || 0;
+      data.debt_sum += k.debt_sum || 0;
+      data.debt_profit_sum += k.debt_profit_sum || 0;
     }
 
     if (type === 'do') {
