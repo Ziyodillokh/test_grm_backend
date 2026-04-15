@@ -523,12 +523,6 @@ export class TransferService {
     }
 
     const transfers = await qb.getMany();
-    console.log('[COLLECTION DEBUG] transfers count:', transfers.length);
-    if (transfers.length > 0) {
-      const t = transfers[0];
-      console.log('[COLLECTION DEBUG] first transfer product:', !!t.product, 'bar_code:', !!t.product?.bar_code, 'collection:', !!t.product?.bar_code?.collection);
-      console.log('[COLLECTION DEBUG] collection id:', t.product?.bar_code?.collection?.id, 'title:', t.product?.bar_code?.collection?.title);
-    }
 
     // Aggregate by collection — only from this package's transfers
     const collectionMap = new Map<string, {
