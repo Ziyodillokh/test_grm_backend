@@ -288,15 +288,15 @@ export class PackageTransferService {
         .execute();
 
       // 7) Save package totals + acceptedAt + status
-      pkg.total_sum = +(pkg.total_sum || 0) + total_sum;
-      pkg.total_profit = +(pkg.total_profit || 0) + total_profit;
-      pkg.total_discount = +(pkg.total_discount || 0) + total_discount;
-      pkg.total_count = +(pkg.total_count || 0) + total_count;
-      pkg.total_kv = +(pkg.total_kv || 0) + total_kv;
+      // Reset totals (bulkCreateTransfers already accumulated count/kv, so overwrite)
+      pkg.total_sum = total_sum;
+      pkg.total_profit = total_profit;
+      pkg.total_discount = total_discount;
+      pkg.total_count = total_count;
+      pkg.total_kv = total_kv;
       pkg.acceptedAt = new Date();
       pkg.status = PackageTransferEnum.Accept;
-      // Legacy field — mirror net profit so old reports keep working
-      pkg.total_profit_sum = +(pkg.total_profit_sum || 0) + total_profit;
+      pkg.total_profit_sum = total_profit;
       await packageRepo.save(pkg);
 
       // 8) Dealer filial debt: owed += total_sum
