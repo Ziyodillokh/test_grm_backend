@@ -213,6 +213,7 @@ export class PackageTransferService {
         .leftJoinAndSelect('product.bar_code', 'bar_code')
         .leftJoinAndSelect('bar_code.size', 'size')
         .leftJoinAndSelect('bar_code.collection', 'collection')
+        .leftJoinAndSelect('collection.collection_prices', 'collectionPrices')
         .leftJoinAndSelect('product.partiya', 'partiya')
         .leftJoinAndSelect('product.collection_price', 'collection_price')
         .where('transfer."packageId" = :pkgId', { pkgId: packageId })
@@ -265,8 +266,8 @@ export class PackageTransferService {
         const product = transfer.product;
         const collId = product.bar_code.collection.id;
         const dealerPm = priceMap.get(collId) || 0;
-        const comingPrice = Number(product.comingPrice) || Number(product.bar_code?.collection?.comingPrice) || 0;
-        const origPm = Number(product.priceMeter) || 0;
+        const comingPrice = Number(product.comingPrice) || Number(product.bar_code?.collection?.collection_prices?.[0]?.comingPrice) || 0;
+        const origPm = Number(product.priceMeter) || Number(product.bar_code?.collection?.collection_prices?.[0]?.priceMeter) || 0;
         const kv = Number(transfer.kv) || 0;
         const count = Number(transfer.count) || 0;
 
