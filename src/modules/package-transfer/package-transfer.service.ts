@@ -187,7 +187,14 @@ export class PackageTransferService {
       const filialRepo = manager.getRepository(Filial);
       const pcpRepo = manager.getRepository(PackageCollectionPrice);
 
-      // 1) Load package with dealer and per-collection prices (pessimistic lock to prevent race conditions)
+      // 1) Lock the package row first (no relations — FOR UPDATE can't use outer joins)
+      await packageRepo
+        .createQueryBuilder('pkg')
+        .setLock('pessimistic_write')
+        .where('pkg.id = :id', { id: packageId })
+        .getOne();
+
+      // Then load with full relations
       const pkg = await packageRepo.findOne({
         where: { id: packageId },
         relations: {
@@ -195,7 +202,6 @@ export class PackageTransferService {
           from: true,
           collection_prices: { collection: true },
         },
-        lock: { mode: 'pessimistic_write' },
       });
       if (!pkg) {
         throw new NotFoundException(`Package ${packageId} not found`);
