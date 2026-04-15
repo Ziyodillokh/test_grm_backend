@@ -473,6 +473,8 @@ export class TransferService {
       .leftJoinAndSelect('transferer.avatar', 'transferer_avatar')
       .leftJoinAndSelect('transfer.courier', 'courier')
       .leftJoinAndSelect('courier.avatar', 'courier_avatar')
+      .leftJoinAndSelect('transfer.from', 'fromFilial')
+      .leftJoinAndSelect('transfer.package', 'package')
       .where('transfer."packageId" = :packageId', { packageId: query.package_id })
       .orderBy('transfer.group', 'ASC')
       .addOrderBy('transfer.date', 'DESC');
@@ -500,16 +502,14 @@ export class TransferService {
   private async getDealerTransfersCollection(query: {
     package_id: string;
     search?: string;
+    page?: number;
+    limit?: number;
   }) {
-    const pcpRepo = this.dataSource.getRepository(PackageCollectionPrice);
+    if (!query.package_id) {
+      return { items: [], meta: { totalItems: 0, itemCount: 0, itemsPerPage: 10, totalPages: 0, currentPage: 1 } };
+    }
 
-    // Get collection prices for this package
-    const collectionPrices = await pcpRepo.find({
-      where: { package: { id: query.package_id } },
-      relations: { collection: true },
-    });
-
-    // Get all transfers for this package
+    // Get all transfers for this specific package — this is the source of truth
     const qb = this.transferRepository
       .createQueryBuilder('transfer')
       .leftJoinAndSelect('transfer.product', 'product')
@@ -524,7 +524,7 @@ export class TransferService {
 
     const transfers = await qb.getMany();
 
-    // Aggregate by collection
+    // Aggregate by collection — only from this package's transfers
     const collectionMap = new Map<string, {
       title: string;
       total_kv: number;
@@ -547,48 +547,47 @@ export class TransferService {
       collectionMap.set(collId, existing);
     }
 
-    // Build items merging collection prices and transfer aggregates
-    const seenIds = new Set<string>();
-    const items = [];
+    // Get collection prices for this package (to merge dealerPriceMeter)
+    const pcpRepo = this.dataSource.getRepository(PackageCollectionPrice);
+    const collectionIds = [...collectionMap.keys()];
+    const priceMap = new Map<string, number>();
 
-    for (const cp of collectionPrices) {
-      const collId = cp.collection.id;
-      seenIds.add(collId);
-      const agg = collectionMap.get(collId) || { title: cp.collection.title, total_kv: 0, total_count: 0, total_profit_sum: 0 };
-      items.push({
-        id: collId,
-        title: agg.title || cp.collection.title,
-        total_kv: agg.total_kv,
-        total_count: agg.total_count,
-        comingPrice: cp.dealerPriceMeter,
-        total_profit_sum: agg.total_profit_sum,
-        collection_prices: [cp],
-      });
-    }
+    if (collectionIds.length > 0) {
+      const collectionPrices = await pcpRepo
+        .createQueryBuilder('pcp')
+        .leftJoinAndSelect('pcp.collection', 'collection')
+        .where('pcp."packageId" = :packageId', { packageId: query.package_id })
+        .andWhere('pcp."collectionId" IN (:...collectionIds)', { collectionIds })
+        .getMany();
 
-    // Add collections that have transfers but no price set yet
-    for (const [collId, agg] of collectionMap.entries()) {
-      if (!seenIds.has(collId)) {
-        items.push({
-          id: collId,
-          title: agg.title,
-          total_kv: agg.total_kv,
-          total_count: agg.total_count,
-          comingPrice: 0,
-          total_profit_sum: 0,
-          collection_prices: [],
-        });
+      for (const cp of collectionPrices) {
+        priceMap.set(cp.collection?.id, cp.dealerPriceMeter);
       }
     }
 
+    // Build items — only collections that have transfers in this package
+    const items = [];
+    for (const [collId, agg] of collectionMap.entries()) {
+      items.push({
+        id: collId,
+        title: agg.title,
+        total_kv: agg.total_kv,
+        total_count: agg.total_count,
+        comingPrice: priceMap.get(collId) || 0,
+        total_profit_sum: agg.total_profit_sum,
+        collection_prices: [],
+      });
+    }
+
+    const page = query.page || 1;
     return {
-      items,
+      items: page === 1 ? items : [],
       meta: {
         totalItems: items.length,
-        itemCount: items.length,
-        itemsPerPage: items.length,
+        itemCount: page === 1 ? items.length : 0,
+        itemsPerPage: items.length || 10,
         totalPages: 1,
-        currentPage: 1,
+        currentPage: page,
       },
     };
   }
