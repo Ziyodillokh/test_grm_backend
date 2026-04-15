@@ -540,14 +540,14 @@ export class OrderBasketService {
   async getCountsByUser(user){
     const transferResult = await this.orderBasketRepository
       .createQueryBuilder('ob')
-      .select('COALESCE(SUM(ob.x), 0)', 'total')
+      .select('COALESCE(SUM(CASE WHEN ob."isMetric" = true THEN 1 ELSE ob.x END), 0)', 'total')
       .where('ob."sellerId" = :userId', { userId: user.id })
       .andWhere('ob.is_transfer = true')
       .getRawOne();
 
     const orderResult = await this.orderBasketRepository
       .createQueryBuilder('ob')
-      .select('COALESCE(SUM(ob.x), 0)', 'total')
+      .select('COALESCE(SUM(CASE WHEN ob."isMetric" = true THEN 1 ELSE ob.x END), 0)', 'total')
       .where('ob."sellerId" = :userId', { userId: user.id })
       .andWhere('ob.is_transfer = false')
       .getRawOne();

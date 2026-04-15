@@ -202,8 +202,8 @@ export class TransferService {
 
     const transferDtos: CreateTransferDto[] = baskets.map((basket) => ({
       product: basket.product.id,
-      count: basket.x,
-      from: dto.from,
+      count: basket.isMetric ? 1 : basket.x,
+      from: basket.product.filial?.id || dto.from,
       to: dto.to,
       courier: dto.courier,
       isMetric: basket.isMetric,
