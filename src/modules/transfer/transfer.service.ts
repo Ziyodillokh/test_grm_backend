@@ -509,14 +509,17 @@ export class TransferService {
       return { items: [], meta: { totalItems: 0, itemCount: 0, itemsPerPage: 10, totalPages: 0, currentPage: 1 } };
     }
 
-    // Get all transfers for this specific package — this is the source of truth
+    // Get all active transfers for this specific package (exclude cancelled/returned)
     const qb = this.transferRepository
       .createQueryBuilder('transfer')
       .leftJoinAndSelect('transfer.product', 'product')
       .leftJoinAndSelect('product.bar_code', 'bar_code')
       .leftJoinAndSelect('bar_code.collection', 'collection')
       .leftJoinAndSelect('bar_code.size', 'size')
-      .where('transfer."packageId" = :packageId', { packageId: query.package_id });
+      .where('transfer."packageId" = :packageId', { packageId: query.package_id })
+      .andWhere('transfer.progres NOT IN (:...excludeStatuses)', {
+        excludeStatuses: [TransferStatus.REJECT, TransferStatus.RETURNED],
+      });
 
     if (query.search) {
       qb.andWhere('collection.title ILIKE :search', { search: `%${query.search}%` });
