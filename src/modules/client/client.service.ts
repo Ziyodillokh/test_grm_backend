@@ -341,6 +341,134 @@ export class ClientService {
     };
   }
 
+  async getDebtReportByFilials() {
+    const rows = await this.connection
+      .createQueryBuilder()
+      .select('f.id', 'filialId')
+      .addSelect('f.title', 'filialTitle')
+      .addSelect('COALESCE(SUM(c.owed), 0)', 'totalOwed')
+      .addSelect('COALESCE(SUM(c.given), 0)', 'totalGiven')
+      .addSelect('COALESCE(SUM(c.owed), 0) - COALESCE(SUM(c.given), 0)', 'balance')
+      .addSelect('COUNT(CASE WHEN (c.owed - c.given) > 0 THEN 1 END)', 'clientCount')
+      .from('filial', 'f')
+      .leftJoin('client', 'c', 'c."filialId" = f.id AND c."deletedDate" IS NULL')
+      .where('f.type = :type', { type: 'filial' })
+      .andWhere('f."isActive" = true')
+      .groupBy('f.id')
+      .addGroupBy('f.title')
+      .having('(COALESCE(SUM(c.owed), 0) - COALESCE(SUM(c.given), 0)) > 0')
+      .orderBy('"balance"', 'DESC')
+      .getRawMany();
+
+    const items = rows.map((r) => ({
+      filialId: r.filialId,
+      filialTitle: r.filialTitle,
+      totalOwed: Number(r.totalOwed || 0),
+      totalGiven: Number(r.totalGiven || 0),
+      balance: Number(r.balance || 0),
+      clientCount: Number(r.clientCount || 0),
+    }));
+
+    const totals = items.reduce(
+      (acc, i) => ({
+        totalOwed: acc.totalOwed + i.totalOwed,
+        totalGiven: acc.totalGiven + i.totalGiven,
+        balance: acc.balance + i.balance,
+      }),
+      { totalOwed: 0, totalGiven: 0, balance: 0 },
+    );
+
+    return { items, totals };
+  }
+
+  async getDebtClientsByFilial(filialId: string, options: IPaginationOptions) {
+    const qb = this.clientRepo
+      .createQueryBuilder('c')
+      .where('c."filialId" = :filialId', { filialId })
+      .andWhere('(c.owed - c.given) > 0')
+      .andWhere('c."deletedDate" IS NULL')
+      .orderBy('(c.owed - c.given)', 'DESC');
+
+    const paginatedClients = await paginate(qb, options);
+
+    const items = paginatedClients.items.map((c) => ({
+      id: c.id,
+      fullName: c.fullName,
+      phone: c.phone,
+      owed: Number(c.owed || 0),
+      given: Number(c.given || 0),
+      balance: Number(c.owed || 0) - Number(c.given || 0),
+    }));
+
+    const summaryResult = await this.clientRepo
+      .createQueryBuilder('c')
+      .select('COALESCE(SUM(c.owed), 0)', 'totalOwed')
+      .addSelect('COALESCE(SUM(c.given), 0)', 'totalGiven')
+      .addSelect('COALESCE(SUM(c.owed), 0) - COALESCE(SUM(c.given), 0)', 'balance')
+      .where('c."filialId" = :filialId', { filialId })
+      .andWhere('(c.owed - c.given) > 0')
+      .andWhere('c."deletedDate" IS NULL')
+      .getRawOne();
+
+    return {
+      items,
+      meta: paginatedClients.meta,
+      summary: {
+        totalOwed: Number(summaryResult?.totalOwed || 0),
+        totalGiven: Number(summaryResult?.totalGiven || 0),
+        balance: Number(summaryResult?.balance || 0),
+      },
+    };
+  }
+
+  async getDebtOrdersByClient(
+    clientId: string,
+    query: { year?: number; month?: number },
+    options: IPaginationOptions,
+  ) {
+    const client = await this.clientRepo.findOne({ where: { id: clientId } });
+    if (!client) {
+      throw new NotFoundException('Client not found');
+    }
+
+    const qb = this.orderRepo
+      .createQueryBuilder('o')
+      .leftJoinAndSelect('o.seller', 'seller')
+      .leftJoinAndSelect('seller.avatar', 'avatar')
+      .leftJoinAndSelect('o.product', 'product')
+      .leftJoinAndSelect('product.collection_price', 'cp')
+      .leftJoinAndSelect('product.bar_code', 'bar_code')
+      .leftJoinAndSelect('bar_code.model', 'model')
+      .leftJoinAndSelect('bar_code.collection', 'collection')
+      .leftJoinAndSelect('bar_code.size', 'size')
+      .where('o."clientId" = :clientId', { clientId })
+      .andWhere('o."isDebt" = true');
+
+    if (query.year) {
+      qb.andWhere('EXTRACT(YEAR FROM o.date) = :year', { year: query.year });
+    }
+    if (query.month) {
+      qb.andWhere('EXTRACT(MONTH FROM o.date) = :month', { month: query.month });
+    }
+
+    qb.orderBy('o.date', 'DESC');
+
+    const paginatedOrders = await paginate(qb, options);
+
+    return {
+      items: paginatedOrders.items,
+      meta: paginatedOrders.meta,
+      client: {
+        id: client.id,
+        fullName: client.fullName,
+        phone: client.phone,
+        owed: Number(client.owed || 0),
+        given: Number(client.given || 0),
+        balance: Number(client.owed || 0) - Number(client.given || 0),
+      },
+    };
+  }
+
   async getOneBySlug(slug: string) {
     return await this.cashflowTypeRepository
       .findOne({

@@ -38,6 +38,38 @@ export class ClientController {
     return this.clientService.findAll({ page: Number(page), limit: Number(limit) }, { filial });
   }
 
+  @Get('debt-report/filials')
+  @ApiOperation({ summary: 'Filiallar bo\'yicha qarz hisoboti' })
+  async getDebtReportByFilials() {
+    return this.clientService.getDebtReportByFilials();
+  }
+
+  @Get('debt-report/filials/:filialId/clients')
+  @ApiOperation({ summary: 'Filial ichidagi qarzdor clientlar' })
+  async getDebtClientsByFilial(
+    @Param('filialId') filialId: string,
+    @Query('page') page = 1,
+    @Query('limit') limit = 20,
+  ) {
+    return this.clientService.getDebtClientsByFilial(filialId, { page: +page, limit: +limit });
+  }
+
+  @Get('debt-report/clients/:clientId/orders')
+  @ApiOperation({ summary: 'Client debt orderlari' })
+  async getDebtOrdersByClient(
+    @Param('clientId') clientId: string,
+    @Query('year') year?: string,
+    @Query('month') month?: string,
+    @Query('page') page = 1,
+    @Query('limit') limit = 20,
+  ) {
+    return this.clientService.getDebtOrdersByClient(
+      clientId,
+      { year: year ? +year : undefined, month: month ? +month : undefined },
+      { page: +page, limit: +limit },
+    );
+  }
+
   @Get('debts/by-filial')
   @ApiOperation({ summary: 'Get paginated clients with debt orders by filial' })
   @ApiQuery({ name: 'filialId', required: true })
