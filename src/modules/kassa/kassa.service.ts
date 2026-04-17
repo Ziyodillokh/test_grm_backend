@@ -910,7 +910,8 @@ export class KassaService {
       const report = await this.reportService.findOne(kassa.report?.id);
       const slugTerminal = await this.getOneBySlug('онлайн');
 
-      if (slugTerminal && report) {
+      // plasticSum > 0 bo'lgandagina terminal cashflow yaratilsin, 0 bo'lsa ignore
+      if (slugTerminal && report && kassa.plasticSum > 0) {
         await this.cashflowRepository.save(
           this.cashflowRepository.create({
             price: kassa.plasticSum,

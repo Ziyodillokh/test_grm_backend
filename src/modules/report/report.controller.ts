@@ -22,6 +22,7 @@ import {
   HomePageCurrMonthProdaja,
   reportCorrect,
   ReportMonthlyV2,
+  ReportMonthlyV2Detail,
   ReportQueryDto,
 } from './dto';
 import { Request } from 'express';
@@ -166,6 +167,11 @@ export class ReportController {
   @Get('/monthly/v2')
   async currentReportMonthlyV2(@Query() query: ReportMonthlyV2) {
     return this.reportService.bossMonthReport(query);
+  }
+
+  @Get('/monthly/v2/detail')
+  async reportMonthlyV2Detail(@Query() query: ReportMonthlyV2Detail) {
+    return this.reportService.bossMonthReportDetail(query);
   }
 
   @Get(':id')

@@ -386,3 +386,26 @@ export class reportCorrect {
   @IsOptional()
   readonly type: 'calc' | 'do';
 }
+
+// Drill-in detail endpoint uchun DTO
+export class ReportMonthlyV2Detail {
+  @ApiProperty({ description: 'Detail turi', required: true })
+  @IsString()
+  readonly type: string;
+
+  @ApiProperty({ description: 'month', required: false })
+  @Type(() => Number)
+  @IsNumber()
+  @IsOptional()
+  readonly month: number;
+
+  @ApiProperty({ description: 'year', required: false })
+  @Type(() => Number)
+  @IsNumber()
+  @IsOptional()
+  readonly year: number;
+
+  @ApiProperty({ description: 'filial id', required: false })
+  @IsOptional()
+  readonly filialId: string;
+}

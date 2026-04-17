@@ -3327,15 +3327,17 @@ export class ReportService {
     // --- Typelar ---
     type PriceKv = { price: number; kv: number };
 
-    // Dealer package transfer
-    const dealer_qb = this.packageTransfer.createQueryBuilder('pt')
+    // Dealer reports (filialType=dealer) — PackageTransfer o'rniga
+    const dealer_report_qb = this.reportRepo.createQueryBuilder('dr')
       .select([
-        'COALESCE(SUM(pt.total_sum), 0)::NUMERIC(20, 2) AS total_sum',
-        'COALESCE(SUM(pt.total_profit_sum), 0)::NUMERIC(20, 2) AS total_profit_sum',
-        'COALESCE(SUM(pt.total_kv), 0)::NUMERIC(20, 2) AS total_kv',
-        'COALESCE(SUM(pt.total_count), 0)::NUMERIC(20, 2) AS total_count',
+        'COALESCE(SUM(dr."totalSale"), 0)::NUMERIC(20, 2) AS total_sale',
+        'COALESCE(SUM(dr."totalSize"), 0)::NUMERIC(20, 2) AS total_size',
+        'COALESCE(SUM(dr."totalDiscount"), 0)::NUMERIC(20, 2) AS total_discount',
+        'COALESCE(SUM(dr."netProfitTotalSum"), 0)::NUMERIC(20, 2) AS net_profit',
+        'COALESCE(SUM(dr.debt_sum), 0)::NUMERIC(20, 2) AS debt_sum',
+        'COALESCE(SUM(dr.debt_kv), 0)::NUMERIC(20, 2) AS debt_kv',
       ])
-      .where('pt.status = :status', { status: PackageTransferEnum.Accept });
+      .where('dr."filialType" = :dealerType', { dealerType: 'dealer' });
 
     // Orderlar bo'yicha oborot
     const order_qb = this.orderRepo.createQueryBuilder('ord')
@@ -3425,15 +3427,27 @@ export class ReportService {
       .leftJoin('cash.cashflow_type', 'ct')
       .where(`ct.slug IN ('dolg')`);
 
-    // Business xarajatlar
+    // Business xarajatlar (logistika alohida)
     const business_qb = this.cashflowRepository.createQueryBuilder('cash')
       .select(`SUM(price) as cash`)
       .leftJoin('cash.cashflow_type', 'ct')
       .leftJoin('cash.kassa', 'k')
       .where(
-        `ct.slug IN ('bank', 'logistika', 'kredit', 'karta', 'prochee', 'nalog', 'Аренда', 'shop')
+        `ct.slug IN ('bank', 'kredit', 'karta', 'prochee', 'nalog', 'Аренда', 'shop')
        AND cash.type = 'Расход'`,
       );
+
+    // Logistika (alohida)
+    const logistics_qb = this.cashflowRepository.createQueryBuilder('cash')
+      .select(`SUM(price) as cash`)
+      .leftJoin('cash.cashflow_type', 'ct')
+      .where(`ct.slug = 'logistika' AND cash.type = 'Расход'`);
+
+    // Qo'shimcha prixodlar
+    const extra_income_qb = this.cashflowRepository.createQueryBuilder('cash')
+      .select(`SUM(price) as cash`)
+      .leftJoin('cash.cashflow_type', 'ct')
+      .where(`ct.slug = 'prochee' AND cash.type = 'Приход'`);
 
     // Factory
     const factory_qb = this.cashflowRepository.createQueryBuilder('cash')
@@ -3454,8 +3468,8 @@ export class ReportService {
       .leftJoin('cash.kassa', 'k')
       .where(`ct.slug = 'navar' AND cash.type = 'Расход'`);
 
-    // pt.updatedAt bo'yicha yil/oy
-    this.applyDateRangeFilter(dealer_qb, 'pt.updatedAt', startDate, endDate);
+    // dealer report month/year filter
+    this.applyKassaMonthYearFilter(dealer_report_qb, 'dr', month, normalizedYear);
 
     this.applyDateRangeFilter(dealer_cash_qb, 'cash.date', startDate, endDate);
 
@@ -3464,6 +3478,8 @@ export class ReportService {
     this.applyDateRangeFilter(kent_qb, 'cash.date', startDate, endDate);
     this.applyDateRangeFilter(factory_qb, 'cash.date', startDate, endDate);
     this.applyDateRangeFilter(customs_qb, 'cash.date', startDate, endDate);
+    this.applyDateRangeFilter(logistics_qb, 'cash.date', startDate, endDate);
+    this.applyDateRangeFilter(extra_income_qb, 'cash.date', startDate, endDate);
 
     this.applyDateRangeFilter(add_profit_exp_qb, 'k.startDate', startDate, endDate);
 
@@ -3473,11 +3489,23 @@ export class ReportService {
     this.applyKassaMonthYearFilter(opening_balance_qb, 'k', month, normalizedYear);
     this.applyKassaMonthYearFilter(plastic_cash_and_opening_qb, 'k', month, normalizedYear);
 
+    // Report summary — manager/bugalter balans va saldo (o'tgan oydan)
+    const report_summary_qb = this.reportRepo.createQueryBuilder('rs')
+      .select([
+        'COALESCE(SUM(rs."managerSum"), 0)::NUMERIC(20, 2) AS manager_sum',
+        'COALESCE(SUM(rs."accauntantSum"), 0)::NUMERIC(20, 2) AS accountant_sum',
+        'COALESCE(SUM(rs."managerSaldo"), 0)::NUMERIC(20, 2) AS manager_saldo',
+        'COALESCE(SUM(rs."accountantSaldo"), 0)::NUMERIC(20, 2) AS accountant_saldo',
+      ])
+      .where('rs."filialType" = :rsType', { rsType: 'filial' });
+    this.applyKassaMonthYearFilter(report_summary_qb, 'rs', month, normalizedYear);
+
     let resultData: {
       turnover: PriceKv;
       debt_trading: PriceKv;
       discount: PriceKv;
       profit: PriceKv;
+      profit_remaining: PriceKv;    // foyda qoldig'i = foyda - biznes rasxod
       cash: PriceKv;
       terminal: PriceKv;
       cash_collection: PriceKv;
@@ -3486,11 +3514,15 @@ export class ReportService {
       owed_debt: PriceKv;
       opening_balance: PriceKv;
       filial_balance: PriceKv;
+      manager_balance: PriceKv;     // manager balansi
+      accountant_balance: PriceKv;  // bugalter balansi
       boss_income: PriceKv;
       kent_income: PriceKv;
       kent_expense: PriceKv;
       boss_expense: PriceKv;
       business_expense: PriceKv;
+      logistics: PriceKv;           // logistika (alohida)
+      extra_income: PriceKv;        // qo'shimcha prixodlar
       factory: PriceKv;
       return_orders: PriceKv;
       tamojniy: PriceKv;
@@ -3499,25 +3531,30 @@ export class ReportService {
     };
 
     if (filialId === '#dealers') {
-      const [result, dealer_cashs] = await Promise.all([
-        dealer_qb.getRawOne(),
+      // Diller rejimi: DealerReport + diller cashflowlar
+      const [dealer_report, dealer_cashs] = await Promise.all([
+        dealer_report_qb.getRawOne(),
         dealer_cash_qb.getRawOne(),
       ]);
 
       resultData = {
         turnover: {
-          price: Number(result?.total_sum ?? 0),
-          kv: 0,
+          price: Number(dealer_report?.total_sale ?? 0),
+          kv: Number(dealer_report?.total_size ?? 0),       // kv endi bor
         },
         debt_trading: {
-          price: Number(result?.total_sum ?? 0),
+          price: Number(dealer_report?.debt_sum ?? 0),       // to'g'ri: debt_sum
+          kv: Number(dealer_report?.debt_kv ?? 0),
+        },
+        discount: {
+          price: Number(dealer_report?.total_discount ?? 0), // edi 0 — BUG FIX
           kv: 0,
         },
-        discount: { price: 0, kv: 0 },
         profit: {
-          price: Number(result?.total_profit_sum ?? 0),
+          price: Number(dealer_report?.net_profit ?? 0),
           kv: 0,
         },
+        profit_remaining: { price: 0, kv: 0 },              // dillerda yo'q
         cash: { price: 0, kv: 0 },
         terminal: { price: 0, kv: 0 },
         cash_collection: { price: 0, kv: 0 },
@@ -3532,11 +3569,15 @@ export class ReportService {
         owed_debt: { price: 0, kv: 0 },
         opening_balance: { price: 0, kv: 0 },
         filial_balance: { price: 0, kv: 0 },
+        manager_balance: { price: 0, kv: 0 },
+        accountant_balance: { price: 0, kv: 0 },
         boss_income: { price: 0, kv: 0 },
         kent_income: { price: 0, kv: 0 },
         kent_expense: { price: 0, kv: 0 },
         boss_expense: { price: 0, kv: 0 },
         business_expense: { price: 0, kv: 0 },
+        logistics: { price: 0, kv: 0 },
+        extra_income: { price: 0, kv: 0 },
         factory: { price: 0, kv: 0 },
         return_orders: { price: 0, kv: 0 },
         tamojniy: { price: 0, kv: 0 },
@@ -3546,21 +3587,19 @@ export class ReportService {
     }
 
     else if (filialId) {
-      // here for excel ->
+      // Filial rejimi
       this.applyDateRangeFilter(boss_qb, 'k.startDate', startDate, endDate);
       boss_qb.andWhere('cash.filialId = :filialId', { filialId });
 
-      // filial kesimlari
+      // Filial kesimlari — faqat shu filialga tegishli
       business_qb.andWhere('k.filialId = :filialId', { filialId });
       order_qb.andWhere('kassa.filialId = :filialId', { filialId });
       kassa_cash_qb.andWhere('cash.filialId = :filialId', { filialId });
       coming_debt_qb.andWhere('k.filialId = :filialId', { filialId });
-      kent_qb.andWhere('cash.filialId = :filialId', { filialId });
-      factory_qb.andWhere('cash.filialId = :filialId', { filialId });
-      customs_qb.andWhere('cash.filialId = :filialId', { filialId });
       opening_balance_qb.andWhere('k.filialId = :filialId', { filialId });
       add_profit_exp_qb.andWhere('cash.filialId = :filialId', { filialId });
       plastic_cash_and_opening_qb.andWhere('k.filialId = :filialId', { filialId });
+      report_summary_qb.andWhere('rs."filialId" = :rsFilialId', { rsFilialId: filialId });
 
       const [
         order_totals,
@@ -3569,9 +3608,9 @@ export class ReportService {
         coming_debt,
         boss,
         business,
-        customs,
         add_profit_exp,
         opening_balance,
+        report_summary,
       ] = await Promise.all([
         order_qb.getRawOne(),
         kassa_cash_qb.getRawOne(),
@@ -3579,10 +3618,16 @@ export class ReportService {
         coming_debt_qb.getRawOne(),
         boss_qb.getRawOne(),
         business_qb.getRawOne(),
-        customs_qb.getRawOne(),
         add_profit_exp_qb.getRawOne(),
         opening_balance_qb.getRawOne(),
+        report_summary_qb.getRawOne(),
       ]);
+
+      // O'tgan pul = Balance cashflow + report saldo (manager+bugalter)
+      const openingTotal =
+        Number(opening_balance?.cash ?? 0) +
+        Number(report_summary?.manager_saldo ?? 0) +
+        Number(report_summary?.accountant_saldo ?? 0);
 
       resultData = {
         turnover: {
@@ -3592,7 +3637,7 @@ export class ReportService {
         debt_trading: {
           price: Number(order_totals?.total_debt_sum ?? 0),
           kv: Number(order_totals?.total_debt_kv ?? 0),
-        }, // Qarz savdosi
+        }, // qarz savdosi
         discount: {
           price: Number(order_totals?.total_discount ?? 0),
           kv: 0,
@@ -3601,38 +3646,47 @@ export class ReportService {
           price: Number(order_totals?.total_profit_sum ?? 0),
           kv: 0,
         }, // foyda hisobi
+        profit_remaining: { price: 0, kv: 0 }, // filialda ko'rinmaydi
         cash: {
           price: Number(kassa_cash?.cash ?? 0),
           kv: 0,
-        }, // naqr kassa
+        }, // naqd kassa
         terminal: {
           price: Number(plastic_cash_and_opening?.price ?? 0),
           kv: 0,
-        }, // terminal va perechesleniya
+        }, // terminal
         cash_collection: {
           price: Number(plastic_cash_and_opening?.cash_collection ?? 0),
           kv: 0,
         }, // inkassatsiya
-        dealer_cash: { price: 0, kv: 0 },
-        dealer_terminal: { price: 0, kv: 0 },
+        dealer_cash: { price: 0, kv: 0 },     // filialda yo'q
+        dealer_terminal: { price: 0, kv: 0 }, // filialda yo'q
         owed_debt: {
           price: Number(coming_debt?.cash ?? 0),
           kv: 0,
         }, // kelgan qarzlar
         opening_balance: {
-          price: Number(opening_balance?.cash ?? 0),
+          price: openingTotal,
           kv: 0,
-        }, // oldingi oydan o'tgan pul
+        }, // o'tgan pul = kassa opening + saldo
         filial_balance: {
           price: Number(plastic_cash_and_opening?.in_hand ?? 0),
           kv: 0,
         }, // filial balansi
+        manager_balance: {
+          price: Number(report_summary?.manager_sum ?? 0),
+          kv: 0,
+        }, // manager balansi
+        accountant_balance: {
+          price: Number(report_summary?.accountant_sum ?? 0),
+          kv: 0,
+        }, // bugalter balansi
         boss_income: {
           price: Number(boss?.income ?? 0),
           kv: 0,
         }, // boss prixod
-        kent_income: { price: 0, kv: 0 },
-        kent_expense: { price: 0, kv: 0 },
+        kent_income: { price: 0, kv: 0 },     // filialda yo'q
+        kent_expense: { price: 0, kv: 0 },    // filialda yo'q
         boss_expense: {
           price: Number(boss?.expense ?? 0),
           kv: 0,
@@ -3641,15 +3695,14 @@ export class ReportService {
           price: Number(business?.cash ?? 0),
           kv: 0,
         }, // biznes rasxod
-        factory: { price: 0, kv: 0 },
+        logistics: { price: 0, kv: 0 },       // filialda yo'q
+        extra_income: { price: 0, kv: 0 },    // filialda yo'q
+        factory: { price: 0, kv: 0 },         // filialda yo'q
         return_orders: {
           price: Number(plastic_cash_and_opening?.return_sale ?? 0),
           kv: Number(plastic_cash_and_opening?.return_size ?? 0),
-        }, // qaytgan tavarlar (vazvrat)
-        tamojniy: {
-          price: Number(customs?.cash ?? 0),
-          kv: 0,
-        },
+        }, // qaytgan tavarlar
+        tamojniy: { price: 0, kv: 0 },        // filialda yo'q
         navar_expense: {
           price: Number(add_profit_exp?.cash ?? 0),
           kv: 0,
@@ -3657,17 +3710,17 @@ export class ReportService {
         navar_income: {
           price: Number(plastic_cash_and_opening?.add_profit ?? 0),
           kv: 0,
-        }, // navar
+        }, // navar kirim
       };
     }
 
     else {
-      // Bu yerda boss & business umumiy kesim -- cash.date bo'yicha
+      // Umumiy rejim — barcha filiallar + dillerlar yig'indisi
       this.applyDateRangeFilter(boss_qb, 'cash.date', startDate, endDate);
       this.applyDateRangeFilter(business_qb, 'cash.date', startDate, endDate);
 
       const [
-        dealer_result,
+        dealer_report,   // DealerReport dan (PackageTransfer o'rniga)
         dealer_cashs,
         order_totals,
         kassa_cash,
@@ -3678,8 +3731,12 @@ export class ReportService {
         business,
         factory,
         customs,
+        logistics,       // logistika (alohida)
+        extra_income,    // qo'shimcha prixodlar
+        add_profit_exp,  // navar rasxod (edi umumiyda 0 edi — BUG FIX)
+        report_summary,  // manager/bugalter balans + saldo
       ] = await Promise.all([
-        dealer_qb.getRawOne(),
+        dealer_report_qb.getRawOne(),
         dealer_cash_qb.getRawOne(),
         order_qb.getRawOne(),
         kassa_cash_qb.getRawOne(),
@@ -3690,33 +3747,53 @@ export class ReportService {
         business_qb.getRawOne(),
         factory_qb.getRawOne(),
         customs_qb.getRawOne(),
+        logistics_qb.getRawOne(),
+        extra_income_qb.getRawOne(),
+        add_profit_exp_qb.getRawOne(),
+        report_summary_qb.getRawOne(),
       ]);
+
+      // Biznes rasxod yig'indisi (foyda qoldig'i uchun)
+      const businessTotal = Number(business?.cash ?? 0);
+      // Foyda hisobi
+      const profitTotal =
+        Number(dealer_report?.net_profit ?? 0) +
+        Number(order_totals?.total_profit_sum ?? 0);
+      // O'tgan pul = kassa opening + report saldo (manager+bugalter)
+      const openingTotal =
+        Number(plastic_cash_and_opening?.opening_balance ?? 0) +
+        Number(report_summary?.manager_saldo ?? 0) +
+        Number(report_summary?.accountant_saldo ?? 0);
 
       resultData = {
         turnover: {
           price:
-            Number(dealer_result?.total_sum ?? 0) +
-            Number(order_totals?.total_sum ?? 0),
+            Number(dealer_report?.total_sale ?? 0) +   // DealerReport.totalSale
+            Number(order_totals?.total_sum ?? 0),       // Kassa orderlar
           kv:
-            Number(dealer_result?.total_kv ?? 0) +
+            Number(dealer_report?.total_size ?? 0) +    // DealerReport.totalSize
             Number(order_totals?.total_kv ?? 0),
         },
         debt_trading: {
           price:
-            Number(dealer_result?.total_sum ?? 0) +
+            Number(dealer_report?.debt_sum ?? 0) +      // DealerReport.debt_sum
             Number(order_totals?.total_debt_sum ?? 0),
           kv:
-            Number(dealer_result?.total_kv ?? 0) +
+            Number(dealer_report?.debt_kv ?? 0) +       // DealerReport.debt_kv
             Number(order_totals?.total_debt_kv ?? 0),
         },
         discount: {
-          price: Number(order_totals?.total_discount ?? 0),
+          price:
+            Number(dealer_report?.total_discount ?? 0) + // BUG FIX: diller chegirmasi qo'shildi
+            Number(order_totals?.total_discount ?? 0),
           kv: 0,
         },
         profit: {
-          price:
-            Number(dealer_result?.total_profit_sum ?? 0) +
-            Number(order_totals?.total_profit_sum ?? 0),
+          price: profitTotal,
+          kv: 0,
+        },
+        profit_remaining: {
+          price: profitTotal - businessTotal,            // foyda - biznes rasxod
           kv: 0,
         },
         cash: {
@@ -3744,11 +3821,19 @@ export class ReportService {
           kv: 0,
         },
         opening_balance: {
-          price: Number(plastic_cash_and_opening?.opening_balance ?? 0),
+          price: openingTotal,
           kv: 0,
         },
         filial_balance: {
           price: Number(plastic_cash_and_opening?.in_hand ?? 0),
+          kv: 0,
+        },
+        manager_balance: {
+          price: Number(report_summary?.manager_sum ?? 0),
+          kv: 0,
+        },
+        accountant_balance: {
+          price: Number(report_summary?.accountant_sum ?? 0),
           kv: 0,
         },
         boss_income: {
@@ -3768,7 +3853,15 @@ export class ReportService {
           kv: 0,
         },
         business_expense: {
-          price: Number(business?.cash ?? 0),
+          price: businessTotal,
+          kv: 0,
+        },
+        logistics: {
+          price: Number(logistics?.cash ?? 0),           // logistika alohida
+          kv: 0,
+        },
+        extra_income: {
+          price: Number(extra_income?.cash ?? 0),        // qo'shimcha prixodlar
           kv: 0,
         },
         factory: {
@@ -3783,13 +3876,264 @@ export class ReportService {
           price: Number(customs?.cash ?? 0),
           kv: 0,
         },
-        navar_expense: { price: 0, kv: 0 },
-        navar_income: { price: 0, kv: 0 },
+        navar_expense: {
+          price: Number(add_profit_exp?.cash ?? 0),      // BUG FIX: edi 0 edi
+          kv: 0,
+        },
+        navar_income: {
+          price: Number(plastic_cash_and_opening?.add_profit ?? 0), // BUG FIX: edi 0 edi
+          kv: 0,
+        },
       };
     }
 
     await this.redis.set(cacheKey, JSON.stringify(resultData), 'EX', cacheTTL);
     return resultData;
+  }
+
+  /**
+   * Drill-in detail — har bir qator bo'yicha cashflow yoki filial ro'yxati
+   */
+  async bossMonthReportDetail({ type, month, year, filialId }: {
+    type: string; month?: number; year?: number; filialId?: string;
+  }) {
+    const { normalizedYear, startDate, endDate } = this.getYearAndDateRange(month, year);
+
+    const cacheKey = `bossReportDetail:${type}:${filialId || 'all'}:${month || 'all'}:${normalizedYear}`;
+    const cached = await this.redis.get(cacheKey);
+    if (cached) return JSON.parse(cached);
+
+    let items: any[] = [];
+
+    // Cashflow asosidagi querylar uchun umumiy builder
+    const makeCashflowQuery = (slugs: string[], cfType: 'Приход' | 'Расход') => {
+      const qb = this.cashflowRepository.createQueryBuilder('cash')
+        .leftJoinAndSelect('cash.cashflow_type', 'ct')
+        .leftJoin('cash.kassa', 'k')
+        .leftJoin('cash.report', 'r')
+        .leftJoinAndSelect('cash.createdBy', 'u')
+        .leftJoinAndSelect('cash.filial', 'f')
+        .select([
+          'cash.id', 'cash.price', 'cash.type', 'cash.comment',
+          'cash.date', 'cash.is_online',
+          'ct.id', 'ct.slug', 'ct.title',
+          'u.id', 'u.fullName',
+          'f.id', 'f.title',
+        ])
+        .where(`ct.slug IN (:...slugs)`, { slugs })
+        .andWhere(`cash.type = :cfType`, { cfType })
+        .orderBy('cash.date', 'DESC');
+      return qb;
+    };
+
+    // Kassa-ga bog'langan cashflow query (k.startDate filtri)
+    const makeCashflowByKassa = (slugs: string[], cfType: 'Приход' | 'Расход') => {
+      const qb = makeCashflowQuery(slugs, cfType);
+      this.applyKassaMonthYearFilter(qb, 'k', month, normalizedYear);
+      return qb;
+    };
+
+    // cash.date filtri bilan
+    const makeCashflowByDate = (slugs: string[], cfType: 'Приход' | 'Расход') => {
+      const qb = makeCashflowQuery(slugs, cfType);
+      this.applyDateRangeFilter(qb, 'cash.date', startDate, endDate);
+      return qb;
+    };
+
+    switch (type) {
+      // ====== YASHIL BO'LIM (kirimlar) ======
+
+      case 'naqd_kassa': {
+        // Umumiy: Report ichidagi prixod kassa cashflowlar
+        // Filial: shu filial kassasi slug=manager,bugalter type=Расход
+        if (filialId) {
+          const qb = makeCashflowQuery(['manager', 'bugalter'], 'Расход');
+          this.applyDateRangeFilter(qb, 'k.startDate', startDate, endDate);
+          qb.andWhere('cash.filialId = :filialId', { filialId });
+          items = await qb.getMany();
+        } else {
+          const qb = makeCashflowQuery(['manager', 'bugalter'], 'Расход');
+          this.applyDateRangeFilter(qb, 'k.startDate', startDate, endDate);
+          items = await qb.getMany();
+        }
+        break;
+      }
+
+      case 'terminal': {
+        // Filiallar ro'yxati — plasticSum > 0 bo'lganlar
+        const qb = this.kassaRepo.createQueryBuilder('k')
+          .leftJoinAndSelect('k.filial', 'f')
+          .select([
+            'f.id AS "filialId"',
+            'f.title AS "filialTitle"',
+            'SUM(k."plasticSum") AS "plasticSum"',
+          ])
+          .where('k."filialType" = :ft', { ft: 'filial' })
+          .groupBy('f.id')
+          .addGroupBy('f.title')
+          .having('SUM(k."plasticSum") > 0')
+          .orderBy('"plasticSum"', 'DESC');
+        this.applyKassaMonthYearFilter(qb, 'k', month, normalizedYear);
+        items = await qb.getRawMany();
+        break;
+      }
+
+      case 'inkassatsiya': {
+        // Umumiy: Report ichidagi prixod inkassatsiya cashflowlar
+        // Filial: shu filial kassasi rasxod inkassatsiya
+        // Inkassatsiya kassa ichida cash_collection sifatida saqlanadi
+        // Cashflow sifatida ham bo'lishi mumkin
+        const qb = this.kassaRepo.createQueryBuilder('k')
+          .leftJoinAndSelect('k.filial', 'f')
+          .select([
+            'k.id AS id',
+            'f.id AS "filialId"',
+            'f.title AS "filialTitle"',
+            'k."cash_collection" AS price',
+            'k."startDate" AS date',
+          ])
+          .where('k."filialType" = :ft', { ft: 'filial' })
+          .andWhere('k."cash_collection" > 0');
+        this.applyKassaMonthYearFilter(qb, 'k', month, normalizedYear);
+        if (filialId) qb.andWhere('k.filialId = :filialId', { filialId });
+        items = await qb.getRawMany();
+        break;
+      }
+
+      case 'dealer_cash': {
+        // Diller naqd: slug=delaer is_online=false
+        const qb = makeCashflowByDate(['delaer'], 'Приход');
+        qb.andWhere('cash.is_online = false');
+        items = await qb.getMany();
+        break;
+      }
+
+      case 'dealer_terminal': {
+        // Diller perechesleniya: slug=delaer is_online=true
+        const qb = makeCashflowByDate(['delaer'], 'Приход');
+        qb.andWhere('cash.is_online = true');
+        items = await qb.getMany();
+        break;
+      }
+
+      case 'kelgan_qarz': {
+        // Kelgan qarzlar: slug=qarz,qarzdanKelgan type=Приход
+        const qb = makeCashflowByKassa(['qarz', 'qarzdanKelgan'], 'Приход');
+        if (filialId) qb.andWhere('k.filialId = :filialId', { filialId });
+        items = await qb.getMany();
+        break;
+      }
+
+      case 'opening_balance': {
+        // O'tgan pul: filial saldo + manager/accountant report saldo
+        const qb = makeCashflowByKassa(['Balance'], 'Приход');
+        if (filialId) qb.andWhere('k.filialId = :filialId', { filialId });
+        items = await qb.getMany();
+        break;
+      }
+
+      case 'boss_income': {
+        // Boss prixod: slug=Bos type=Приход
+        if (filialId) {
+          const qb = makeCashflowQuery(['Bos'], 'Приход');
+          this.applyDateRangeFilter(qb, 'k.startDate', startDate, endDate);
+          qb.andWhere('cash.filialId = :filialId', { filialId });
+          items = await qb.getMany();
+        } else {
+          const qb = makeCashflowByDate(['Bos'], 'Приход');
+          items = await qb.getMany();
+        }
+        break;
+      }
+
+      case 'kent_income': {
+        // Kent prixod: slug=dolg type=Приход (faqat umumiy)
+        const qb = makeCashflowByDate(['dolg'], 'Приход');
+        items = await qb.getMany();
+        break;
+      }
+
+      case 'extra_income': {
+        // Qo'shimcha prixodlar: slug=prochee type=Приход (faqat umumiy)
+        const qb = makeCashflowByDate(['prochee'], 'Приход');
+        items = await qb.getMany();
+        break;
+      }
+
+      // ====== TO'Q SARIQ BO'LIM (chiqimlar) ======
+
+      case 'kent_expense': {
+        // Kent rasxod: slug=dolg type=Расход (faqat umumiy)
+        const qb = makeCashflowByDate(['dolg'], 'Расход');
+        items = await qb.getMany();
+        break;
+      }
+
+      case 'boss_expense': {
+        // Boss rasxod: slug=Bos type=Расход
+        if (filialId) {
+          const qb = makeCashflowQuery(['Bos'], 'Расход');
+          this.applyDateRangeFilter(qb, 'k.startDate', startDate, endDate);
+          qb.andWhere('cash.filialId = :filialId', { filialId });
+          items = await qb.getMany();
+        } else {
+          const qb = makeCashflowByDate(['Bos'], 'Расход');
+          items = await qb.getMany();
+        }
+        break;
+      }
+
+      case 'business_expense': {
+        // Biznes rasxod: bank,kredit,karta,prochee,nalog,Аренда,shop
+        const slugs = ['bank', 'kredit', 'karta', 'prochee', 'nalog', 'Аренда', 'shop'];
+        if (filialId) {
+          const qb = makeCashflowByKassa(slugs, 'Расход');
+          qb.andWhere('k.filialId = :filialId', { filialId });
+          items = await qb.getMany();
+        } else {
+          const qb = makeCashflowByDate(slugs, 'Расход');
+          items = await qb.getMany();
+        }
+        break;
+      }
+
+      case 'factory': {
+        // Taminotchi: slug=factory type=Расход (faqat umumiy)
+        const qb = makeCashflowByDate(['factory'], 'Расход');
+        items = await qb.getMany();
+        break;
+      }
+
+      case 'logistics': {
+        // Logistika: slug=logistika type=Расход (faqat umumiy)
+        const qb = makeCashflowByDate(['logistika'], 'Расход');
+        items = await qb.getMany();
+        break;
+      }
+
+      case 'tamojniy': {
+        // Bojxona: slug=tamojnya type=Расход (faqat umumiy)
+        const qb = makeCashflowByDate(['tamojnya'], 'Расход');
+        items = await qb.getMany();
+        break;
+      }
+
+      case 'navar_expense': {
+        // Navar rasxod: slug=navar type=Расход (faqat filial)
+        const qb = makeCashflowQuery(['navar'], 'Расход');
+        this.applyDateRangeFilter(qb, 'k.startDate', startDate, endDate);
+        if (filialId) qb.andWhere('cash.filialId = :filialId', { filialId });
+        items = await qb.getMany();
+        break;
+      }
+
+      default:
+        return { items: [] };
+    }
+
+    const result = { items };
+    await this.redis.set(cacheKey, JSON.stringify(result), 'EX', 180);
+    return result;
   }
 
 // =============================
