@@ -3917,7 +3917,7 @@ export class ReportService {
           'cash.id', 'cash.price', 'cash.type', 'cash.comment',
           'cash.date', 'cash.is_online',
           'ct.id', 'ct.slug', 'ct.title',
-          'u.id', 'u.fullName',
+          'u.id', 'u.firstName', 'u.lastName',
           'f.id', 'f.title',
         ])
         .where(`ct.slug IN (:...slugs)`, { slugs })
