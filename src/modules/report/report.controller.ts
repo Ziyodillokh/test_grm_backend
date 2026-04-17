@@ -164,15 +164,14 @@ export class ReportController {
     return await this.reportService.expense_managers(query);
   }
 
-  // Aniqroq route oldin — NestJS v9 sorting muammosi uchun
-  @Get('/monthly/v2/detail')
-  async reportMonthlyV2Detail(@Query() query: ReportMonthlyV2Detail) {
-    return this.reportService.bossMonthReportDetail(query);
-  }
-
   @Get('/monthly/v2')
   async currentReportMonthlyV2(@Query() query: ReportMonthlyV2) {
     return this.reportService.bossMonthReport(query);
+  }
+
+  @Get('/monthly/v2-detail')
+  async reportMonthlyV2Detail(@Query() query: ReportMonthlyV2Detail) {
+    return this.reportService.bossMonthReportDetail(query);
   }
 
   @Get(':id')
