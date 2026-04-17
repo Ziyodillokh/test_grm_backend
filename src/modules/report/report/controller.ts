@@ -22,6 +22,7 @@ import {
   HomePageCurrMonthProdaja,
   reportCorrect,
   ReportMonthlyV2,
+  ReportMonthlyV2Detail,
   ReportQueryDto,
   CancelReportDto,
 } from './dto';
@@ -148,6 +149,12 @@ export class ReportReportController {
   @Get('/monthly/v2')
   async currentReportMonthlyV2(@Query() query: ReportMonthlyV2) {
     return this.reportService.bossMonthReport(query);
+  }
+
+  // Alohida path — NestJS v9 /monthly/v2 sub-path ni register qilmaydi
+  @Get('monthly/v2-detail')
+  async reportMonthlyV2Detail(@Query() query: ReportMonthlyV2Detail) {
+    return this.reportService.bossMonthReportDetail(query);
   }
 
   @Get(':id')

@@ -10,3 +10,4 @@ export {
   reportCorrect,
 } from './query-report.dto';
 export { CancelReportDto } from './update-report.dto';
+export { ReportMonthlyV2Detail } from '../../../report/dto';
