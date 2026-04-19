@@ -59,9 +59,9 @@ export class ProductService {
   ) {
     const qb = this.productRepository
       .createQueryBuilder('product')
-      .leftJoinAndSelect('product.filial', 'filial')
-      .leftJoinAndSelect('product.bar_code', 'bar_code')
-      .leftJoinAndSelect('bar_code.size', 'size')
+      .innerJoinAndSelect('product.filial', 'filial')
+      .innerJoinAndSelect('product.bar_code', 'bar_code')
+      .innerJoinAndSelect('bar_code.size', 'size')
       .leftJoinAndSelect('bar_code.color', 'color')
       .leftJoinAndSelect('bar_code.style', 'style')
       .leftJoinAndSelect('bar_code.model', 'model')
@@ -79,9 +79,9 @@ export class ProductService {
     // Totals — bir xil filterlar bilan
     const totalsQb = this.productRepository
       .createQueryBuilder('product')
-      .leftJoin('product.filial', 'filial')
-      .leftJoin('product.bar_code', 'bar_code')
-      .leftJoin('bar_code.size', 'size')
+      .innerJoin('product.filial', 'filial')
+      .innerJoin('product.bar_code', 'bar_code')
+      .innerJoin('bar_code.size', 'size')
       .leftJoin('bar_code.color', 'color')
       .leftJoin('bar_code.model', 'model')
       .leftJoin('bar_code.collection', 'collection')
@@ -120,9 +120,9 @@ export class ProductService {
     if (!search) return [];
     const qb = this.productRepository
       .createQueryBuilder('product')
-      .leftJoin('product.filial', 'filial')
-      .leftJoin('product.bar_code', 'bar_code')
-      .leftJoin('bar_code.size', 'size')
+      .innerJoin('product.filial', 'filial')
+      .innerJoin('product.bar_code', 'bar_code')
+      .innerJoin('bar_code.size', 'size')
       .leftJoin('bar_code.model', 'model')
       .leftJoin('bar_code.collection', 'collection')
       .leftJoin('bar_code.color', 'color')
