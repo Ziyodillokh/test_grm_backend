@@ -29,10 +29,11 @@ export class ProductService {
       qb.andWhere('product.is_deleted = false');
     }
 
-    // Faqat filial va warehouse tipidagi filiallar ko'rinadi
+    // Faqat filial, warehouse va market tipidagi filiallar ko'rinadi (dealer yo'q)
     qb.andWhere('filial.type IN (:...filialTypes)', {
-      filialTypes: [FilialTypeEnum.FILIAL, FilialTypeEnum.WAREHOUSE],
+      filialTypes: [FilialTypeEnum.FILIAL, FilialTypeEnum.WAREHOUSE, FilialTypeEnum.MARKET],
     });
+    qb.andWhere('product.deletedDate IS NULL');
 
     if (query.filialId) {
       qb.andWhere('filial.id = :filialId', { filialId: query.filialId });
@@ -129,8 +130,9 @@ export class ProductService {
       .addSelect('filial.title', 'title')
       .addSelect('COUNT(product.id)', 'count')
       .where('product.is_deleted = false')
+      .andWhere('product.deletedDate IS NULL')
       .andWhere('filial.type IN (:...filialTypes)', {
-        filialTypes: [FilialTypeEnum.FILIAL, FilialTypeEnum.WAREHOUSE],
+        filialTypes: [FilialTypeEnum.FILIAL, FilialTypeEnum.WAREHOUSE, FilialTypeEnum.MARKET],
       });
 
     const words = search.trim().split(/\s+/);

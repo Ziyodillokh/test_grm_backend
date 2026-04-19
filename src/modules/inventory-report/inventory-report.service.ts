@@ -65,7 +65,7 @@ export class InventoryReportService {
   ) {
     const { groupCol, groupTitle, groupJoin } = this.resolveGrouping(groupBy);
 
-    let where = `WHERE p.is_deleted = false AND p."deletedDate" IS NULL`;
+    let where = `WHERE p.is_deleted = false AND p."deletedDate" IS NULL AND f.type IN ('filial', 'warehouse', 'market')`;
     const params: any[] = [];
     let idx = 1;
 
@@ -117,6 +117,7 @@ export class InventoryReportService {
       FROM product p
       JOIN qrbase q ON p."barCodeId" = q.id
       JOIN size s   ON q."sizeId" = s.id
+      JOIN filial f ON p."filialId" = f.id
       ${groupJoin}
       ${where}
       GROUP BY ${groupCol}, ${groupTitle}
@@ -148,6 +149,7 @@ export class InventoryReportService {
       FROM product p
       JOIN qrbase q ON p."barCodeId" = q.id
       JOIN size s   ON q."sizeId" = s.id
+      JOIN filial f ON p."filialId" = f.id
       ${groupJoin}
       ${where}
     `;
@@ -464,8 +466,11 @@ export class InventoryReportService {
       SELECT p.id, p."barCodeId", p.count AS cnt, p.y,
              p."comingPrice", p."priceMeter"
       FROM product p
+      JOIN filial f ON p."filialId" = f.id
       WHERE p."filialId" = $1
+        AND p.is_deleted = false
         AND p."deletedDate" IS NULL
+        AND f.type IN ('filial', 'warehouse', 'market')
     ),
     sold_after AS (
       SELECT o."productId", SUM(o.kv) AS sold_kv, SUM(o.x)::int AS sold_x
@@ -635,7 +640,9 @@ export class InventoryReportService {
       FROM product p
       JOIN qrbase q ON p."barCodeId" = q.id
       JOIN size s   ON q."sizeId" = s.id
+      JOIN filial f ON p."filialId" = f.id
       WHERE p."deletedDate" IS NULL
+        AND f.type IN ('filial', 'warehouse', 'market')
         ${filialFilter}
     ),
     sold AS (
@@ -725,7 +732,10 @@ export class InventoryReportService {
       FROM product p
       JOIN qrbase q ON p."barCodeId" = q.id
       JOIN size s   ON q."sizeId" = s.id
-      WHERE p."deletedDate" IS NULL ${filialFilter}
+      JOIN filial f ON p."filialId" = f.id
+      WHERE p."deletedDate" IS NULL
+        AND f.type IN ('filial', 'warehouse', 'market')
+        ${filialFilter}
     ),
     remaining AS (
       SELECT pp."partiyaId",
