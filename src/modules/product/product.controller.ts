@@ -57,6 +57,24 @@ export class ProductController {
     );
   }
 
+  @Get('filial')
+  @Roles(
+    Role.BOSS,
+    Role.M_MANAGER,
+    Role.ACCOUNTANT,
+    Role.F_MANAGER,
+    Role.W_MANAGER,
+    Role.SELLER,
+    Role.D_MANAGER,
+    Role.I_MANAGER,
+  )
+  @ApiOperation({ summary: 'Get filials that have matching products (search)' })
+  @ApiOkResponse({ description: 'Filials with product count' })
+  @HttpCode(HttpStatus.OK)
+  async searchFilials(@Query() query: QueryProductDto) {
+    return this.productService.searchFilials(query.search || '');
+  }
+
   @Get(':id')
   @Roles(
     Role.BOSS,
