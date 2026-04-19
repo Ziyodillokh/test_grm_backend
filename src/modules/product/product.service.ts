@@ -19,10 +19,39 @@ export class ProductService {
     private readonly productRepository: Repository<Product>,
   ) {}
 
+  private applyProductFilters(
+    qb: any,
+    query: QueryProductDto,
+  ) {
+    if (query.is_deleted !== undefined) {
+      qb.andWhere('product.is_deleted = :isDeleted', { isDeleted: query.is_deleted === 'true' });
+    } else {
+      qb.andWhere('product.is_deleted = false');
+    }
+
+    // Faqat filial va warehouse tipidagi filiallar ko'rinadi
+    qb.andWhere('filial.type IN (:...filialTypes)', {
+      filialTypes: [FilialTypeEnum.FILIAL, FilialTypeEnum.WAREHOUSE],
+    });
+
+    if (query.filialId) {
+      qb.andWhere('filial.id = :filialId', { filialId: query.filialId });
+    } else if (query.filial) {
+      qb.andWhere('filial.id = :filialId', { filialId: query.filial });
+    }
+
+    if (query.search) {
+      qb.andWhere(
+        '(product.code ILIKE :search OR bar_code.code ILIKE :search OR model.title ILIKE :search OR collection.title ILIKE :search OR color.title ILIKE :search)',
+        { search: `%${query.search}%` },
+      );
+    }
+  }
+
   async findAll(
     options: IPaginationOptions,
     query: QueryProductDto,
-  ): Promise<Pagination<Product>> {
+  ) {
     const qb = this.productRepository
       .createQueryBuilder('product')
       .leftJoinAndSelect('product.filial', 'filial')
@@ -38,26 +67,41 @@ export class ProductService {
       .leftJoinAndSelect('bar_code.imgUrl', 'imgUrl')
       .orderBy('product.date', 'DESC');
 
-    if (query.is_deleted !== undefined) {
-      qb.andWhere('product.is_deleted = :isDeleted', { isDeleted: query.is_deleted === 'true' });
-    } else {
-      qb.andWhere('product.is_deleted = false');
-    }
+    this.applyProductFilters(qb, query);
 
-    if (query.filialId) {
-      qb.andWhere('filial.id = :filialId', { filialId: query.filialId });
-    } else if (query.filial) {
-      qb.andWhere('filial.id = :filialId', { filialId: query.filial });
-    }
+    const paginatedResult = await paginate<Product>(qb, options);
 
-    if (query.search) {
-      qb.andWhere(
-        '(product.code ILIKE :search OR bar_code.code ILIKE :search OR model.title ILIKE :search OR collection.title ILIKE :search OR color.title ILIKE :search)',
-        { search: `%${query.search}%` },
+    // Totals — bir xil filterlar bilan
+    const totalsQb = this.productRepository
+      .createQueryBuilder('product')
+      .leftJoin('product.filial', 'filial')
+      .leftJoin('product.bar_code', 'bar_code')
+      .leftJoin('bar_code.size', 'size')
+      .leftJoin('bar_code.color', 'color')
+      .leftJoin('bar_code.model', 'model')
+      .leftJoin('bar_code.collection', 'collection')
+      .select('SUM(product.count)', 'count')
+      .addSelect(
+        `SUM(CASE WHEN bar_code."isMetric" = true THEN product.y * size.x ELSE product.count * size.x * size.y END)`,
+        'kv',
+      )
+      .addSelect(
+        `SUM((CASE WHEN bar_code."isMetric" = true THEN product.y * size.x ELSE product.count * size.x * size.y END) * product."priceMeter")`,
+        'totalSum',
       );
-    }
 
-    return paginate<Product>(qb, options);
+    this.applyProductFilters(totalsQb, query);
+
+    const totals = await totalsQb.getRawOne();
+
+    return {
+      ...paginatedResult,
+      totals: {
+        count: Number(totals?.count || 0),
+        kv: Number(totals?.kv || 0),
+        totalSum: Number(totals?.totalSum || 0),
+      },
+    };
   }
 
   async findOne(id: string): Promise<Product> {
