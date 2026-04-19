@@ -94,6 +94,12 @@ export class ProductService {
 
     const totals = await totalsQb.getRawOne();
 
+    // Search bo'lganda — qaysi filiallarda natija borligini ham qaytarish
+    let filials: { id: string; title: string; count: number }[] = [];
+    if (query.search) {
+      filials = await this.searchFilials(query.search);
+    }
+
     return {
       ...paginatedResult,
       totals: {
@@ -101,6 +107,7 @@ export class ProductService {
         kv: Number(totals?.kv || 0),
         totalSum: Number(totals?.totalSum || 0),
       },
+      searchFilials: filials,
     };
   }
 
