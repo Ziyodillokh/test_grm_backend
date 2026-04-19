@@ -34,6 +34,7 @@ export class ProductService {
       filialTypes: [FilialTypeEnum.FILIAL, FilialTypeEnum.WAREHOUSE, FilialTypeEnum.MARKET],
     });
     qb.andWhere('product.deletedDate IS NULL');
+    qb.andWhere('product.count > 0');
 
     if (query.filialId) {
       qb.andWhere('filial.id = :filialId', { filialId: query.filialId });

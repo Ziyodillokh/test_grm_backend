@@ -65,7 +65,7 @@ export class InventoryReportService {
   ) {
     const { groupCol, groupTitle, groupJoin } = this.resolveGrouping(groupBy);
 
-    let where = `WHERE p.is_deleted = false AND p."deletedDate" IS NULL AND f.type IN ('filial', 'warehouse', 'market')`;
+    let where = `WHERE p.is_deleted = false AND p."deletedDate" IS NULL AND p.count > 0 AND f.type IN ('filial', 'warehouse', 'market')`;
     const params: any[] = [];
     let idx = 1;
 
