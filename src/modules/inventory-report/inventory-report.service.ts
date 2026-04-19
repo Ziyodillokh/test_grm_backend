@@ -21,6 +21,7 @@ export class InventoryReportService {
       factoryId,
       collectionId,
       modelId,
+      partiyaId,
       search,
       page = 1,
       limit = 50,
@@ -31,7 +32,7 @@ export class InventoryReportService {
     if (isToday) {
       return this.filialSnapshotCurrent(
         filialId, groupBy, countryId, factoryId, collectionId, modelId,
-        search, page, limit,
+        search, page, limit, partiyaId,
       );
     }
 
@@ -62,6 +63,7 @@ export class InventoryReportService {
     search?: string,
     page = 1,
     limit = 50,
+    partiyaId?: string,
   ) {
     const { groupCol, groupTitle, groupJoin } = this.resolveGrouping(groupBy);
 
@@ -88,6 +90,10 @@ export class InventoryReportService {
     if (modelId) {
       where += ` AND q."modelId" = $${idx++}`;
       params.push(modelId);
+    }
+    if (partiyaId) {
+      where += ` AND p."partiyaId" = $${idx++}`;
+      params.push(partiyaId);
     }
     if (search) {
       where += ` AND ${groupTitle} ILIKE $${idx++}`;

@@ -42,6 +42,11 @@ export class FilialSnapshotQueryDto {
   @IsUUID('4')
   modelId?: string;
 
+  @ApiProperty({ required: false, description: 'Filter by partiya ID' })
+  @IsOptional()
+  @IsUUID('4')
+  partiyaId?: string;
+
   @ApiProperty({ required: false, description: 'Search by title' })
   @IsOptional()
   @IsString()

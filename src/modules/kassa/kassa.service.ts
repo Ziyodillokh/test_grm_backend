@@ -772,7 +772,7 @@ export class KassaService {
   async recalculateKassa(kassaId: string): Promise<void> {
     const cashflows = await this.cashflowRepository.find({
       where: { kassa: { id: kassaId }, is_cancelled: false },
-      relations: { order: { product: { bar_code: { size: true } } } },
+      relations: { order: { product: { bar_code: { size: true } } }, cashflow_type: true },
     });
 
     let income = 0, expense = 0, sale = 0, plasticSum = 0, in_hand = 0;
@@ -809,7 +809,10 @@ export class KassaService {
           }
           if (order.product?.isInternetShop) internetShopSum += price;
         } else {
-          income += price;
+          const isBalance = cf.cashflow_type?.slug === 'balance';
+          if (!isBalance) {
+            income += price;
+          }
           if (cf.is_online) plasticSum += price;
         }
       } else if (cf.type === CashFlowEnum.Consumption) {
@@ -987,7 +990,6 @@ export class KassaService {
 
           nextKassa.opening_balance = (nextKassa.opening_balance || 0) + price;
           nextKassa.in_hand = (nextKassa.in_hand || 0) + price;
-          nextKassa.income = (nextKassa.income || 0) + (price > 0 ? price : 0);
           await this.kassaRepository.save(nextKassa);
         } else if (nextKassa) {
           // Nol yoki manfiy balance — cashflow yaratmasdan faqat opening_balance yozish

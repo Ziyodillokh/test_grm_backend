@@ -113,7 +113,7 @@ export class KassaCashflowController {
   async approveCashflow(@Param('id') id: string) {
     const cashflow = await this.cashflowRepository.findOne({
       where: { id },
-      relations: ['kassa', 'order'],
+      relations: ['kassa', 'order', 'cashflow_type'],
     });
 
     if (!cashflow) {
@@ -145,7 +145,10 @@ export class KassaCashflowController {
 
         if (cashflow.type === CashFlowEnum.InCome) {
           kassa.in_hand += price;
-          kassa.income += price;
+          const isBalance = cashflow.cashflow_type?.slug === 'balance';
+          if (!isBalance) {
+            kassa.income += price;
+          }
         } else if (cashflow.type === CashFlowEnum.Consumption) {
           kassa.in_hand -= price;
           kassa.expense += price;
@@ -176,13 +179,15 @@ export class KassaCashflowController {
       throw new BadRequestException('Kassa not found');
     }
 
-    // Total approved income
+    // Total approved income (excluding balance/opening cashflows)
     const incomeResult = await this.cashflowRepository
       .createQueryBuilder('cashflow')
+      .leftJoin('cashflow.cashflow_type', 'ct')
       .select('COALESCE(SUM(cashflow.price), 0)', 'total')
       .where('cashflow.kassaId = :kassaId', { kassaId })
       .andWhere('cashflow.status = :status', { status: CashflowStatusEnum.APPROVED })
       .andWhere('cashflow.type = :type', { type: CashFlowEnum.InCome })
+      .andWhere('(ct.slug IS NULL OR ct.slug != :balanceSlug)', { balanceSlug: 'balance' })
       .getRawOne();
 
     // Total approved expense
