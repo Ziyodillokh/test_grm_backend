@@ -85,13 +85,13 @@ export class ProductService {
       .leftJoin('bar_code.color', 'color')
       .leftJoin('bar_code.model', 'model')
       .leftJoin('bar_code.collection', 'collection')
-      .select('SUM(product.count)', 'count')
+      .select('COALESCE(SUM(product.count), 0)::int', 'count')
       .addSelect(
-        `SUM(CASE WHEN bar_code."isMetric" = true THEN product.y * size.x ELSE product.count * size.x * size.y END)`,
+        `COALESCE(SUM(CASE WHEN bar_code."isMetric" = true THEN product.y * size.x ELSE product.count * size.x * size.y END), 0)::numeric(20,2)`,
         'kv',
       )
       .addSelect(
-        `SUM((CASE WHEN bar_code."isMetric" = true THEN product.y * size.x ELSE product.count * size.x * size.y END) * product."priceMeter")`,
+        `COALESCE(SUM((CASE WHEN bar_code."isMetric" = true THEN product.y * size.x ELSE product.count * size.x * size.y END) * product."priceMeter"), 0)::numeric(20,2)`,
         'totalSum',
       );
 
