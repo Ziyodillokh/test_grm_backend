@@ -95,11 +95,11 @@ export class CashflowTypeService {
 
   async getDebtTypeId(): Promise<string> {
     const entity = await this.repository.findOne({
-      where: { slug: 'Долг' },
+      where: { slug: 'debt' },
     });
 
     if (!entity) {
-      throw new NotFoundException('Cashflow type for "Долг" not found');
+      throw new NotFoundException('Cashflow type for "debt" not found');
     }
 
     return entity.id;
@@ -139,9 +139,9 @@ export class CashflowTypeService {
       },
     });
 
-    cashflows.push(await this.getOneBySlug('delaer'));
+    cashflows.push(await this.getOneBySlug('dealer'));
     cashflows.push(await this.getOneBySlug('kassa'));
-    cashflows.push(await this.getOneBySlug('онлайн'));
+    cashflows.push(await this.getOneBySlug('online'));
 
     return cashflows;
   }

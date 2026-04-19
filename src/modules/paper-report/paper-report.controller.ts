@@ -120,7 +120,7 @@ export class PaperReportController {
       'skidka',
       'biznesRasxod',
       'postavshik',
-      'tamojnya',
+      'customs',
       'qarzlar',
     ],
   })
@@ -175,7 +175,7 @@ export class PaperReportController {
       'skidka',
       'biznesRasxod',
       'postavshik',
-      'tamojnya',
+      'customs',
       'qarzlar',
     ];
 

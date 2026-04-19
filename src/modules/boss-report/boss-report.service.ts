@@ -410,7 +410,7 @@ export class BossReportService {
       .leftJoinAndSelect('cashflow.createdBy', 'createdBy')
       .leftJoinAndSelect('createdBy.avatar', 'avatar')
       .where('cashflow.date BETWEEN :start AND :end', { start: startDate, end: endDate })
-      .andWhere('cashflow_type.title = :title', { title: 'Босс' })
+      .andWhere('cashflow_type.slug = :slug', { slug: 'boss' })
       .andWhere('cashflow.type = :type', { type: CashFlowEnum.Consumption })
       .orderBy('cashflow.date', 'DESC');
 
@@ -421,8 +421,8 @@ export class BossReportService {
       .leftJoinAndSelect('cashflow.createdBy', 'createdBy')
       .leftJoinAndSelect('createdBy.avatar', 'avatar')
       .where('cashflow.date BETWEEN :start AND :end', { start: startDate, end: endDate })
-      .andWhere('cashflow_type.title IN (:...titles)', {
-        titles: ['Магазин', 'Аренда', 'Корпоротив', 'Логистика', 'Банк%'],
+      .andWhere('cashflow_type.slug IN (:...titles)', {
+        titles: ['shop', 'rent', 'business', 'logistics', 'bank'],
       })
       .orderBy('cashflow.date', 'DESC');
 
@@ -432,7 +432,7 @@ export class BossReportService {
       .leftJoin('cashflow.cashflow_type', 'cashflow_type')
       .select('SUM(cashflow.price)', 'total')
       .where('cashflow.date BETWEEN :start AND :end', { start: startDate, end: endDate })
-      .andWhere('cashflow_type.title = :title', { title: 'Босс' })
+      .andWhere('cashflow_type.slug = :slug', { slug: 'boss' })
       .andWhere('cashflow.type = :type', { type: CashFlowEnum.Consumption });
 
     const biznesSumQuery = this.cashflowRepository
@@ -440,8 +440,8 @@ export class BossReportService {
       .leftJoin('cashflow.cashflow_type', 'cashflow_type')
       .select('SUM(cashflow.price)', 'total')
       .where('cashflow.date BETWEEN :start AND :end', { start: startDate, end: endDate })
-      .andWhere('cashflow_type.title IN (:...titles)', {
-        titles: ['Магазин', 'Аренда', 'Корпоротив', 'Логистика', 'Банк%'],
+      .andWhere('cashflow_type.slug IN (:...titles)', {
+        titles: ['shop', 'rent', 'business', 'logistics', 'bank'],
       });
 
     // Summalarni olish
@@ -494,7 +494,7 @@ export class BossReportService {
         type: item.type,
         comment: item.comment,
         title: item.cashflow_type?.title,
-        categoryType: item.cashflow_type?.title === 'Босс' ? 'boss' : 'biznes',
+        categoryType: item.cashflow_type?.slug === 'boss' ? 'boss' : 'biznes',
         createdBy: item.createdBy || null,
         avatar: item.createdBy?.avatar || null,
       })),

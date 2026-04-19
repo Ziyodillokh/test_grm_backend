@@ -9,7 +9,7 @@ class CreateCashflowTypeDto {
   @IsNotEmpty()
   title: string;
 
-  @ApiProperty({ example: 'Долг', description: 'Slug for the cashflow type' })
+  @ApiProperty({ example: 'debt', description: 'Slug for the cashflow type' })
   @IsString()
   @IsNotEmpty()
   slug: string;

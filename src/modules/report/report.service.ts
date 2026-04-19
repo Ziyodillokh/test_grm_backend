@@ -359,7 +359,7 @@ export class ReportService {
 
       if (nextReport) {
         const slugSaldo = await this.cashflowTypeRepository.findOne({
-          where: { slug: 'Balance' },
+          where: { slug: 'balance' },
         });
 
         const users = await this.userRepository.find({
@@ -1402,7 +1402,7 @@ export class ReportService {
 
       // income by specific cashflow_type slugs (only Приход)
       `COALESCE(SUM(CASE WHEN cf.type = 'Приход' AND ct.slug = 'manager'  THEN cf.price END), 0) AS income_manager`,
-      `COALESCE(SUM(CASE WHEN cf.type = 'Приход' AND ct.slug = 'bugalter' THEN cf.price END), 0) AS income_bugalter`,
+      `COALESCE(SUM(CASE WHEN cf.type = 'Приход' AND ct.slug = 'accountant' THEN cf.price END), 0) AS income_bugalter`,
     ]);
 
     const row = await qb.getRawOne<{
@@ -1547,9 +1547,9 @@ export class ReportService {
       .leftJoin('cash.cashflow_type', 'cash_type')
       .select(`
       SUM(COALESCE(cash.price, 0))::NUMERIC(20, 2) AS total_expense,
-      SUM(CASE WHEN cash_type.slug = 'Bos' THEN COALESCE(cash.price, 0) ELSE 0 END)::NUMERIC(20, 2) AS boss_expense
+      SUM(CASE WHEN cash_type.slug = 'boss' THEN COALESCE(cash.price, 0) ELSE 0 END)::NUMERIC(20, 2) AS boss_expense
     `)
-      .where('cash_type.slug NOT IN (:...excluded)', { excluded: ['factory', 'tamojnya', 'manager', 'bugalter'] })
+      .where('cash_type.slug NOT IN (:...excluded)', { excluded: ['factory', 'customs', 'manager', 'accountant'] })
       .andWhere('cash.type = :type', { type: 'Расход' });
 
     if (filial_id) {
@@ -1757,7 +1757,7 @@ export class ReportService {
                ELSE 0 END)::NUMERIC(20, 2) AS total_expense
       `)
       .leftJoin('cash.cashflow_type', 'cashflow_type')
-      .where('cashflow_type.slug = :slug', { slug: 'dolg' });
+      .where('cashflow_type.slug = :slug', { slug: 'kent' });
 
     const qb = this.packageTransfer.createQueryBuilder('pt')
       .select([
@@ -1901,12 +1901,12 @@ export class ReportService {
 
     const total_qb = this.cashflowRepository.createQueryBuilder('cash')
       .select(`
-      SUM(COALESCE(cash.price, 0)) FILTER (WHERE cash_type.slug NOT IN ('Bos', 'manager', 'bugalter'))::NUMERIC(20,2) AS business_expense,
-      SUM(COALESCE(cash.price, 0)) FILTER (WHERE cash_type.slug = 'Bos')::NUMERIC(20,2) AS boss_expense,
-      SUM(COALESCE(cash.price, 0)) FILTER (WHERE cash_type.slug IN ('manager', 'bugalter'))::NUMERIC(20,2) AS kassa_expense
+      SUM(COALESCE(cash.price, 0)) FILTER (WHERE cash_type.slug NOT IN ('boss', 'manager', 'accountant'))::NUMERIC(20,2) AS business_expense,
+      SUM(COALESCE(cash.price, 0)) FILTER (WHERE cash_type.slug = 'boss')::NUMERIC(20,2) AS boss_expense,
+      SUM(COALESCE(cash.price, 0)) FILTER (WHERE cash_type.slug IN ('manager', 'accountant'))::NUMERIC(20,2) AS kassa_expense
     `)
       .leftJoin('cash.cashflow_type', 'cash_type')
-      .where('cash_type.slug NOT IN (:...excluded)', { excluded: ['factory', 'tamojnya', 'navar'] })
+      .where('cash_type.slug NOT IN (:...excluded)', { excluded: ['factory', 'customs', 'markup'] })
       .andWhere('cash.type = :type', { type: 'Расход' })
       .andWhere('cash.tip != :tip', { tip: 'order' });
 
@@ -2108,7 +2108,7 @@ export class ReportService {
       .addSelect(['avatar.id', 'avatar.path', 'avatar.mimetype', 'avatar.name'])
       .leftJoin('createdBy.avatar', 'avatar')
       .addSelect(['debt.id', 'debt.fullName'])
-      .where('cashflow_type.slug = :slug', { slug: 'dolg' })
+      .where('cashflow_type.slug = :slug', { slug: 'kent' })
       .orderBy('cash.date', 'DESC')
       .offset(offset)
       .limit(limit);
@@ -2138,7 +2138,7 @@ export class ReportService {
     `)
       .leftJoin('cash.cashflow_type', 'cashflow_type')
       .leftJoin('cash.debt', 'debt')
-      .where('cashflow_type.slug = :slug', { slug: 'dolg' });
+      .where('cashflow_type.slug = :slug', { slug: 'kent' });
 
     if (debt_id) {
       total_qb.andWhere('debt.id = :debt_id', { debt_id });
@@ -3372,14 +3372,14 @@ export class ReportService {
       SUM(CASE WHEN cash.is_online = TRUE THEN price ELSE 0 end) as online
     `)
       .leftJoin('cash.cashflow_type', 'ct')
-      .where(`ct.slug = 'delaer'`);
+      .where(`ct.slug = 'dealer'`);
 
     // Filial kassadan chiqim (manager + buxgalter)
     const kassa_cash_qb = this.cashflowRepository.createQueryBuilder('cash')
       .select(`SUM(price) as cash`)
       .leftJoin('cash.cashflow_type', 'ct')
       .leftJoin('cash.kassa', 'k')
-      .where(`ct.slug IN ('manager', 'bugalter') AND cash.type = 'Расход'`);
+      .where(`ct.slug IN ('manager', 'accountant') AND cash.type = 'Расход'`);
 
     // Kassa (plastik, inkassa, opening, in_hand, qaytishlar, qo'shimcha foyda)
     const plastic_cash_and_opening_qb = this.kassaRepo.createQueryBuilder('k')
@@ -3399,14 +3399,14 @@ export class ReportService {
       .select(`SUM(price) as cash`)
       .leftJoin('cash.cashflow_type', 'ct')
       .leftJoin('cash.kassa', 'k')
-      .where(`ct.slug = 'Balance' AND cash.type = 'Приход'`);
+      .where(`ct.slug = 'balance' AND cash.type = 'Приход'`);
 
     // Qarzdan tushgan pul (qarz, qarzdanKelgan)
     const coming_debt_qb = this.cashflowRepository.createQueryBuilder('cash')
       .select(`SUM(price) as cash`)
       .leftJoin('cash.cashflow_type', 'ct')
       .leftJoin('cash.kassa', 'k')
-      .where(`ct.slug IN ('qarz', 'qarzdanKelgan') AND cash.type = 'Приход'`);
+      .where(`ct.slug IN ('debt', 'debt_repayment') AND cash.type = 'Приход'`);
 
     // Boss (boshlik) bo'yicha kirim/chiqim
     const boss_qb = this.cashflowRepository.createQueryBuilder('cash')
@@ -3416,7 +3416,7 @@ export class ReportService {
     `)
       .leftJoin('cash.cashflow_type', 'ct')
       .leftJoin('cash.kassa', 'k')
-      .where(`ct.slug = 'Bos'`);
+      .where(`ct.slug = 'boss'`);
 
     // Kent (dolg)
     const kent_qb = this.cashflowRepository.createQueryBuilder('cash')
@@ -3425,7 +3425,7 @@ export class ReportService {
       SUM(CASE WHEN cash.type = 'Расход' THEN price ELSE 0 END) as expense
     `)
       .leftJoin('cash.cashflow_type', 'ct')
-      .where(`ct.slug IN ('dolg')`);
+      .where(`ct.slug IN ('kent')`);
 
     // Business xarajatlar (logistika alohida)
     const business_qb = this.cashflowRepository.createQueryBuilder('cash')
@@ -3433,7 +3433,7 @@ export class ReportService {
       .leftJoin('cash.cashflow_type', 'ct')
       .leftJoin('cash.kassa', 'k')
       .where(
-        `ct.slug IN ('bank', 'kredit', 'karta', 'prochee', 'nalog', 'Аренда', 'shop')
+        `ct.slug IN ('bank', 'credit', 'business', 'other', 'tax', 'rent', 'shop')
        AND cash.type = 'Расход'`,
       );
 
@@ -3441,13 +3441,13 @@ export class ReportService {
     const logistics_qb = this.cashflowRepository.createQueryBuilder('cash')
       .select(`SUM(price) as cash`)
       .leftJoin('cash.cashflow_type', 'ct')
-      .where(`ct.slug = 'logistika' AND cash.type = 'Расход'`);
+      .where(`ct.slug = 'logistics' AND cash.type = 'Расход'`);
 
     // Qo'shimcha prixodlar
     const extra_income_qb = this.cashflowRepository.createQueryBuilder('cash')
       .select(`SUM(price) as cash`)
       .leftJoin('cash.cashflow_type', 'ct')
-      .where(`ct.slug = 'prochee' AND cash.type = 'Приход'`);
+      .where(`ct.slug = 'other' AND cash.type = 'Приход'`);
 
     // Factory
     const factory_qb = this.cashflowRepository.createQueryBuilder('cash')
@@ -3459,14 +3459,14 @@ export class ReportService {
     const customs_qb = this.cashflowRepository.createQueryBuilder('cash')
       .select(`SUM(price) as cash`)
       .leftJoin('cash.cashflow_type', 'ct')
-      .where(`ct.slug = 'tamojnya' AND cash.type = 'Расход'`);
+      .where(`ct.slug = 'customs' AND cash.type = 'Расход'`);
 
     // Qo'shimcha foyda xarajatga ketgan qismi (navar, Расход)
     const add_profit_exp_qb = this.cashflowRepository.createQueryBuilder('cash')
       .select(`SUM(price) as cash`)
       .leftJoin('cash.cashflow_type', 'ct')
       .leftJoin('cash.kassa', 'k')
-      .where(`ct.slug = 'navar' AND cash.type = 'Расход'`);
+      .where(`ct.slug = 'markup' AND cash.type = 'Расход'`);
 
     // dealer report month/year filter
     this.applyKassaMonthYearFilter(dealer_report_qb, 'dr', month, normalizedYear);
@@ -3947,12 +3947,12 @@ export class ReportService {
         // Umumiy: Report ichidagi prixod kassa cashflowlar
         // Filial: shu filial kassasi slug=manager,bugalter type=Расход
         if (filialId) {
-          const qb = makeCashflowQuery(['manager', 'bugalter'], 'Расход');
+          const qb = makeCashflowQuery(['manager', 'accountant'], 'Расход');
           this.applyDateRangeFilter(qb, 'k.startDate', startDate, endDate);
           qb.andWhere('cash.filialId = :filialId', { filialId });
           items = await qb.getMany();
         } else {
-          const qb = makeCashflowQuery(['manager', 'bugalter'], 'Расход');
+          const qb = makeCashflowQuery(['manager', 'accountant'], 'Расход');
           this.applyDateRangeFilter(qb, 'k.startDate', startDate, endDate);
           items = await qb.getMany();
         }
@@ -4002,7 +4002,7 @@ export class ReportService {
 
       case 'dealer_cash': {
         // Diller naqd: slug=delaer is_online=false
-        const qb = makeCashflowByDate(['delaer'], 'Приход');
+        const qb = makeCashflowByDate(['dealer'], 'Приход');
         qb.andWhere('cash.is_online = false');
         items = await qb.getMany();
         break;
@@ -4010,7 +4010,7 @@ export class ReportService {
 
       case 'dealer_terminal': {
         // Diller perechesleniya: slug=delaer is_online=true
-        const qb = makeCashflowByDate(['delaer'], 'Приход');
+        const qb = makeCashflowByDate(['dealer'], 'Приход');
         qb.andWhere('cash.is_online = true');
         items = await qb.getMany();
         break;
@@ -4018,7 +4018,7 @@ export class ReportService {
 
       case 'kelgan_qarz': {
         // Kelgan qarzlar: slug=qarz,qarzdanKelgan type=Приход
-        const qb = makeCashflowByKassa(['qarz', 'qarzdanKelgan'], 'Приход');
+        const qb = makeCashflowByKassa(['debt', 'debt_repayment'], 'Приход');
         if (filialId) qb.andWhere('k.filialId = :filialId', { filialId });
         items = await qb.getMany();
         break;
@@ -4026,7 +4026,7 @@ export class ReportService {
 
       case 'opening_balance': {
         // O'tgan pul: filial saldo + manager/accountant report saldo
-        const qb = makeCashflowByKassa(['Balance'], 'Приход');
+        const qb = makeCashflowByKassa(['balance'], 'Приход');
         if (filialId) qb.andWhere('k.filialId = :filialId', { filialId });
         items = await qb.getMany();
         break;
@@ -4035,12 +4035,12 @@ export class ReportService {
       case 'boss_income': {
         // Boss prixod: slug=Bos type=Приход
         if (filialId) {
-          const qb = makeCashflowQuery(['Bos'], 'Приход');
+          const qb = makeCashflowQuery(['boss'], 'Приход');
           this.applyDateRangeFilter(qb, 'k.startDate', startDate, endDate);
           qb.andWhere('cash.filialId = :filialId', { filialId });
           items = await qb.getMany();
         } else {
-          const qb = makeCashflowByDate(['Bos'], 'Приход');
+          const qb = makeCashflowByDate(['boss'], 'Приход');
           items = await qb.getMany();
         }
         break;
@@ -4048,14 +4048,14 @@ export class ReportService {
 
       case 'kent_income': {
         // Kent prixod: slug=dolg type=Приход (faqat umumiy)
-        const qb = makeCashflowByDate(['dolg'], 'Приход');
+        const qb = makeCashflowByDate(['kent'], 'Приход');
         items = await qb.getMany();
         break;
       }
 
       case 'extra_income': {
         // Qo'shimcha prixodlar: slug=prochee type=Приход (faqat umumiy)
-        const qb = makeCashflowByDate(['prochee'], 'Приход');
+        const qb = makeCashflowByDate(['other'], 'Приход');
         items = await qb.getMany();
         break;
       }
@@ -4064,7 +4064,7 @@ export class ReportService {
 
       case 'kent_expense': {
         // Kent rasxod: slug=dolg type=Расход (faqat umumiy)
-        const qb = makeCashflowByDate(['dolg'], 'Расход');
+        const qb = makeCashflowByDate(['kent'], 'Расход');
         items = await qb.getMany();
         break;
       }
@@ -4072,12 +4072,12 @@ export class ReportService {
       case 'boss_expense': {
         // Boss rasxod: slug=Bos type=Расход
         if (filialId) {
-          const qb = makeCashflowQuery(['Bos'], 'Расход');
+          const qb = makeCashflowQuery(['boss'], 'Расход');
           this.applyDateRangeFilter(qb, 'k.startDate', startDate, endDate);
           qb.andWhere('cash.filialId = :filialId', { filialId });
           items = await qb.getMany();
         } else {
-          const qb = makeCashflowByDate(['Bos'], 'Расход');
+          const qb = makeCashflowByDate(['boss'], 'Расход');
           items = await qb.getMany();
         }
         break;
@@ -4085,7 +4085,7 @@ export class ReportService {
 
       case 'business_expense': {
         // Biznes rasxod: bank,kredit,karta,prochee,nalog,Аренда,shop
-        const slugs = ['bank', 'kredit', 'karta', 'prochee', 'nalog', 'Аренда', 'shop'];
+        const slugs = ['bank', 'credit', 'business', 'other', 'tax', 'rent', 'shop'];
         if (filialId) {
           const qb = makeCashflowByKassa(slugs, 'Расход');
           qb.andWhere('k.filialId = :filialId', { filialId });
@@ -4106,21 +4106,21 @@ export class ReportService {
 
       case 'logistics': {
         // Logistika: slug=logistika type=Расход (faqat umumiy)
-        const qb = makeCashflowByDate(['logistika'], 'Расход');
+        const qb = makeCashflowByDate(['logistics'], 'Расход');
         items = await qb.getMany();
         break;
       }
 
       case 'tamojniy': {
         // Bojxona: slug=tamojnya type=Расход (faqat umumiy)
-        const qb = makeCashflowByDate(['tamojnya'], 'Расход');
+        const qb = makeCashflowByDate(['customs'], 'Расход');
         items = await qb.getMany();
         break;
       }
 
       case 'navar_expense': {
         // Navar rasxod: slug=navar type=Расход (faqat filial)
-        const qb = makeCashflowQuery(['navar'], 'Расход');
+        const qb = makeCashflowQuery(['markup'], 'Расход');
         this.applyDateRangeFilter(qb, 'k.startDate', startDate, endDate);
         if (filialId) qb.andWhere('cash.filialId = :filialId', { filialId });
         items = await qb.getMany();
@@ -4223,7 +4223,7 @@ export class ReportService {
       .leftJoin('cash.cashflow_type', 'c_t')
       .where('cash.createdById = :accountant', { accountant: accountant.id })
       .andWhere('cash.reportId = :id', { id: report.id })
-      .andWhere('c_t.slug != :type', { type: 'онлайн' });
+      .andWhere('c_t.slug != :type', { type: 'online' });
 
     const manager_qb = this.cashflowRepository.createQueryBuilder('cash')
       .select(`

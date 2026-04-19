@@ -188,8 +188,8 @@ export class ClientService {
       console.log('📦 Found debt order:', { orderId: order.id, kassa: order.kassa?.id, createdBy: order.createdBy?.id });
 
       // cashflow_type
-      const slugDolg = await this.getOneBySlug('qarzdanKelgan');
-      console.log('🏷️ Loaded cashflow type (slug qarzdanKelgan):', slugDolg?.id || slugDolg);
+      const slugDolg = await this.getOneBySlug('debt_repayment');
+      console.log('🏷️ Loaded cashflow type (slug debt_repayment):', slugDolg?.id || slugDolg);
 
       // cashflow yaratish
       const cashflow = cashflowRepo.create({

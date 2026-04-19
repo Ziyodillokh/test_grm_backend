@@ -815,7 +815,7 @@ export class KassaService {
       } else if (cf.type === CashFlowEnum.Consumption) {
         expense += price;
         in_hand -= price;
-        if (cf.cashflow_type?.slug === 'Инкассация') cash_collection += price;
+        if (cf.cashflow_type?.slug === 'cash_collection') cash_collection += price;
         if (cf.cashflow_type?.slug === 'return') {
           return_sale += price;
         }
@@ -908,7 +908,7 @@ export class KassaService {
         relations: { avatar: true, position: true },
       });
       const report = await this.reportService.findOne(kassa.report?.id);
-      const slugTerminal = await this.getOneBySlug('онлайн');
+      const slugTerminal = await this.getOneBySlug('online');
 
       // plasticSum > 0 bo'lgandagina terminal cashflow yaratilsin, 0 bo'lsa ignore
       if (slugTerminal && report && kassa.plasticSum > 0) {
@@ -969,7 +969,7 @@ export class KassaService {
         const price = kassa.in_hand;
 
         if (Number(price) > 0 && nextKassa) {
-          const slugSaldo = await this.getOneBySlug('Balance');
+          const slugSaldo = await this.getOneBySlug('balance');
           await this.cashflowRepository.save(
             this.cashflowRepository.create({
               price: price,

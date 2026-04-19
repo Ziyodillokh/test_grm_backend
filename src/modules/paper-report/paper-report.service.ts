@@ -196,8 +196,8 @@ export class PaperReportService {
       .createQueryBuilder('cashflow')
       .leftJoin('cashflow.cashflow_type', 'cashflow_type')
       .where('cashflow.date BETWEEN :start AND :end', { start: startDate, end: endDate })
-      .andWhere('cashflow_type.title IN (:...titles)', {
-        titles: ['Магазин', 'Аренда', 'Корпоротив', 'Логистика', 'Банк%'],
+      .andWhere('cashflow_type.slug IN (:...titles)', {
+        titles: ['shop', 'rent', 'business', 'logistics', 'bank'],
       });
 
     if (filialId) {
@@ -209,7 +209,7 @@ export class PaperReportService {
       .createQueryBuilder('cashflow')
       .leftJoin('cashflow.cashflow_type', 'cashflow_type')
       .where('cashflow.date BETWEEN :start AND :end', { start: startDate, end: endDate })
-      .andWhere('cashflow_type.title = :title', { title: 'Босс' })
+      .andWhere('cashflow_type.slug = :slug', { slug: 'boss' })
       .andWhere('cashflow.type = :type', { type: CashFlowEnum.Consumption });
 
     if (filialId) {
@@ -220,7 +220,7 @@ export class PaperReportService {
       .createQueryBuilder('cashflow')
       .leftJoin('cashflow.cashflow_type', 'cashflow_type')
       .where('cashflow.date BETWEEN :start AND :end', { start: startDate, end: endDate })
-      .andWhere('cashflow_type.title = :title', { title: 'Босс' })
+      .andWhere('cashflow_type.slug = :slug', { slug: 'boss' })
       .andWhere('cashflow.type = :type', { type: CashFlowEnum.InCome });
 
     if (filialId) {
@@ -232,7 +232,7 @@ export class PaperReportService {
       .createQueryBuilder('cashflow')
       .leftJoin('cashflow.cashflow_type', 'cashflow_type')
       .where('cashflow.date BETWEEN :start AND :end', { start: startDate, end: endDate })
-      .andWhere('cashflow_type.title = :title', { title: 'Навар' });
+      .andWhere('cashflow_type.slug = :slug', { slug: 'markup' });
 
     if (filialId) {
       navarRasxodiQuery.andWhere('cashflow.filialId = :filialId', { filialId });
@@ -243,7 +243,7 @@ export class PaperReportService {
       .createQueryBuilder('cashflow')
       .leftJoin('cashflow.cashflow_type', 'cashflow_type')
       .where('cashflow.date BETWEEN :start AND :end', { start: startDate, end: endDate })
-      .andWhere('cashflow_type.title = :title', { title: 'Таможня' });
+      .andWhere('cashflow_type.slug = :slug', { slug: 'customs' });
 
     if (filialId) {
       tamojnyaQuery.andWhere('cashflow.filialId = :filialId', { filialId });
@@ -254,7 +254,7 @@ export class PaperReportService {
       .createQueryBuilder('cashflow')
       .leftJoin('cashflow.cashflow_type', 'cashflow_type')
       .where('cashflow.date BETWEEN :start AND :end', { start: startDate, end: endDate })
-      .andWhere('cashflow_type.title = :title', { title: 'Сальдо' })
+      .andWhere('cashflow_type.slug = :slug', { slug: 'balance' })
       .andWhere('cashflow.type = :type', { type: CashFlowEnum.InCome });
 
     if (filialId) {
@@ -266,7 +266,7 @@ export class PaperReportService {
       .createQueryBuilder('cashflow')
       .leftJoin('cashflow.cashflow_type', 'cashflow_type')
       .where('cashflow.date BETWEEN :start AND :end', { start: startDate, end: endDate })
-      .andWhere('cashflow_type.title = :title', { title: 'Долг' });
+      .andWhere('cashflow_type.slug = :slug', { slug: 'debt' });
 
     if (filialId) {
       dolgQuery.andWhere('cashflow.filialId = :filialId', { filialId }); // TUZATILDI
@@ -277,7 +277,7 @@ export class PaperReportService {
       .createQueryBuilder('cashflow')
       .leftJoin('cashflow.cashflow_type', 'cashflow_type')
       .where('cashflow.date BETWEEN :start AND :end', { start: startDate, end: endDate })
-      .andWhere('cashflow_type.title = :title', { title: 'Банк%' });
+      .andWhere('cashflow_type.slug = :slug', { slug: 'bank' });
 
     if (filialId) {
       bankQuery.andWhere('cashflow.filialId = :filialId', { filialId }); // TUZATILDI
@@ -288,7 +288,7 @@ export class PaperReportService {
       .createQueryBuilder('cashflow')
       .leftJoin('cashflow.cashflow_type', 'cashflow_type')
       .where('cashflow.date BETWEEN :start AND :end', { start: startDate, end: endDate })
-      .andWhere('cashflow_type.title = :title', { title: 'Кредит' });
+      .andWhere('cashflow_type.slug = :slug', { slug: 'credit' });
 
     if (filialId) {
       kreditQuery.andWhere('cashflow.filialId = :filialId', { filialId }); // TUZATILDI
@@ -298,10 +298,10 @@ export class PaperReportService {
       .createQueryBuilder('cashflow')
       .leftJoin('cashflow.cashflow_type', 'cashflow_type')
       .where('cashflow.date BETWEEN :start AND :end', { start: startDate, end: endDate })
-      .andWhere('cashflow_type.title = :title', { title: 'Логистика' });
+      .andWhere('cashflow_type.slug = :slug', { slug: 'logistics' });
 
     if (filialId) {
-      kreditQuery.andWhere('cashflow.filialId = :filialId', { filialId }); // TUZATILDI
+      logistikaQuery.andWhere('cashflow.filialId = :filialId', { filialId }); // TUZATILDI
     }
 
     // Postavshik - plastic (buxgalter orqali)
@@ -311,7 +311,7 @@ export class PaperReportService {
       .leftJoin('cashflow.createdBy', 'createdBy')
       .leftJoin('createdBy.position', 'position')
       .where('cashflow.date BETWEEN :start AND :end', { start: startDate, end: endDate })
-      .andWhere('cashflow_type.title = :title', { title: 'Поставщики' })
+      .andWhere('cashflow_type.slug = :slug', { slug: 'factory' })
       .andWhere('position.role = :role', { role: UserRoleEnum.ACCOUNTANT });
 
     if (filialId) {
@@ -325,7 +325,7 @@ export class PaperReportService {
       .leftJoin('cashflow.createdBy', 'createdBy')
       .leftJoin('createdBy.position', 'position')
       .where('cashflow.date BETWEEN :start AND :end', { start: startDate, end: endDate })
-      .andWhere('cashflow_type.title = :title', { title: 'Поставщики' })
+      .andWhere('cashflow_type.slug = :slug', { slug: 'factory' })
       .andWhere('position.role = :role', { role: UserRoleEnum.M_MANAGER });
 
     if (filialId) {
@@ -438,8 +438,8 @@ export class PaperReportService {
       .leftJoin('cashflow.kassa', 'kassa')
       .where('cashflow.date BETWEEN :start AND :end', { start: startDate, end: endDate })
       .andWhere('cashflow.type = :type', { type: CashFlowEnum.InCome })
-      .andWhere('cashflow_type.title IN (:...titles)', {
-        titles: ['ПогашениеДолг', 'Долг'],
+      .andWhere('cashflow_type.slug IN (:...titles)', {
+        titles: ['debt_repayment', 'debt'],
       });
 
     if (filialId) {
@@ -823,7 +823,7 @@ export class PaperReportService {
       | 'skidka'
       | 'biznesRasxod'
       | 'postavshik'
-      | 'tamojnya'
+      | 'customs'
       | 'qarzlar',
     filialId: string | undefined,
     year: number,
@@ -993,7 +993,7 @@ export class PaperReportService {
     LEFT JOIN "users" u ON c."createdById" = u.id
     WHERE c.date BETWEEN $1 AND $2
       AND c.type = $3
-      AND ct.title = 'Перечисление'
+      AND ct.slug = 'transfer'
       ${filialId ? 'AND k."filialId" = $4' : ''}
     ORDER BY c.date DESC
   `;
@@ -1052,12 +1052,12 @@ export class PaperReportService {
     LEFT JOIN filial f ON k."filialId" = f.id
     LEFT JOIN "users" u ON c."createdById" = u.id
     WHERE c.date BETWEEN $1 AND $2
-      AND ct.title = $3
+      AND ct.slug = $3
       ${filialId ? 'AND k."filialId" = $4' : ''}
     ORDER BY c.date DESC
   `;
 
-      const baseParams = [startDate, endDate, 'Перечисление'];
+      const baseParams = [startDate, endDate, 'transfer'];
       const params = filialId ? [...baseParams, filialId] : baseParams;
 
       const data = await this.cashflowRepository.query(inkassatsiyaQuery, params);
@@ -1150,7 +1150,7 @@ export class PaperReportService {
     LEFT JOIN kassa k ON c."kassaId" = k.id
     WHERE c.date BETWEEN $1 AND $2
       AND c.type = $3
-      AND ct.title IN ('ПогашениеДолг', 'Долг')
+      AND ct.slug IN ('debt_repayment', 'debt')
       ${filialId ? 'AND k."filialId" = $4' : ''}
     ORDER BY c.date DESC
   `;
@@ -1286,7 +1286,7 @@ export class PaperReportService {
     LEFT JOIN "users" u ON c."createdById" = u.id
     WHERE c.date BETWEEN $1 AND $2
       AND c.type = $3
-      AND ct.title = 'Сальдо'
+      AND ct.slug = 'balance'
       ${filialId ? 'AND k."filialId" = $4' : ''}
     ORDER BY c.date DESC
   `;
@@ -1522,7 +1522,7 @@ export class PaperReportService {
     LEFT JOIN "users" u ON c."createdById" = u.id
     WHERE c.date BETWEEN $1 AND $2
       AND c.type = $3
-      AND ct.title IN ('Магазин', 'Аренда', 'Корпоротив', 'Логистика', 'Банк%')
+      AND ct.slug IN ('shop', 'rent', 'business', 'logistics', 'bank')
       ${filialId ? 'AND k."filialId" = $4' : ''}
     ORDER BY c.date DESC
   `;
@@ -1570,7 +1570,7 @@ export class PaperReportService {
     LEFT JOIN "users" u ON c."createdById" = u.id
     LEFT JOIN kassa k ON c."kassaId" = k.id
     WHERE c.date BETWEEN $1 AND $2
-      AND ct.title = 'Босс'
+      AND ct.slug = 'boss'
       AND c.type = $3
       ${filialId ? 'AND k."filialId" = $4' : ''}
     ORDER BY c.date DESC
@@ -1589,7 +1589,7 @@ export class PaperReportService {
     LEFT JOIN "users" u ON c."createdById" = u.id
     LEFT JOIN kassa k ON c."kassaId" = k.id
     WHERE c.date BETWEEN $1 AND $2
-      AND ct.title = 'Босс'
+      AND ct.slug = 'boss'
       AND c.type = $3
       ${filialId ? 'AND k."filialId" = $4' : ''}
     ORDER BY c.date DESC
@@ -1650,7 +1650,7 @@ export class PaperReportService {
     LEFT JOIN position pos ON u."positionId" = pos.id
     LEFT JOIN kassa k ON c."kassaId" = k.id
     WHERE c.date BETWEEN $1 AND $2
-      AND ct.title = 'Поставщики'
+      AND ct.slug = 'factory'
       ${filialId ? 'AND k."filialId" = $3' : ''}
     ORDER BY c.date DESC
   `;
@@ -1675,8 +1675,8 @@ export class PaperReportService {
     }
 
     // TAMOJNYA
-    else if (tur === 'tamojnya') {
-      sheetName = 'Tamojnya';
+    else if (tur === 'customs') {
+      sheetName = 'Bojxona';
       columns = [
         { header: 'Summa', key: 'Summa', width: 12 },
         { header: 'Izoh', key: 'Izoh', width: 30 },
@@ -1695,7 +1695,7 @@ export class PaperReportService {
     LEFT JOIN filial f ON k."filialId" = f.id
     LEFT JOIN "users" u ON c."createdById" = u.id
     WHERE c.date BETWEEN $1 AND $2
-      AND ct.title = 'Таможня'
+      AND ct.slug = 'customs'
       ${filialId ? 'AND k."filialId" = $3' : ''}
     ORDER BY c.date DESC
   `;
@@ -1927,7 +1927,7 @@ export class PaperReportService {
       { label: 'Skidka', value: 'skidka' },
       { label: 'Biznes rasxod', value: 'biznesRasxod' },
       { label: 'Postavshik', value: 'postavshik' },
-      { label: 'Tamojnya', value: 'tamojnya' },
+      { label: 'Bojxona', value: 'customs' },
       { label: 'Qarzdorliklar', value: 'qarzlar' },
     ];
   }

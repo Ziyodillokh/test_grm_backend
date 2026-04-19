@@ -126,17 +126,17 @@ export class CashflowService {
      * SPECIAL TIP FILTERS
      * =========================
      */
-    if (filter.tip === 'Скидка') {
+    if (filter.tip === 'discount') {
       baseQb.andWhere('ord.discountSum > 0');
       delete filter.tip;
     }
 
-    if (filter.tip === 'Терминал') {
+    if (filter.tip === 'terminal') {
       baseQb.andWhere('ord.plasticSum > 0');
       delete filter.tip;
     }
 
-    if (filter.tip === 'Навар') {
+    if (filter.tip === 'markup') {
       baseQb.andWhere('ord.additionalProfitSum > 0');
       delete filter.tip;
     }
@@ -295,7 +295,7 @@ export class CashflowService {
         `COALESCE(SUM(CASE WHEN ord.status = 'canceled' THEN ord.plasticSum + ord.price ELSE 0 END), 0) AS "totalReturnSale"`,
         'COALESCE(SUM(ord.discountSum), 0) AS "totalDiscount"',
         'COALESCE(SUM(ord.additionalProfitSum), 0) AS "totalAdditionalProfit"',
-        `COALESCE(SUM(CASE WHEN cashflow_type.slug = 'Инкассация' THEN cashflow.price ELSE 0 END), 0) AS "totalCashCollection"`,
+        `COALESCE(SUM(CASE WHEN cashflow_type.slug = 'cash_collection' THEN cashflow.price ELSE 0 END), 0) AS "totalCashCollection"`,
         'COALESCE(SUM(CASE WHEN debt.id IS NOT NULL THEN ord.price ELSE 0 END), 0) AS "totalDebtSum"',
         'COUNT(DISTINCT ord.id) AS "count"',
         'COALESCE(SUM(ord.kv), 0) AS "kv"',
@@ -691,15 +691,15 @@ export class CashflowService {
 
       // Logistics flow detection — kassaga umuman dahli yo'q
       const isLogisticsFlow = cashflow.cashflow_type &&
-        ['logistika', 'Логистика'].includes(cashflow.cashflow_type.slug) && value.logisticsId;
+        cashflow.cashflow_type.slug === 'logistics' && value.logisticsId;
 
       // Customs flow detection — kassaga umuman dahli yo'q (logistika bilan bir xil)
       const isCustomsFlow = cashflow.cashflow_type &&
-        ['tamojnya', 'Таможня'].includes(cashflow.cashflow_type.slug) && value.customsId;
+        cashflow.cashflow_type.slug === 'customs' && value.customsId;
 
       // Report logikasi
       if (report) {
-        const isDebtFlow = ['dolg', 'Кент'].includes(cashflow.cashflow_type.slug) && value.debtId;
+        const isDebtFlow = cashflow.cashflow_type.slug === 'kent' && value.debtId;
 
         if (value.type === 'Приход') {
           if (isDebtFlow) {
@@ -791,7 +791,7 @@ export class CashflowService {
       const today = dayjs().format('YYYY-MM-DD');
 
       if (value.type === 'Приход' && kassa?.id && !isLogisticsFlow && !isCustomsFlow) {
-        if (!isOrder && cashflow.cashflow_type.slug !== 'Перечисление') {
+        if (!isOrder && cashflow.cashflow_type.slug !== 'transfer') {
           kassa.income += price;
           if (value?.is_online) {
             kassa.plasticSum += price;
@@ -799,7 +799,7 @@ export class CashflowService {
             kassa.in_hand += price;
           }
         }
-        if (cashflow.cashflow_type.slug === 'Перечисление') {
+        if (cashflow.cashflow_type.slug === 'transfer') {
           kassa.plasticSum += price;
           kassa.income += price;
 
@@ -832,7 +832,7 @@ export class CashflowService {
 
         const oneReport = kassaWithReport?.report;
 
-        if (cashflow.cashflow_type.slug === 'Инкассация') {
+        if (cashflow.cashflow_type.slug === 'cash_collection') {
           kassa.cash_collection += price;
 
           if (oneReport) {
@@ -876,7 +876,7 @@ export class CashflowService {
 
         if (
           cashflowType &&
-          (cashflowType.slug === 'manager' || cashflowType.slug === 'bugalter' || cashflowType.slug === 'Инкассация') &&
+          (cashflowType.slug === 'manager' || cashflowType.slug === 'accountant' || cashflowType.slug === 'cash_collection') &&
           kassa
         ) {
           let targetUser = null;
@@ -884,7 +884,7 @@ export class CashflowService {
             targetUser = await this.userRepo.findOne({
               where: { position: { role: UserRoleEnum.M_MANAGER } },
             });
-          } else if (cashflowType.slug === 'bugalter' || cashflowType.slug === 'Инкассация') {
+          } else if (cashflowType.slug === 'accountant' || cashflowType.slug === 'cash_collection') {
             targetUser = await this.userRepo.findOne({
               where: { position: { role: UserRoleEnum.ACCOUNTANT } },
             });
@@ -895,12 +895,12 @@ export class CashflowService {
           }
 
           const reports = oneReport;
-          const cashflow_type_kassa = await this.getOneBySlug(cashflowType.slug === 'Инкассация' ? 'Инкассация' : 'kassa');
+          const cashflow_type_kassa = await this.getOneBySlug(cashflowType.slug === 'cash_collection' ? 'cash_collection' : 'kassa');
 
           let comment = `${kassa?.filial?.title} filialidan kassa qabul qilindi - ${value.comment || ''}`;
 
-          if (cashflowType.slug === 'Инкассация') {
-            comment = `${kassa?.filial?.title} filialini kassasidan "Инкассация" qabul qilindi - ${value.comment || ''}`;
+          if (cashflowType.slug === 'cash_collection') {
+            comment = `${kassa?.filial?.title} filialini kassasidan "cash_collection" qabul qilindi - ${value.comment || ''}`;
           }
 
           const reportCashflowData = {
@@ -914,7 +914,7 @@ export class CashflowService {
             comment,
             cashflow_type: cashflow_type_kassa.id,
             date: new Date(),
-            is_online: value.is_online || cashflowType.slug === 'Инкассация',
+            is_online: value.is_online || cashflowType.slug === 'cash_collection',
             is_static: false,
             parent: cashflow.id,
           };
@@ -928,7 +928,7 @@ export class CashflowService {
             .execute();
 
           if (reports) {
-            if (cashflowType.slug === 'bugalter' || cashflowType.slug === 'Инкассация') {
+            if (cashflowType.slug === 'accountant' || cashflowType.slug === 'cash_collection') {
               reports.accountantSum += price;
             } else {
               reports.managerSum += price;
@@ -1197,8 +1197,8 @@ export class CashflowService {
       const price = cashflow.price;
       const order = cashflow.order;
       const isOrder = (cashflow.tip as string) === CashflowTipEnum.ORDER;
-      const isLogisticsFlow = ['logistika', 'Логистика'].includes(cashflow.cashflow_type?.slug) && cashflow.logistics?.id;
-      const isCustomsFlow = ['tamojnya', 'Таможня'].includes(cashflow.cashflow_type?.slug) && cashflow.customs?.id;
+      const isLogisticsFlow = cashflow.cashflow_type?.slug === 'logistics' && cashflow.logistics?.id;
+      const isCustomsFlow = cashflow.cashflow_type?.slug === 'customs' && cashflow.customs?.id;
 
       if (cashflow.type === 'Приход') {
         if (isOrder) {
@@ -1206,14 +1206,14 @@ export class CashflowService {
         }
 
         // Oddiy prixod cashflow reverse — logistics/customs uchun skip (kassaga dahli yo'q)
-        if (!isOrder && cashflow.cashflow_type.slug !== 'Перечисление' && !isLogisticsFlow && !isCustomsFlow) {
+        if (!isOrder && cashflow.cashflow_type.slug !== 'transfer' && !isLogisticsFlow && !isCustomsFlow) {
           kassa.income -= price;
           if (cashflow?.is_online) {
             kassa.plasticSum -= price;
           }
         }
 
-        if (cashflow.cashflow_type.slug === 'Перечисление') {
+        if (cashflow.cashflow_type.slug === 'transfer') {
           kassa.plasticSum -= price;
           kassa.income -= price;
 
@@ -1229,7 +1229,7 @@ export class CashflowService {
           }
         }
 
-        if (cashflow.cashflow_type.slug === 'Долг' || (cashflow.cashflow_type.slug === 'dolg' && cashflow.debt)) {
+        if (cashflow.cashflow_type.slug === 'kent' && cashflow.debt) {
           const debt = await this.debtService.findOne(cashflow.debt.id);
           if (!debt) throw new BadRequestException('Debt not found');
 
@@ -1267,7 +1267,7 @@ export class CashflowService {
           }
         }
 
-        if (cashflow.cashflow_type.slug === 'Инкассация') {
+        if (cashflow.cashflow_type.slug === 'cash_collection') {
           kassa.cash_collection = Math.max(0, kassa.cash_collection - price);
 
           // Find the report linked to this kassa
@@ -1288,7 +1288,7 @@ export class CashflowService {
           throw new BadRequestException('You can not delete cashflow!');
         }
 
-        if (cashflow.cashflow_type.slug === 'Долг' || (cashflow.cashflow_type.slug === 'dolg' && cashflow.debt)) {
+        if (cashflow.cashflow_type.slug === 'kent' && cashflow.debt) {
           const debt = await this.debtService.findOne(cashflow.debt.id);
           if (!debt) throw new BadRequestException('Debt not found');
 
@@ -1351,13 +1351,13 @@ export class CashflowService {
           const childReport = await queryRunner.manager.findOne(Report, { where: { id: child.report.id } });
           if (childReport) {
             childReport.totalIncome -= price;
-            if (cashflow.cashflow_type.slug === 'bugalter' || cashflow.cashflow_type.slug === 'Инкассация') {
+            if (cashflow.cashflow_type.slug === 'accountant' || cashflow.cashflow_type.slug === 'cash_collection') {
               childReport.accountantSum -= price;
             }
             if (cashflow.cashflow_type.slug === 'manager') {
               childReport.managerSum -= price;
             }
-            if (cashflow.cashflow_type.slug === 'Инкассация') {
+            if (cashflow.cashflow_type.slug === 'cash_collection') {
               childReport.totalCashCollection -= price;
             }
             await queryRunner.manager.save(childReport);
@@ -1719,8 +1719,8 @@ export class CashflowService {
 
       const price = Math.abs(cashflow.price);
       const { kassa, report } = cashflow;
-      const isLogisticsFlow = ['logistika', 'Логистика'].includes(cashflow.cashflow_type?.slug) && cashflow.logistics;
-      const isCustomsFlow = ['tamojnya', 'Таможня'].includes(cashflow.cashflow_type?.slug) && cashflow.customs;
+      const isLogisticsFlow = cashflow.cashflow_type?.slug === 'logistics' && cashflow.logistics;
+      const isCustomsFlow = cashflow.cashflow_type?.slug === 'customs' && cashflow.customs;
 
       // Kassa logikasini teskari qilish — logistics/customs uchun skip (kassaga dahli yo'q)
       if (kassa && !isLogisticsFlow && !isCustomsFlow) {
@@ -1736,7 +1736,7 @@ export class CashflowService {
         const isDManager = user?.position?.role === UserRoleEnum.D_MANAGER;
 
         if (cashflow.type === 'Приход') {
-          if (cashflow.cashflow_type.slug === 'Перечисление') {
+          if (cashflow.cashflow_type.slug === 'transfer') {
             kassa.plasticSum -= price;
             kassa.income -= price;
 
@@ -1766,7 +1766,7 @@ export class CashflowService {
               kassa.income -= price;
             }
 
-            if (cashflow.cashflow_type.slug === 'Инкассация') {
+            if (cashflow.cashflow_type.slug === 'cash_collection') {
               kassa.cash_collection = Math.max(0, kassa.cash_collection - price);
             }
           }
@@ -1783,11 +1783,11 @@ export class CashflowService {
             kassa.filial.owed -= price;
           }
 
-          if (cashflow.cashflow_type.slug === 'Инкассация') {
+          if (cashflow.cashflow_type.slug === 'cash_collection') {
             kassa.cash_collection = Math.max(0, kassa.cash_collection - price);
           }
 
-          if (cashflow.cashflow_type.slug === 'Перечисление') {
+          if (cashflow.cashflow_type.slug === 'transfer') {
             kassa.plasticSum += price;
           }
         }
@@ -1803,7 +1803,7 @@ export class CashflowService {
           relations: ['position'],
         });
 
-        const isDebtFlow = ['dolg', 'Долг'].includes(cashflow.cashflow_type.slug) && cashflow.debt;
+        const isDebtFlow = cashflow.cashflow_type.slug === 'kent' && cashflow.debt;
 
         if (cashflow.type === 'Приход') {
           // Logistics/Customs Приход da report ta'sirlanmagan → reverse ham kerak emas
@@ -1815,7 +1815,7 @@ export class CashflowService {
               report.managerSum -= price;
             }
 
-            if (cashflow.cashflow_type.slug === 'Инкассация') {
+            if (cashflow.cashflow_type.slug === 'cash_collection') {
               report.totalCashCollection -= price;
             }
           }
@@ -1848,7 +1848,7 @@ export class CashflowService {
             }
           }
 
-          if (cashflow.cashflow_type.slug === 'Инкассация') {
+          if (cashflow.cashflow_type.slug === 'cash_collection') {
             report.totalCashCollection -= price;
           }
         }
@@ -1861,13 +1861,13 @@ export class CashflowService {
         const childReport = cashflow.child[0].report;
         if (childReport) {
           childReport.totalIncome -= price;
-          if (cashflow.cashflow_type.slug === 'bugalter') {
+          if (cashflow.cashflow_type.slug === 'accountant') {
             childReport.accountantSum -= price;
           }
           if (cashflow.cashflow_type.slug === 'manager') {
             childReport.managerSum -= price;
           }
-          if (cashflow.cashflow_type.slug === 'Инкассация') {
+          if (cashflow.cashflow_type.slug === 'cash_collection') {
             childReport.totalCashCollection -= price;
             childReport.accountantSum -= price;
           }
@@ -2320,11 +2320,11 @@ WITH orderSums AS (
 ),
 cashflowSums AS (
   SELECT
-    COALESCE(SUM(CASE WHEN c.type = 'Приход' and c.tip = 'cashflow' and ct.slug != 'Перечисление' THEN c.price ELSE 0 END), 0) AS "totalIncome",
+    COALESCE(SUM(CASE WHEN c.type = 'Приход' and c.tip = 'cashflow' and ct.slug != 'transfer' THEN c.price ELSE 0 END), 0) AS "totalIncome",
     COALESCE(SUM(CASE WHEN c.type = 'Расход' and c.tip = 'cashflow' THEN c.price ELSE 0 END), 0) AS "totalExpence",
-    COALESCE(SUM(CASE WHEN ct.slug = 'Инкассация' THEN c.price ELSE 0 END), 0) AS "cashCollection",
+    COALESCE(SUM(CASE WHEN ct.slug = 'cash_collection' THEN c.price ELSE 0 END), 0) AS "cashCollection",
     COALESCE(SUM(CASE WHEN ct.slug = 'return' THEN c.price ELSE 0 END), 0) AS "returnSale",
-    COALESCE(SUM(CASE WHEN ct.slug = 'Перечисление' THEN c.price ELSE 0 END), 0) AS "perechesleniya"
+    COALESCE(SUM(CASE WHEN ct.slug = 'transfer' THEN c.price ELSE 0 END), 0) AS "perechesleniya"
   FROM cashflow c
   LEFT JOIN cashflow_type ct ON c."cashflowTypeId" = ct.id
   WHERE c."kassaId" = $1
@@ -2414,9 +2414,9 @@ WHERE k.id = $1;
 
     // === Common reusable parts ===
     const now = bodyDate || new Date().toISOString();
-    const cashflow_types = await this.cashflowTypeRepository.find({ where: { slug: In(['Перечисление', 'delaer']) } });
-    const dealerType = cashflow_types.find(el => el.slug === 'delaer');
-    const transferType = cashflow_types.find(el => el.slug === 'Перечисление');
+    const cashflow_types = await this.cashflowTypeRepository.find({ where: { slug: In(['transfer', 'dealer']) } });
+    const dealerType = cashflow_types.find(el => el.slug === 'dealer');
+    const transferType = cashflow_types.find(el => el.slug === 'transfer');
 
     const dManager = await this.userRepo.findOne({
       where: { position: { role: UserRoleEnum.D_MANAGER } },
@@ -3056,8 +3056,8 @@ WHERE k.id = $1;
         const newPrice = data.price !== undefined ? Math.abs(data.price) : oldPrice;
         const priceDiff = newPrice - oldPrice;
         const oldSlug = cashflow.cashflow_type?.slug;
-        const isLogisticsFlow = ['logistika', 'Логистика'].includes(oldSlug) && cashflow.logistics?.id;
-        const isCustomsFlow = ['tamojnya', 'Таможня'].includes(oldSlug) && cashflow.customs?.id;
+        const isLogisticsFlow = oldSlug === 'logistics' && cashflow.logistics?.id;
+        const isCustomsFlow = oldSlug === 'customs' && cashflow.customs?.id;
 
         // Check if cashflow_type is changing
         let newCashflowType = cashflow.cashflow_type;
@@ -3074,7 +3074,7 @@ WHERE k.id = $1;
         // Helper: apply kassa effects for a cashflow (positive = add, negative = remove)
         const applyKassaEffects = (k: Kassa, price: number, slug: string, type: CashFlowEnum, isOnline: boolean, sign: number) => {
           if (type === CashFlowEnum.InCome) {
-            if (slug === 'Перечисление') {
+            if (slug === 'transfer') {
               k.plasticSum += price * sign;
               k.income += price * sign;
             } else {
@@ -3091,7 +3091,7 @@ WHERE k.id = $1;
             if (isOnline) {
               k.plasticSum -= price * sign;
             }
-            if (slug === 'Инкассация') {
+            if (slug === 'cash_collection') {
               k.cash_collection += price * sign;
             }
           }
@@ -3104,11 +3104,11 @@ WHERE k.id = $1;
           });
           const r = kassaWithReport?.report;
           if (!r) return;
-          if (type === CashFlowEnum.InCome && slug === 'Перечисление') {
+          if (type === CashFlowEnum.InCome && slug === 'transfer') {
             r.totalPlasticSum += price * sign;
             r.accountantSum += price * sign;
           }
-          if (type === CashFlowEnum.Consumption && slug === 'Инкассация') {
+          if (type === CashFlowEnum.Consumption && slug === 'cash_collection') {
             r.totalCashCollection += price * sign;
             r.accountantSum += price * sign;
           }
@@ -3198,7 +3198,7 @@ WHERE k.id = $1;
 
         // --- Debt effects ---
         if (priceDiff !== 0 && cashflow.debt) {
-          const isDebtFlow = ['dolg', 'Долг', 'Кент'].includes(oldSlug);
+          const isDebtFlow = oldSlug === 'kent';
           if (isDebtFlow) {
             const debt = await this.debtService.findOne(cashflow.debt.id);
             if (debt) {
@@ -3252,7 +3252,7 @@ WHERE k.id = $1;
         }
 
         // --- Child cashflow handling ---
-        const childCreatingSlugs = ['manager', 'bugalter', 'Инкассация'];
+        const childCreatingSlugs = ['manager', 'accountant', 'cash_collection'];
         const oldHasChildren = childCreatingSlugs.includes(oldSlug);
         const newHasChildren = childCreatingSlugs.includes(newSlug);
 
@@ -3265,7 +3265,7 @@ WHERE k.id = $1;
               });
               if (childReport) {
                 childReport.totalIncome -= oldPrice;
-                if (oldSlug === 'bugalter' || oldSlug === 'Инкассация') {
+                if (oldSlug === 'accountant' || oldSlug === 'cash_collection') {
                   childReport.accountantSum -= oldPrice;
                 }
                 if (oldSlug === 'manager') {
@@ -3293,10 +3293,10 @@ WHERE k.id = $1;
           }
           if (targetUser) {
             const activeKassa = isMonthChange && targetKassa ? targetKassa : kassa;
-            const childCashflowType = await this.getOneBySlug(newSlug === 'Инкассация' ? 'Инкассация' : 'kassa');
+            const childCashflowType = await this.getOneBySlug(newSlug === 'cash_collection' ? 'cash_collection' : 'kassa');
             let comment = `${activeKassa?.filial?.title || ''} filialidan kassa qabul qilindi - ${data.comment || cashflow.comment || ''}`;
-            if (newSlug === 'Инкассация') {
-              comment = `${activeKassa?.filial?.title || ''} filialini kassasidan "Инкассация" qabul qilindi - ${data.comment || cashflow.comment || ''}`;
+            if (newSlug === 'cash_collection') {
+              comment = `${activeKassa?.filial?.title || ''} filialini kassasidan "cash_collection" qabul qilindi - ${data.comment || cashflow.comment || ''}`;
             }
 
             const kassaReport = activeKassa?.report;
@@ -3310,7 +3310,7 @@ WHERE k.id = $1;
               comment,
               cashflow_type: childCashflowType?.id,
               date: data.date ? new Date(data.date) : new Date(cashflow.date),
-              is_online: cashflow.is_online || newSlug === 'Инкассация',
+              is_online: cashflow.is_online || newSlug === 'cash_collection',
               is_static: false,
               parent: cashflow.id,
             };
@@ -3320,7 +3320,7 @@ WHERE k.id = $1;
               .execute();
 
             if (kassaReport) {
-              if (newSlug === 'bugalter' || newSlug === 'Инкассация') {
+              if (newSlug === 'accountant' || newSlug === 'cash_collection') {
                 kassaReport.accountantSum += newPrice;
               } else {
                 kassaReport.managerSum += newPrice;
@@ -3335,8 +3335,8 @@ WHERE k.id = $1;
             if (priceDiff !== 0) child.price = newPrice;
             if (data.date !== undefined) child.date = data.date as any;
             if (data.comment !== undefined) {
-              if (oldSlug === 'Инкассация') {
-                child.comment = `${kassa?.filial?.title || ''} filialini kassasidan "Инкассация" qabul qilindi - ${data.comment || ''}`;
+              if (oldSlug === 'cash_collection') {
+                child.comment = `${kassa?.filial?.title || ''} filialini kassasidan "cash_collection" qabul qilindi - ${data.comment || ''}`;
               } else {
                 child.comment = `${kassa?.filial?.title || ''} filialidan kassa qabul qilindi - ${data.comment || ''}`;
               }
@@ -3349,7 +3349,7 @@ WHERE k.id = $1;
               });
               if (oldChildReport) {
                 oldChildReport.totalIncome -= oldPrice;
-                if (oldSlug === 'bugalter' || oldSlug === 'Инкассация') {
+                if (oldSlug === 'accountant' || oldSlug === 'cash_collection') {
                   oldChildReport.accountantSum -= oldPrice;
                 }
                 if (oldSlug === 'manager') {
@@ -3360,7 +3360,7 @@ WHERE k.id = $1;
               child.report = targetKassa.report;
               const newChildReport = targetKassa.report;
               newChildReport.totalIncome += newPrice;
-              if (oldSlug === 'bugalter' || oldSlug === 'Инкассация') {
+              if (oldSlug === 'accountant' || oldSlug === 'cash_collection') {
                 newChildReport.accountantSum += newPrice;
               }
               if (oldSlug === 'manager') {
@@ -3374,7 +3374,7 @@ WHERE k.id = $1;
               });
               if (childReport) {
                 childReport.totalIncome += priceDiff;
-                if (oldSlug === 'bugalter' || oldSlug === 'Инкассация') {
+                if (oldSlug === 'accountant' || oldSlug === 'cash_collection') {
                   childReport.accountantSum += priceDiff;
                 }
                 if (oldSlug === 'manager') {
