@@ -104,6 +104,38 @@ export class ProductService {
     };
   }
 
+  async searchFilials(search: string): Promise<{ id: string; title: string; count: number }[]> {
+    if (!search) return [];
+    const results = await this.productRepository
+      .createQueryBuilder('product')
+      .leftJoin('product.filial', 'filial')
+      .leftJoin('product.bar_code', 'bar_code')
+      .leftJoin('bar_code.model', 'model')
+      .leftJoin('bar_code.collection', 'collection')
+      .leftJoin('bar_code.color', 'color')
+      .select('filial.id', 'id')
+      .addSelect('filial.title', 'title')
+      .addSelect('COUNT(product.id)', 'count')
+      .where('product.is_deleted = false')
+      .andWhere('filial.type IN (:...filialTypes)', {
+        filialTypes: [FilialTypeEnum.FILIAL, FilialTypeEnum.WAREHOUSE],
+      })
+      .andWhere(
+        '(product.code ILIKE :search OR bar_code.code ILIKE :search OR model.title ILIKE :search OR collection.title ILIKE :search OR color.title ILIKE :search)',
+        { search: `%${search}%` },
+      )
+      .groupBy('filial.id')
+      .addGroupBy('filial.title')
+      .orderBy('count', 'DESC')
+      .getRawMany();
+
+    return results.map((r) => ({
+      id: r.id,
+      title: r.title,
+      count: Number(r.count),
+    }));
+  }
+
   async findOne(id: string): Promise<Product> {
     const product = await this.productRepository.findOne({
       where: { id },
