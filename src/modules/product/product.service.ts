@@ -132,6 +132,7 @@ export class ProductService {
       .addSelect('COUNT(product.id)', 'count')
       .where('product.is_deleted = false')
       .andWhere('product.deletedDate IS NULL')
+      .andWhere('product.count > 0')
       .andWhere('filial.type IN (:...filialTypes)', {
         filialTypes: [FilialTypeEnum.FILIAL, FilialTypeEnum.WAREHOUSE, FilialTypeEnum.MARKET],
       });
