@@ -41,10 +41,14 @@ export class ProductService {
     }
 
     if (query.search) {
-      qb.andWhere(
-        '(product.code ILIKE :search OR bar_code.code ILIKE :search OR model.title ILIKE :search OR collection.title ILIKE :search OR color.title ILIKE :search)',
-        { search: `%${query.search}%` },
-      );
+      const words = query.search.trim().split(/\s+/);
+      words.forEach((word, i) => {
+        const param = `search${i}`;
+        qb.andWhere(
+          `(product.code ILIKE :${param} OR bar_code.code ILIKE :${param} OR model.title ILIKE :${param} OR collection.title ILIKE :${param} OR color.title ILIKE :${param} OR CONCAT(ROUND(size.x * 100), 'x', ROUND(size.y * 100)) ILIKE :${param})`,
+          { [param]: `%${word}%` },
+        );
+      });
     }
   }
 
@@ -113,10 +117,11 @@ export class ProductService {
 
   async searchFilials(search: string): Promise<{ id: string; title: string; count: number }[]> {
     if (!search) return [];
-    const results = await this.productRepository
+    const qb = this.productRepository
       .createQueryBuilder('product')
       .leftJoin('product.filial', 'filial')
       .leftJoin('product.bar_code', 'bar_code')
+      .leftJoin('bar_code.size', 'size')
       .leftJoin('bar_code.model', 'model')
       .leftJoin('bar_code.collection', 'collection')
       .leftJoin('bar_code.color', 'color')
@@ -126,11 +131,18 @@ export class ProductService {
       .where('product.is_deleted = false')
       .andWhere('filial.type IN (:...filialTypes)', {
         filialTypes: [FilialTypeEnum.FILIAL, FilialTypeEnum.WAREHOUSE],
-      })
-      .andWhere(
-        '(product.code ILIKE :search OR bar_code.code ILIKE :search OR model.title ILIKE :search OR collection.title ILIKE :search OR color.title ILIKE :search)',
-        { search: `%${search}%` },
-      )
+      });
+
+    const words = search.trim().split(/\s+/);
+    words.forEach((word, i) => {
+      const param = `search${i}`;
+      qb.andWhere(
+        `(product.code ILIKE :${param} OR bar_code.code ILIKE :${param} OR model.title ILIKE :${param} OR collection.title ILIKE :${param} OR color.title ILIKE :${param} OR CONCAT(ROUND(size.x * 100), 'x', ROUND(size.y * 100)) ILIKE :${param})`,
+        { [param]: `%${word}%` },
+      );
+    });
+
+    const results = await qb
       .groupBy('filial.id')
       .addGroupBy('filial.title')
       .orderBy('count', 'DESC')
