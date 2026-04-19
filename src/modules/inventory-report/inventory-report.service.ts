@@ -715,7 +715,7 @@ export class InventoryReportService {
       COALESCE(r.rem_count, 0)::int AS "remainingCount",
       COALESCE(r.rem_kv, 0)::numeric(20,2) AS "remainingKv",
       COALESCE(r.rem_sum, 0)::numeric(20,2) AS "remainingSum",
-      COALESCE(sd.sold_profit, 0)::numeric(20,2) AS "profit"
+      COALESCE(r.rem_profit, 0)::numeric(20,2) AS "profit"
     FROM partiya pa
     LEFT JOIN partiya_number pn ON pa."partiyaNoId" = pn.id
     LEFT JOIN country co        ON pa."countryId" = co.id
