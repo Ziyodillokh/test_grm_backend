@@ -7,6 +7,10 @@ export class FactoryReportQueryDto {
   year?: number;
 
   @IsOptional()
+  @Transform(({ value }) => parseInt(value))
+  month?: number;
+
+  @IsOptional()
   @IsString()
   search?: string;
 

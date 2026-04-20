@@ -133,6 +133,11 @@ export class FactoryService {
     const page = dto.page || 1;
     const limit = dto.limit || 20;
     const offset = (page - 1) * limit;
+    const year = dto.year || dayjs().year();
+    const month = dto.month || (dayjs().month() + 1);
+
+    const startDate = dayjs(`${year}-${String(month).padStart(2, '0')}-01`).startOf('month').toDate();
+    const endDate = dayjs(`${year}-${String(month).padStart(2, '0')}-01`).endOf('month').toDate();
 
     const qb = this.repository
       .createQueryBuilder('f')
@@ -178,12 +183,53 @@ export class FactoryService {
       .andWhere('f."deletedDate" IS NULL');
     const totals = await totalsQb.getRawOne();
 
+    // Period data per factory
+    const factoryIds = items.map((i: any) => i.id);
+    let periodOwedMap = new Map<string, number>();
+    let periodGivenMap = new Map<string, number>();
+
+    if (factoryIds.length > 0) {
+      const periodOwedResult = await this.entityManager.query(`
+        SELECT p."factoryId" AS factory_id,
+          SUM(
+            CASE
+              WHEN qb."isMetric" = true THEN (pe.check_count::numeric / 100) * s.x
+              ELSE s.y * s.x * pe.count
+            END * pcp."factoryPricePerKv"
+          )::NUMERIC(20,2) AS period_owed
+        FROM partiya p
+        JOIN "partiya-collection-price" pcp ON pcp."partiyaId" = p.id
+        JOIN productexcel pe ON pe."partiyaId" = p.id
+        JOIN qrbase qb ON pe."barCodeId" = qb.id AND qb."collectionId" = pcp."collectionId"
+        JOIN size s ON qb."sizeId" = s.id
+        WHERE p."factoryId" = ANY($1)
+          AND p.partiya_status = 'finished'
+          AND p.date BETWEEN $2 AND $3
+        GROUP BY p."factoryId"
+      `, [factoryIds, startDate, endDate]);
+
+      const periodGivenResult = await this.entityManager.query(`
+        SELECT c."factoryId" AS factory_id,
+          COALESCE(SUM(c.price), 0)::NUMERIC(20,2) AS period_given
+        FROM cashflow c
+        WHERE c."factoryId" = ANY($1)
+          AND c.is_cancelled = false
+          AND c.date BETWEEN $2 AND $3
+        GROUP BY c."factoryId"
+      `, [factoryIds, startDate, endDate]);
+
+      periodOwedMap = new Map(periodOwedResult.map((r: any) => [r.factory_id, Number(r.period_owed)]));
+      periodGivenMap = new Map(periodGivenResult.map((r: any) => [r.factory_id, Number(r.period_given)]));
+    }
+
     return {
-      items: items.map((i) => ({
+      items: items.map((i: any) => ({
         ...i,
         owed: Number(i.owed || 0),
         given: Number(i.given || 0),
         totalDebt: Number(i.totalDebt || 0),
+        period_owed: periodOwedMap.get(i.id) || 0,
+        period_given: periodGivenMap.get(i.id) || 0,
       })),
       meta: {
         totalItems,
