@@ -92,6 +92,28 @@ export class ReportController {
     return { message: `Yil ${year} uchun barcha oylar bo'yicha hisobotlar yaratildi` };
   }
 
+  @Get('dealer-report')
+  @ApiQuery({ name: 'year', required: false })
+  @ApiQuery({ name: 'month', required: false })
+  @ApiQuery({ name: 'search', required: false })
+  @ApiQuery({ name: 'page', required: false })
+  @ApiQuery({ name: 'limit', required: false })
+  async getDealerReport(
+    @Query('year') year?: number,
+    @Query('month') month?: number,
+    @Query('search') search?: string,
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+  ) {
+    return this.reportService.getDealerReport({
+      year: year ? +year : undefined,
+      month: month ? +month : undefined,
+      search: search || undefined,
+      page: page ? +page : undefined,
+      limit: limit ? +limit : undefined,
+    });
+  }
+
   @Get('dealer/:dealerId')
   @ApiQuery({ name: 'year', required: false })
   @ApiQuery({ name: 'month', required: false })
