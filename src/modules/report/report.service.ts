@@ -4501,122 +4501,127 @@ export class ReportService {
    * Dealer report list — all dealers with cumulative and period data.
    */
   async getDealerReport(dto: { year?: number; month?: number; search?: string; page?: number; limit?: number }) {
-    const year = dto.year || dayjs().year();
-    const month = dto.month || dayjs().month() + 1;
-    const page = dto.page || 1;
-    const limit = dto.limit || 50;
-    const offset = (page - 1) * limit;
-    const search = dto.search || null;
+    try {
+      const year = Number(dto.year) || dayjs().year();
+      const month = Number(dto.month) || (dayjs().month() + 1);
+      const page = Number(dto.page) || 1;
+      const limit = Number(dto.limit) || 50;
+      const offset = (page - 1) * limit;
+      const search = dto.search || null;
 
-    const startDate = dayjs(`${year}-${String(month).padStart(2, '0')}-01`).startOf('month').toDate();
-    const endDate = dayjs(`${year}-${String(month).padStart(2, '0')}-01`).endOf('month').toDate();
+      const startDate = dayjs(`${year}-${String(month).padStart(2, '0')}-01`).startOf('month').toDate();
+      const endDate = dayjs(`${year}-${String(month).padStart(2, '0')}-01`).endOf('month').toDate();
 
-    // Count
-    const countParams: any[] = [];
-    let countWhere = `f.type = 'dealer' AND f."isActive" = true`;
-    if (search) {
-      countParams.push(`%${search}%`);
-      countWhere += ` AND f.title ILIKE $1`;
-    }
-    const countResult = await this.entityManager.query(
-      `SELECT COUNT(*) AS total FROM filial f WHERE ${countWhere}`,
-      countParams,
-    );
-    const totalItems = Number(countResult[0]?.total || 0);
+      // Step 1: Get dealers list
+      let dealerQuery = `
+        SELECT f.id, f.title,
+          COALESCE(f.owed, 0)::NUMERIC(20,2) AS owed,
+          COALESCE(f.given, 0)::NUMERIC(20,2) AS given
+        FROM filial f
+        WHERE f.type = 'dealer' AND f."isActive" = true
+      `;
+      const dealerParams: any[] = [];
+      if (search) {
+        dealerParams.push(`%${search}%`);
+        dealerQuery += ` AND f.title ILIKE $1`;
+      }
+      dealerQuery += ` ORDER BY f.title ASC`;
 
-    // Main query: dealers with period data
-    const mainParams: any[] = [startDate, endDate];
-    let mainWhere = `f.type = 'dealer' AND f."isActive" = true`;
-    if (search) {
-      mainParams.push(`%${search}%`);
-      mainWhere += ` AND f.title ILIKE $3`;
-    }
+      const allDealers = await this.entityManager.query(dealerQuery, dealerParams);
+      const totalItems = allDealers.length;
+      const paginatedDealers = allDealers.slice(offset, offset + limit);
 
-    const items = await this.entityManager.query(`
-      SELECT
-        f.id,
-        f.title,
-        COALESCE(f.owed, 0)::NUMERIC(20,2) AS owed,
-        COALESCE(f.given, 0)::NUMERIC(20,2) AS given,
-        (COALESCE(f.owed, 0) - COALESCE(f.given, 0))::NUMERIC(20,2) AS "totalDebt",
-        COALESCE(pkg.period_owed, 0)::NUMERIC(20,2) AS period_owed,
-        COALESCE(pay.period_given, 0)::NUMERIC(20,2) AS period_given
-      FROM filial f
-      LEFT JOIN LATERAL (
-        SELECT COALESCE(SUM(pt.total_sum), 0)::NUMERIC(20,2) AS period_owed
+      if (paginatedDealers.length === 0) {
+        return {
+          items: [],
+          meta: { totalItems, currentPage: page, totalPages: Math.ceil(totalItems / limit), itemCount: 0 },
+          totals: { total_owed: 0, total_given: 0, total_debt: 0, total_period_owed: 0, total_period_given: 0 },
+        };
+      }
+
+      // Step 2: Get period data for paginated dealers
+      const dealerIds = paginatedDealers.map((d: any) => d.id);
+
+      const periodOwedResult = await this.entityManager.query(`
+        SELECT pt."dealerId" AS dealer_id, COALESCE(SUM(pt.total_sum), 0)::NUMERIC(20,2) AS period_owed
         FROM package_transfer pt
-        WHERE pt."dealerId" = f.id
+        WHERE pt."dealerId" = ANY($1)
           AND pt.status = 'accepted'
-          AND pt."acceptedAt" BETWEEN $1 AND $2
-      ) pkg ON true
-      LEFT JOIN LATERAL (
-        SELECT COALESCE(SUM(c.price), 0)::NUMERIC(20,2) AS period_given
+          AND pt."acceptedAt" BETWEEN $2 AND $3
+        GROUP BY pt."dealerId"
+      `, [dealerIds, startDate, endDate]);
+
+      const periodGivenResult = await this.entityManager.query(`
+        SELECT k."filialId" AS dealer_id, COALESCE(SUM(c.price), 0)::NUMERIC(20,2) AS period_given
         FROM cashflow c
         JOIN kassa k ON c."kassaId" = k.id
-        WHERE k."filialId" = f.id
+        WHERE k."filialId" = ANY($1)
           AND c.type = 'Приход'
           AND c.is_cancelled = false
-          AND c.date BETWEEN $1 AND $2
-      ) pay ON true
-      WHERE ${mainWhere}
-      ORDER BY f.title ASC
-      LIMIT $${mainParams.length + 1} OFFSET $${mainParams.length + 2}
-    `, [...mainParams, limit, offset]);
+          AND c.date BETWEEN $2 AND $3
+        GROUP BY k."filialId"
+      `, [dealerIds, startDate, endDate]);
 
-    // Totals
-    const totalsResult = await this.entityManager.query(`
-      SELECT
-        COALESCE(SUM(f.owed), 0)::NUMERIC(20,2) AS total_owed,
-        COALESCE(SUM(f.given), 0)::NUMERIC(20,2) AS total_given,
-        (COALESCE(SUM(f.owed), 0) - COALESCE(SUM(f.given), 0))::NUMERIC(20,2) AS total_debt,
-        COALESCE(SUM(pkg.period_owed), 0)::NUMERIC(20,2) AS total_period_owed,
-        COALESCE(SUM(pay.period_given), 0)::NUMERIC(20,2) AS total_period_given
-      FROM filial f
-      LEFT JOIN LATERAL (
-        SELECT COALESCE(SUM(pt.total_sum), 0)::NUMERIC(20,2) AS period_owed
+      const owedMap = new Map(periodOwedResult.map((r: any) => [r.dealer_id, Number(r.period_owed)]));
+      const givenMap = new Map(periodGivenResult.map((r: any) => [r.dealer_id, Number(r.period_given)]));
+
+      const items = paginatedDealers.map((d: any) => ({
+        id: d.id,
+        title: d.title,
+        owed: Number(d.owed),
+        given: Number(d.given),
+        totalDebt: Number((Number(d.owed) - Number(d.given)).toFixed(2)),
+        period_owed: owedMap.get(d.id) || 0,
+        period_given: givenMap.get(d.id) || 0,
+      }));
+
+      // Step 3: Totals across ALL dealers (not just paginated)
+      const allIds = allDealers.map((d: any) => d.id);
+
+      const totalOwedGiven = allDealers.reduce((acc: any, d: any) => {
+        acc.owed += Number(d.owed);
+        acc.given += Number(d.given);
+        return acc;
+      }, { owed: 0, given: 0 });
+
+      const totalPeriodOwed = await this.entityManager.query(`
+        SELECT COALESCE(SUM(pt.total_sum), 0)::NUMERIC(20,2) AS total
         FROM package_transfer pt
-        WHERE pt."dealerId" = f.id
+        WHERE pt."dealerId" = ANY($1)
           AND pt.status = 'accepted'
-          AND pt."acceptedAt" BETWEEN $1 AND $2
-      ) pkg ON true
-      LEFT JOIN LATERAL (
-        SELECT COALESCE(SUM(c.price), 0)::NUMERIC(20,2) AS period_given
+          AND pt."acceptedAt" BETWEEN $2 AND $3
+      `, [allIds, startDate, endDate]);
+
+      const totalPeriodGiven = await this.entityManager.query(`
+        SELECT COALESCE(SUM(c.price), 0)::NUMERIC(20,2) AS total
         FROM cashflow c
         JOIN kassa k ON c."kassaId" = k.id
-        WHERE k."filialId" = f.id
+        WHERE k."filialId" = ANY($1)
           AND c.type = 'Приход'
           AND c.is_cancelled = false
-          AND c.date BETWEEN $1 AND $2
-      ) pay ON true
-      WHERE ${mainWhere}
-    `, mainParams);
+          AND c.date BETWEEN $2 AND $3
+      `, [allIds, startDate, endDate]);
 
-    const totals = totalsResult[0] || {};
-
-    return {
-      items: items.map((item: any) => ({
-        id: item.id,
-        title: item.title,
-        owed: Number(item.owed),
-        given: Number(item.given),
-        totalDebt: Number(item.totalDebt),
-        period_owed: Number(item.period_owed),
-        period_given: Number(item.period_given),
-      })),
-      meta: {
-        totalItems,
-        currentPage: page,
-        totalPages: Math.ceil(totalItems / limit),
-        itemCount: items.length,
-      },
-      totals: {
-        total_owed: Number(totals.total_owed || 0),
-        total_given: Number(totals.total_given || 0),
-        total_debt: Number(totals.total_debt || 0),
-        total_period_owed: Number(totals.total_period_owed || 0),
-        total_period_given: Number(totals.total_period_given || 0),
-      },
-    };
+      return {
+        items,
+        meta: {
+          totalItems,
+          currentPage: page,
+          totalPages: Math.ceil(totalItems / limit),
+          itemCount: items.length,
+        },
+        totals: {
+          total_owed: Number(totalOwedGiven.owed.toFixed(2)),
+          total_given: Number(totalOwedGiven.given.toFixed(2)),
+          total_debt: Number((totalOwedGiven.owed - totalOwedGiven.given).toFixed(2)),
+          total_period_owed: Number(totalPeriodOwed[0]?.total || 0),
+          total_period_given: Number(totalPeriodGiven[0]?.total || 0),
+        },
+      };
+    } catch (error) {
+      console.error('getDealerReport error:', error);
+      throw error;
+    }
   }
 
   /**
