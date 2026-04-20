@@ -92,7 +92,7 @@ export class ReportController {
     return { message: `Yil ${year} uchun barcha oylar bo'yicha hisobotlar yaratildi` };
   }
 
-  @Get('dealer/list/report')
+  @Get('dealers-list')
   @ApiQuery({ name: 'year', required: false })
   @ApiQuery({ name: 'month', required: false })
   @ApiQuery({ name: 'search', required: false })
