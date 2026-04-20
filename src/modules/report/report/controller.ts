@@ -6,6 +6,7 @@ import {
   Get,
   Param,
   ParseIntPipe,
+  ParseUUIDPipe,
   Patch,
   Post,
   Put,
@@ -157,8 +158,30 @@ export class ReportReportController {
     return this.reportService.bossMonthReportDetail(query);
   }
 
+  @Get('dealers-list')
+  @ApiQuery({ name: 'year', required: false })
+  @ApiQuery({ name: 'month', required: false })
+  @ApiQuery({ name: 'search', required: false })
+  @ApiQuery({ name: 'page', required: false })
+  @ApiQuery({ name: 'limit', required: false })
+  async getDealerReport(
+    @Query('year') year?: number,
+    @Query('month') month?: number,
+    @Query('search') search?: string,
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+  ) {
+    return this.reportService.getDealerReport({
+      year: year ? +year : undefined,
+      month: month ? +month : undefined,
+      search: search || undefined,
+      page: page ? +page : undefined,
+      limit: limit ? +limit : undefined,
+    });
+  }
+
   @Get(':id')
-  async getOne(@Param('id') id: string) {
+  async getOne(@Param('id', new ParseUUIDPipe()) id: string) {
     return this.reportService.findOne(id);
   }
 
