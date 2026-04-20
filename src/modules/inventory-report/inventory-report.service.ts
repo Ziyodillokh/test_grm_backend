@@ -67,7 +67,7 @@ export class InventoryReportService {
   ) {
     const { groupCol, groupTitle, groupJoin } = this.resolveGrouping(groupBy);
 
-    let where = `WHERE p.is_deleted = false AND p."deletedDate" IS NULL AND p.count > 0 AND f.type IN ('filial', 'warehouse', 'market')`;
+    let where = `WHERE p.is_deleted = false AND p."deletedDate" IS NULL AND p.count > 0 AND (q."isMetric" = false OR p.y > 0) AND f.type IN ('filial', 'warehouse', 'market')`;
     const params: any[] = [];
     let idx = 1;
 
@@ -698,7 +698,7 @@ export class InventoryReportService {
           * (pp."priceMeter" - pp."comingPrice")
         ) AS rem_profit
       FROM partiya_products pp
-      WHERE pp.is_deleted = false
+      WHERE pp.is_deleted = false AND pp.count > 0 AND (pp."isMetric" = false OR pp.y > 0)
       GROUP BY pp."partiyaId"
     )
     SELECT
@@ -753,7 +753,7 @@ export class InventoryReportService {
         SUM((CASE WHEN pp."isMetric" THEN pp.y * pp.size_x
                   ELSE pp.count * pp.size_x * pp.size_y END) * (pp."priceMeter" - pp."comingPrice")) AS rem_profit
       FROM partiya_products pp
-      WHERE pp.is_deleted = false
+      WHERE pp.is_deleted = false AND pp.count > 0 AND (pp."isMetric" = false OR pp.y > 0)
       GROUP BY pp."partiyaId"
     )
     SELECT
