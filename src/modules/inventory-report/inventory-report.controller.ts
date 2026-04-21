@@ -28,6 +28,7 @@ export class InventoryReportController {
     UserRoleEnum.F_MANAGER,
     UserRoleEnum.W_MANAGER,
     UserRoleEnum.M_MANAGER,
+    UserRoleEnum.ACCOUNTANT,
     UserRoleEnum.BOSS,
   )
   @ApiOperation({ summary: 'Filial inventory snapshot (grouped, drill-down)' })
