@@ -408,4 +408,9 @@ export class ReportMonthlyV2Detail {
   @ApiProperty({ description: 'filial id', required: false })
   @IsOptional()
   readonly filialId: string;
+
+  @ApiProperty({ description: 'income yoki expense', required: false })
+  @IsString()
+  @IsOptional()
+  readonly tip: string;
 }

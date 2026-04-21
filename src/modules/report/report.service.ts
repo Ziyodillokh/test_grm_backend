@@ -3894,12 +3894,12 @@ export class ReportService {
   /**
    * Drill-in detail — har bir qator bo'yicha cashflow yoki filial ro'yxati
    */
-  async bossMonthReportDetail({ type, month, year, filialId }: {
-    type: string; month?: number; year?: number; filialId?: string;
+  async bossMonthReportDetail({ type, month, year, filialId, tip }: {
+    type: string; month?: number; year?: number; filialId?: string; tip?: string;
   }) {
     const { normalizedYear, startDate, endDate } = this.getYearAndDateRange(month, year);
 
-    const cacheKey = `bossReportDetail:${type}:${filialId || 'all'}:${month || 'all'}:${normalizedYear}`;
+    const cacheKey = `bossReportDetail:${type}:${filialId || 'all'}:${month || 'all'}:${normalizedYear}:${tip || 'all'}`;
     const cached = await this.redis.get(cacheKey);
     if (cached) return JSON.parse(cached);
 
@@ -3944,18 +3944,13 @@ export class ReportService {
       // ====== YASHIL BO'LIM (kirimlar) ======
 
       case 'naqd_kassa': {
-        // Umumiy: Report ichidagi prixod kassa cashflowlar
-        // Filial: shu filial kassasi slug=manager,bugalter type=Расход
-        if (filialId) {
-          const qb = makeCashflowQuery(['manager', 'accountant'], 'Расход');
-          this.applyDateRangeFilter(qb, 'k.startDate', startDate, endDate);
-          qb.andWhere('cash.filialId = :filialId', { filialId });
-          items = await qb.getMany();
-        } else {
-          const qb = makeCashflowQuery(['manager', 'accountant'], 'Расход');
-          this.applyDateRangeFilter(qb, 'k.startDate', startDate, endDate);
-          items = await qb.getMany();
-        }
+        // tip=income: Report ichidagi prixod kassa cashflowlar (umumiy rejim — kirimlar bo'limi)
+        // tip=expense: Kassa ichidagi rasxod cashflowlar (filial rejim — chiqimlar bo'limi)
+        const cfType = tip === 'income' ? 'Приход' : 'Расход';
+        const qb = makeCashflowQuery(['manager', 'accountant'], cfType);
+        this.applyDateRangeFilter(qb, 'k.startDate', startDate, endDate);
+        if (filialId) qb.andWhere('cash.filialId = :filialId', { filialId });
+        items = await qb.getMany();
         break;
       }
 
