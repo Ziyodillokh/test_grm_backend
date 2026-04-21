@@ -3944,13 +3944,17 @@ export class ReportService {
       // ====== YASHIL BO'LIM (kirimlar) ======
 
       case 'naqd_kassa': {
-        // tip=income: Report ichidagi prixod kassa cashflowlar (umumiy rejim — kirimlar bo'limi)
-        // tip=expense: Kassa ichidagi rasxod cashflowlar (filial rejim — chiqimlar bo'limi)
-        const cfType = tip === 'income' ? 'Приход' : 'Расход';
-        const qb = makeCashflowQuery(['manager', 'accountant'], cfType);
-        this.applyDateRangeFilter(qb, 'k.startDate', startDate, endDate);
-        if (filialId) qb.andWhere('cash.filialId = :filialId', { filialId });
-        items = await qb.getMany();
+        if (tip === 'income') {
+          // Umumiy rejim (kirimlar): report ichidagi kassa tipli prixod cashflowlar
+          const qb = makeCashflowByDate(['kassa'], 'Приход');
+          items = await qb.getMany();
+        } else {
+          // Filial rejim (chiqimlar): kassa ichidagi manager/accountant rasxod cashflowlar
+          const qb = makeCashflowQuery(['manager', 'accountant'], 'Расход');
+          this.applyDateRangeFilter(qb, 'k.startDate', startDate, endDate);
+          if (filialId) qb.andWhere('cash.filialId = :filialId', { filialId });
+          items = await qb.getMany();
+        }
         break;
       }
 
