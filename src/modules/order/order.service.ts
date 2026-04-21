@@ -743,15 +743,22 @@ export class OrderService {
     const kassa = await this.kassaService.GetOpenKassa(order.product.filial.id);
     const returnCashflowType = await this.cashFlowTypeService.getOneBySlug('return');
 
+    const barCode = order?.product?.bar_code;
+    const collectionName = barCode?.collection?.['title'] || '';
+    const modelName = barCode?.model?.title || '';
+    const sizeName = barCode?.size?.title || '';
+    const colorName = barCode?.color?.title || '';
+    const acceptedDate = order.createdAt
+      ? new Date(order.createdAt).toLocaleDateString('ru-RU')
+      : '';
+
     await this.cashFlowService.createReturnCashflow({
       price: order.price + order.plasticSum,
       kassa: kassa.id,
       order: order.id,
       cashflow_type: returnCashflowType?.id,
-      comment: 'Возврат',
-      title: `${order?.product?.bar_code?.collection?.['title'] || ''} | ${order?.product?.bar_code?.model?.title || ''} | ${
-        order?.product?.bar_code?.size?.title || ''
-      } | x${order.x}`,
+      comment: `Qaytarildi: ${collectionName} | ${modelName} | ${sizeName} | ${colorName} | x${order.x} | ${acceptedDate}`,
+      title: `${collectionName} | ${modelName} | ${sizeName} | x${order.x}`,
       in_hand_amount: order.price,
       kv: order.kv,
     }, userId);
