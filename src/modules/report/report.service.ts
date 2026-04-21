@@ -4126,6 +4126,14 @@ export class ReportService {
         break;
       }
 
+      case 'return_orders': {
+        // Qaytgan tovarlar — slug=return tipli cashflowlar (kassa ichidagi)
+        const qb = makeCashflowByKassa(['return'], 'Расход');
+        if (filialId) qb.andWhere('k.filialId = :filialId', { filialId });
+        items = await qb.getMany();
+        break;
+      }
+
       default:
         return { items: [] };
     }
