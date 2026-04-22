@@ -2461,7 +2461,7 @@ WHERE k.id = $1;
 
     const filialCashflow = this.cashflowRepository.create({
       ...baseCashflow,
-      comment: cashflowComment,
+      comment: comment ? `${cashflowComment} | ${comment}` : cashflowComment,
       cashflow_type: is_online ? transferType : dealerType,
       report: filialReport,
       createdBy,

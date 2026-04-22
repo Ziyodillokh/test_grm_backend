@@ -63,8 +63,9 @@ export class ReportReportController {
 
   @Get('total')
   @ApiQuery({ name: 'year', required: false })
+  @ApiQuery({ name: 'filialType', required: false })
   async totalReports(@Query() query: ReportQueryDto) {
-    return this.reportService.getTotalReports({ year: query?.year ? +query.year : undefined });
+    return this.reportService.getTotalReports({ year: query?.year ? +query.year : undefined, filialType: query?.filialType?.toUpperCase() as FilialTypeEnum });
   }
 
   @Get('aggregate')

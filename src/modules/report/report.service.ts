@@ -208,7 +208,7 @@ export class ReportService {
 
     if (query.year) {
       qb.andWhere('report.year = :year', { year: query.year });
-      qb.andWhere('report.filialType = :type', { type: 'filial' });
+      qb.andWhere('report.filialType = :type', { type: query.filialType || 'filial' });
     }
 
     const result = await qb
@@ -4000,17 +4000,19 @@ export class ReportService {
       }
 
       case 'dealer_cash': {
-        // Diller naqd: slug=delaer is_online=false
+        // Diller naqd: slug=dealer is_online=false — faqat reportga tegishli (child)
         const qb = makeCashflowByDate(['dealer'], 'Приход');
         qb.andWhere('cash.is_online = false');
+        qb.andWhere('r.id IS NOT NULL');
         items = await qb.getMany();
         break;
       }
 
       case 'dealer_terminal': {
-        // Diller perechesleniya: slug=delaer is_online=true
-        const qb = makeCashflowByDate(['dealer'], 'Приход');
+        // Diller o'tkazma: faqat reportga tegishli (child)
+        const qb = makeCashflowByDate(['dealer', 'transfer'], 'Приход');
         qb.andWhere('cash.is_online = true');
+        qb.andWhere('r.id IS NOT NULL');
         items = await qb.getMany();
         break;
       }
