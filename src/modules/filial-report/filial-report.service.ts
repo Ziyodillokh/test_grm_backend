@@ -1,6 +1,6 @@
 import { BadRequestException, forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { FilialReport } from './filial-report.entity';
-import { In, Repository } from 'typeorm';
+import { DataSource, In, Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { FilialService } from '../filial/filial.service';
 import { CreateFilialReportDto } from './dto';
@@ -15,6 +15,7 @@ import progresEnum from '@infra/shared/enum/transfer-progres.enum';
 @Injectable()
 export class FilialReportService {
   constructor(
+    private readonly dataSource: DataSource,
     @InjectRepository(FilialReport)
     private readonly filialReportRepository: Repository<FilialReport>,
     @InjectRepository(Product)
@@ -89,6 +90,52 @@ export class FilialReportService {
     return this.filialReportRepository.save(report);
   }
 
+  async findAllFilialsWithLatestReport(page: number, limit: number, search?: string) {
+    let query = `
+      SELECT f.id, f.title, f.type,
+        lr.id AS "lastReportId",
+        lr.date AS "lastReportDate",
+        lr.status AS "lastReportStatus",
+        lr.count AS "lastReportCount",
+        lr.volume AS "lastReportVolume",
+        lr.cost AS "lastReportCost",
+        lr."createdAt" AS "lastReportCreatedAt"
+      FROM filial f
+      LEFT JOIN LATERAL (
+        SELECT fr.id, fr.date, fr.status, fr.count, fr.volume, fr.cost, fr."createdAt"
+        FROM filial_report fr
+        WHERE fr."filialId" = f.id
+        ORDER BY fr.date DESC
+        LIMIT 1
+      ) lr ON true
+      WHERE f."isDeleted" = false AND f."type" IN ('filial', 'warehouse')
+    `;
+    const params: any[] = [];
+
+    if (search) {
+      params.push(`%${search.toLowerCase()}%`);
+      query += ` AND LOWER(f.title) ILIKE $${params.length}`;
+    }
+
+    // Count query
+    const countQuery = `SELECT COUNT(*) FROM (${query}) t`;
+    const totalResult = await this.dataSource.query(countQuery, params);
+    const total = Number(totalResult[0]?.count || 0);
+
+    query += ` ORDER BY f.title ASC`;
+    params.push(limit);
+    query += ` LIMIT $${params.length}`;
+    params.push((page - 1) * limit);
+    query += ` OFFSET $${params.length}`;
+
+    const items = await this.dataSource.query(query, params);
+
+    return {
+      items,
+      meta: { total, page, limit },
+    };
+  }
+
   async findAll(page: number, limit: number, filialId: string) {
     const [data, total] = await this.filialReportRepository.findAndCount({
       take: limit,
@@ -97,6 +144,7 @@ export class FilialReportService {
       where: {
         filial: { id: filialId },
       },
+      relations: { filial: true },
     });
 
     return {
