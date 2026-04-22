@@ -99,16 +99,16 @@ export class FilialReportService {
         lr.count AS "lastReportCount",
         lr.volume AS "lastReportVolume",
         lr.cost AS "lastReportCost",
-        lr."createdAt" AS "lastReportCreatedAt"
+        lr."dateOne" AS "lastReportCreatedAt"
       FROM filial f
       LEFT JOIN LATERAL (
-        SELECT fr.id, fr.date, fr.status, fr.count, fr.volume, fr.cost, fr."createdAt"
+        SELECT fr.id, fr.date, fr.status, fr.count, fr.volume, fr.cost, fr."dateOne"
         FROM filial_report fr
         WHERE fr."filialId" = f.id
         ORDER BY fr.date DESC
         LIMIT 1
       ) lr ON true
-      WHERE f."isDeleted" = false AND f."type" IN ('filial', 'warehouse')
+      WHERE f."isDeleted" = false AND f.type IN ('filial', 'warehouse')
     `;
     const params: any[] = [];
 
