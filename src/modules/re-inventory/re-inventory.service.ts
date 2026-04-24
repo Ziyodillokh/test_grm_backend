@@ -254,11 +254,13 @@ export class ReInventoryService {
 
     await this.reInventoryRepo.save(reInventoryEntities, { chunk: 100 });
 
-    // Active productlarning check_count ni 0 ga reset qilish
-    await this.productRepository.update(
-      { filial: { id: filialId }, is_deleted: false },
-      { check_count: 0 },
-    );
+    // Active productlarning check_count ni 0 ga reset qilish (safer query builder)
+    await this.productRepository
+      .createQueryBuilder()
+      .update(Product)
+      .set({ check_count: 0 })
+      .where('"filialId" = :filialId AND is_deleted = false', { filialId })
+      .execute();
 
     return {
       message: 'Successfully cloned products to re-inventory',
@@ -271,11 +273,22 @@ export class ReInventoryService {
     const filial_report = await this.filialReportRepo.findOne({ where: { id }, relations: { filial: true } });
     if (!filial_report) throw new NotFoundException('Filial report not found');
 
-    const existingCount = await this.reInventoryRepo.count({ where: { filial_report: { id } } });
+    let existingCount = 0;
+    try {
+      existingCount = await this.reInventoryRepo.count({ where: { filial_report: { id } } });
+    } catch (err) {
+      console.error('[getAll] re_inventory count failed, fallback to product table:', err);
+      return this.getForReport(page, limit, filial_report.filial.id, type, search);
+    }
 
     // OPEN pereuchotda re_inventory bo'sh bo'lsa — auto-snapshot (lazy migration)
     if (filial_report.status === FilialReportStatusEnum.OPEN && existingCount === 0) {
-      await this.cloneSnapshotForReport(id);
+      try {
+        await this.cloneSnapshotForReport(id);
+      } catch (err) {
+        console.error('[getAll] auto-snapshot failed, fallback to product table:', err);
+        return this.getForReport(page, limit, filial_report.filial.id, type, search);
+      }
     }
     // CLOSED/ACCEPTED/REJECTED — snapshot yo'q bo'lsa eski pereuchot, product table'dan o'qiymiz
     else if (
@@ -285,7 +298,12 @@ export class ReInventoryService {
       return this.getForReport(page, limit, filial_report.filial.id, type, search);
     }
 
-    return this.getForReportReInventory(id, page, limit, filial_report.filial.id, type, search);
+    try {
+      return await this.getForReportReInventory(id, page, limit, filial_report.filial.id, type, search);
+    } catch (err) {
+      console.error('[getAll] getForReportReInventory failed, fallback to product:', err);
+      return this.getForReport(page, limit, filial_report.filial.id, type, search);
+    }
   }
 
   /**
@@ -430,19 +448,34 @@ export class ReInventoryService {
     const filial_report = await this.filialReportRepo.findOne({ where: { id }, relations: { filial: true } });
     if (!filial_report) throw new NotFoundException('Filial report not found');
 
-    const existingCount = await this.reInventoryRepo.count({ where: { filial_report: { id } } });
+    let existingCount = 0;
+    try {
+      existingCount = await this.reInventoryRepo.count({ where: { filial_report: { id } } });
+    } catch (err) {
+      console.error('[getAllTotals] re_inventory count failed, fallback:', err);
+      return this.getReportProduct(filial_report.filial.id, type, search);
+    }
 
     if (filial_report.status === FilialReportStatusEnum.OPEN && existingCount === 0) {
-      await this.cloneSnapshotForReport(id);
+      try {
+        await this.cloneSnapshotForReport(id);
+      } catch (err) {
+        console.error('[getAllTotals] auto-snapshot failed:', err);
+        return this.getReportProduct(filial_report.filial.id, type, search);
+      }
     } else if (
       filial_report.status !== FilialReportStatusEnum.OPEN &&
       existingCount === 0
     ) {
-      // Eski (pre-refactor) pereuchot — product jadvalidan totals
       return this.getReportProduct(filial_report.filial.id, type, search);
     }
 
-    return this.getReportReInventory(filial_report.id, type, search);
+    try {
+      return await this.getReportReInventory(filial_report.id, type, search);
+    } catch (err) {
+      console.error('[getAllTotals] getReportReInventory failed:', err);
+      return this.getReportProduct(filial_report.filial.id, type, search);
+    }
   }
 
   // Utils for get inventories

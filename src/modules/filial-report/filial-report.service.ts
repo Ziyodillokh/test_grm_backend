@@ -111,8 +111,14 @@ export class FilialReportService {
     await this.filialService.change({ need_get_report: true }, filial.id);
 
     // Auto-snapshot: filial'dagi barcha aktiv productlarning hozirgi holatini
-    // re_inventory'ga ko'chirish (check_count=0 bilan)
-    await this.reInventoryService.cloneSnapshotForReport(saved.id);
+    // re_inventory'ga ko'chirish (check_count=0 bilan).
+    // Agar snapshot muvaffaqiyatsiz bo'lsa, report saqlangani qolaveradi,
+    // lazy migration GET paytida qayta urinadi.
+    try {
+      await this.reInventoryService.cloneSnapshotForReport(saved.id);
+    } catch (err) {
+      console.error('[filial-report.create] cloneSnapshotForReport failed:', err);
+    }
 
     return saved;
   }
