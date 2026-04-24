@@ -270,7 +270,21 @@ export class ReInventoryService {
   async getAll({ page, limit }: { page: number, limit: number }, id: string, type: ProductReportEnum, search?: string) {
     const filial_report = await this.filialReportRepo.findOne({ where: { id }, relations: { filial: true } });
     if (!filial_report) throw new NotFoundException('Filial report not found');
-    // Har doim re_inventory jadvalidan o'qiymiz (snapshot muzlatilgan)
+
+    const existingCount = await this.reInventoryRepo.count({ where: { filial_report: { id } } });
+
+    // OPEN pereuchotda re_inventory bo'sh bo'lsa — auto-snapshot (lazy migration)
+    if (filial_report.status === FilialReportStatusEnum.OPEN && existingCount === 0) {
+      await this.cloneSnapshotForReport(id);
+    }
+    // CLOSED/ACCEPTED/REJECTED — snapshot yo'q bo'lsa eski pereuchot, product table'dan o'qiymiz
+    else if (
+      filial_report.status !== FilialReportStatusEnum.OPEN &&
+      existingCount === 0
+    ) {
+      return this.getForReport(page, limit, filial_report.filial.id, type, search);
+    }
+
     return this.getForReportReInventory(id, page, limit, filial_report.filial.id, type, search);
   }
 
@@ -415,7 +429,19 @@ export class ReInventoryService {
   async getAllTotals(id: string, type?: ProductReportEnum, search?: string) {
     const filial_report = await this.filialReportRepo.findOne({ where: { id }, relations: { filial: true } });
     if (!filial_report) throw new NotFoundException('Filial report not found');
-    // Har doim re_inventory'dan — snapshot OPEN paytida olinadi
+
+    const existingCount = await this.reInventoryRepo.count({ where: { filial_report: { id } } });
+
+    if (filial_report.status === FilialReportStatusEnum.OPEN && existingCount === 0) {
+      await this.cloneSnapshotForReport(id);
+    } else if (
+      filial_report.status !== FilialReportStatusEnum.OPEN &&
+      existingCount === 0
+    ) {
+      // Eski (pre-refactor) pereuchot — product jadvalidan totals
+      return this.getReportProduct(filial_report.filial.id, type, search);
+    }
+
     return this.getReportReInventory(filial_report.id, type, search);
   }
 
