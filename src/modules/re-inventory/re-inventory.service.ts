@@ -1,7 +1,7 @@
 import { InjectRepository } from '@nestjs/typeorm';
 import { ReInventory } from '@modules/re-inventory/re-inventory.entity';
 import { DataSource, Repository } from 'typeorm';
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { QrBase } from '@modules/qr-base/qr-base.entity';
 import { Product } from '@modules/product/product.entity';
 import { Country } from '@modules/country/country.entity';
@@ -31,14 +31,28 @@ export class ReInventoryService {
   ) {
   }
 
-  async processInventory(dto: ProcessInventoryDto) {
+  async processInventory(dto: ProcessInventoryDto, userId?: string) {
     const queryRunner = this.dataSource.createQueryRunner();
 
     await queryRunner.connect();
     await queryRunner.startTransaction();
 
     try {
-      const { code, isMetric, value, filialId, id } = dto;
+      const { code, isMetric, value, filialId } = dto;
+
+      // Filialda faqat OPEN holatdagi filial_report bo'lishi kerak
+      const openReport = await queryRunner.manager.findOne(FilialReport, {
+        where: {
+          filial: { id: filialId },
+          status: FilialReportStatusEnum.OPEN,
+        },
+        relations: { filial: true },
+      });
+      if (!openReport) {
+        throw new BadRequestException(
+          'Filialda aktiv (OPEN) qayta ro\'yxat topilmadi — scan qilish mumkin emas',
+        );
+      }
 
       // ===============================
       // 1) QRBASE ni lock bilan topish yoki yaratish
@@ -47,73 +61,24 @@ export class ReInventoryService {
 
       const [country, collection, size, shape, style, model, color, factory, filial] =
         await Promise.all([
-          dto.countryId
-            ? queryRunner.manager.findOne(Country, {
-              where: { id: dto.countryId },
-            })
-            : null,
-          dto.collectionId
-            ? queryRunner.manager.findOne(Collection, {
-              where: { id: dto.collectionId },
-            })
-            : null,
-          dto.sizeId
-            ? queryRunner.manager.findOne(Size, {
-              where: { id: dto.sizeId },
-            })
-            : null,
-          dto.shapeId
-            ? queryRunner.manager.findOne(Shape, {
-              where: { id: dto.shapeId },
-            })
-            : null,
-          dto.styleId
-            ? queryRunner.manager.findOne(Style, {
-              where: { id: dto.styleId },
-            })
-            : null,
-          dto.modelId
-            ? queryRunner.manager.findOne(Model, {
-              where: { id: dto.modelId },
-            })
-            : null,
-          dto.colorId
-            ? queryRunner.manager.findOne(Color, {
-              where: { id: dto.colorId },
-            })
-            : null,
-          dto.factoryId
-            ? queryRunner.manager.findOne(Factory, {
-              where: { id: dto.factoryId },
-            })
-            : null,
-          dto.filialId
-            ? queryRunner.manager.findOne(Filial, {
-              where: { id: dto.filialId },
-            })
-            : null,
+          dto.countryId ? queryRunner.manager.findOne(Country, { where: { id: dto.countryId } }) : null,
+          dto.collectionId ? queryRunner.manager.findOne(Collection, { where: { id: dto.collectionId } }) : null,
+          dto.sizeId ? queryRunner.manager.findOne(Size, { where: { id: dto.sizeId } }) : null,
+          dto.shapeId ? queryRunner.manager.findOne(Shape, { where: { id: dto.shapeId } }) : null,
+          dto.styleId ? queryRunner.manager.findOne(Style, { where: { id: dto.styleId } }) : null,
+          dto.modelId ? queryRunner.manager.findOne(Model, { where: { id: dto.modelId } }) : null,
+          dto.colorId ? queryRunner.manager.findOne(Color, { where: { id: dto.colorId } }) : null,
+          dto.factoryId ? queryRunner.manager.findOne(Factory, { where: { id: dto.factoryId } }) : null,
+          dto.filialId ? queryRunner.manager.findOne(Filial, { where: { id: dto.filialId } }) : null,
         ]);
+
       if (!barCode) {
-
         barCode = queryRunner.manager.create(QrBase, {
-          code,
-          isMetric,
-          country,
-          collection,
-          size,
-          shape,
-          style,
-          model,
-          color,
-          factory,
-          is_active: true,
-          is_accepted: true,
+          code, isMetric, country, collection, size, shape, style, model, color, factory,
+          is_active: true, is_accepted: true,
         });
-
         await queryRunner.manager.save(barCode);
       } else {
-        // agar barcode allaqachon bor bo'lsa, ixtiyoriy:
-        // barcode.isMetric = isMetric; // Agar o'zgartirish kerak bo'lsa, shu yerda qo'yasiz
         await queryRunner.manager.save(QrBase, {
           ...barCode,
           ...(size && { size }),
@@ -128,177 +93,109 @@ export class ReInventoryService {
         });
       }
 
-      if (barCode.isMetric && (barCode.size.y * 100) < dto.value) {
-        throw new BadRequestException('Bu juda katta');
+      // Metric uzunlik validation
+      if (barCode.isMetric && barCode.size && (Number(barCode.size.y) * 100) < Number(value)) {
+        throw new BadRequestException('Bu juda katta — shtrixkod uzunligidan oshib ketdi');
       }
 
-      if (id) {
-        await queryRunner.manager.update(Product, { id }, { bar_code: barCode, check_count: value });
-
-        await queryRunner.commitTransaction();
-        return {
-          updated: [id],
-        };
-      }
+      const now = new Date();
+      const auditPatch: Partial<ReInventory> = userId
+        ? { last_checked_by: { id: userId } as any, last_checked_at: now }
+        : { last_checked_at: now };
 
       // ===========================================
-      // 2) ISMETRIC = TRUE bo'lsa - UZUNLIK LOGIKASI
+      // 2) METRIC — strict match
       // ===========================================
       if (barCode.isMetric) {
-        /**
-         * Qoidalar:
-         *  - mavjud mahsulotni qidirishda:
-         *      check_count = 0
-         *      (y * 100) > 0
-         *      (y * 100) <= value
-         *  - mahsulot topilsa:
-         *      faqat check_count = value (y va count o'zgarmaydi!)
-         *  - mahsulot topilmasa:
-         *      yangi product:
-         *        count = 1
-         *        y = 0
-         *        check_count = value
-         */
-
-        const freeMetricProduct = await queryRunner.manager
-          .createQueryBuilder(Product, 'p')
+        // Faqat aniq tenglik (y*100 == value) bo'lgan re_inventory rowlar match hisoblanadi
+        const matched = await queryRunner.manager
+          .createQueryBuilder(ReInventory, 'ri')
           .setLock('pessimistic_write')
-          .leftJoin('p.bar_code', 'qr')
-          .where('qr.id = :qrId', { qrId: barCode.id })
-          .andWhere('(p.check_count IS NULL OR p.check_count = 0)')
-          .andWhere('p.y IS NOT NULL AND (p.y * 100) > 0')
-          .andWhere('(p.y * 100) <= :value', { value })
-          .andWhere('p.filialId = :filialId', { filialId })
-          .orderBy('p.y', 'DESC') // eng katta uzunlikni birinchi olamiz
+          .where('ri."filialReportId" = :rid', { rid: openReport.id })
+          .andWhere('ri."barCodeId" = :bcid', { bcid: barCode.id })
+          .andWhere('ri.check_count = 0')
+          .andWhere('(ri.y * 100) = :val', { val: Number(value) })
+          .orderBy('ri.y', 'DESC')
           .getOne();
 
-        if (freeMetricProduct) {
-          // faqat check_count o'zgaradi
-          freeMetricProduct.check_count = value;
-
-          await queryRunner.manager.save(freeMetricProduct);
-
+        if (matched) {
+          matched.check_count = Number(value);
+          Object.assign(matched, auditPatch);
+          await queryRunner.manager.save(matched);
           await queryRunner.commitTransaction();
-
-          return {
-            barCodeId: barCode.id,
-            isMetric: true,
-            updatedProducts: [freeMetricProduct],
-            createdProducts: [],
-          };
+          return { barCodeId: barCode.id, isMetric: true, updated: [matched.id], created: [] };
         }
 
-        // TOPILMAGAN HOLAT – yangi product
-        const newMetricProduct = queryRunner.manager.create(Product, {
+        // Tenglik yo'q — yangi re_inventory rowi (Ortiqcha)
+        const newRi = queryRunner.manager.create(ReInventory, {
           bar_code: barCode,
           count: 1,
           y: 0,
-          check_count: value,
-          booking_count: 0,
-          filial: filial,
-          partiya_title: filial.name + ' ' + 'остатка',
+          check_count: Number(value),
+          comingPrice: 0,
+          filial_report: openReport,
+          ...auditPatch,
         });
-
-        await queryRunner.manager.save(newMetricProduct);
+        await queryRunner.manager.save(newRi);
         await queryRunner.commitTransaction();
-
-        return {
-          barCodeId: barCode.id,
-          isMetric: true,
-          updatedProducts: [],
-          createdProducts: [newMetricProduct],
-        };
+        return { barCodeId: barCode.id, isMetric: true, updated: [], created: [newRi.id] };
       }
 
       // ===========================================
-      // 3) ISMETRIC = FALSE bo'lsa - DONA / ODDIY LOGIKA
+      // 3) NON-METRIC — fill capacity, then new row
       // ===========================================
-      /**
-       * Qoidalar:
-       *  - mavjud mahsulotlarda:
-       *      y va count tegilmaydi
-       *      faqat check_count oshiriladi
-       *      capacity = count - check_count
-       *      eng katta count-lilar birinchi to'ladi
-       *  - agar capacity yetmasa:
-       *      yangi product:
-       *          y = bar_code.size.y
-       *          count = 0
-       *          check_count = amountLeft
-       */
-
-      const products = await queryRunner.manager
-        .createQueryBuilder(Product, 'p')
+      const rows = await queryRunner.manager
+        .createQueryBuilder(ReInventory, 'ri')
         .setLock('pessimistic_write')
-        .leftJoin('p.bar_code', 'qr')
-        .where('qr.id = :qrId', { qrId: barCode.id })
-        .andWhere('p.filialId = :filialId', { filialId })
-        .andWhere('p.is_deleted = false')
-        .orderBy('p.count', 'DESC') // katta count-lilar birinchi
+        .where('ri."filialReportId" = :rid', { rid: openReport.id })
+        .andWhere('ri."barCodeId" = :bcid', { bcid: barCode.id })
+        .orderBy('ri.count', 'DESC')
         .getMany();
 
-      let amountLeft = value;
-      const updatedProducts: Product[] = [];
-      const createdProducts: Product[] = [];
+      let amountLeft = Number(value);
+      const updated: string[] = [];
+      const created: string[] = [];
 
-      // mavjudlarni to'ldiramiz
-      for (const product of products) {
+      for (const ri of rows) {
         if (amountLeft <= 0) break;
+        const currentCheck = Number(ri.check_count || 0);
+        const cnt = Number(ri.count || 0);
+        const capacity = cnt - currentCheck;
+        if (capacity <= 0) continue;
 
-        const currentCheck = product.check_count || 0;
-        const capacity = product.count - currentCheck;
-        const is_deficit = product.count === 0 && product.check_count > 0;
-
-        if (capacity <= 0 && !is_deficit) continue;
-
-        if (is_deficit) {
-          product.check_count += amountLeft;
-          amountLeft = 0;
-        } else if (amountLeft >= capacity) {
-          product.check_count = currentCheck + capacity;
+        if (amountLeft >= capacity) {
+          ri.check_count = currentCheck + capacity;
           amountLeft -= capacity;
         } else {
-          product.check_count = currentCheck + amountLeft;
+          ri.check_count = currentCheck + amountLeft;
           amountLeft = 0;
         }
-
-        // y va count tegmaymiz!
-        await queryRunner.manager.save(product);
-        updatedProducts.push(product);
+        Object.assign(ri, auditPatch);
+        await queryRunner.manager.save(ri);
+        updated.push(ri.id);
       }
 
-      // agar hamon amountLeft > 0 bo'lsa – yangi product
       if (amountLeft > 0) {
-        const sizeY =
-          barCode.size && (barCode.size as any).y
-            ? Number((barCode.size as any).y)
-            : 0;
-
-
-        const newProduct = queryRunner.manager.create(Product, {
+        const sizeY = barCode.size?.y ? Number(barCode.size.y) : 0;
+        const newRi = queryRunner.manager.create(ReInventory, {
           bar_code: barCode,
-          y: sizeY,
           count: 0,
+          y: sizeY,
           check_count: amountLeft,
-          booking_count: 0,
-          filial,
+          comingPrice: 0,
+          filial_report: openReport,
+          ...auditPatch,
         });
-
-        await queryRunner.manager.save(newProduct);
-        createdProducts.push(newProduct);
+        await queryRunner.manager.save(newRi);
+        created.push(newRi.id);
       }
 
       await queryRunner.commitTransaction();
-
-      return {
-        barCodeId: barCode.id,
-        isMetric: false,
-        updatedProducts,
-        createdProducts,
-      };
+      return { barCodeId: barCode.id, isMetric: false, updated, created };
     } catch (error) {
       await queryRunner.rollbackTransaction();
       console.error('Inventory transaction error:', error);
+      if (error instanceof BadRequestException) throw error;
       throw new BadRequestException('Inventory processing failed');
     } finally {
       await queryRunner.release();
@@ -306,6 +203,17 @@ export class ReInventoryService {
   }
     
   async cloneToReInventory(filialReportId: string) {
+    // Alias for backwards compatibility
+    return this.cloneSnapshotForReport(filialReportId);
+  }
+
+  /**
+   * Pereuchot ochilganda snapshot olish:
+   * - Har bir is_deleted=false product uchun ReInventory rowi yaratiladi
+   * - count va y saqlanadi (snapshot), check_count=0 (scan boshlanadi)
+   * - Product.check_count ham 0 ga reset qilinadi (yangi pereuchot boshlangani uchun)
+   */
+  async cloneSnapshotForReport(filialReportId: string) {
     const filialReport = await this.filialReportRepo.findOne({
       where: { id: filialReportId },
       relations: { filial: true },
@@ -317,7 +225,7 @@ export class ReInventoryService {
 
     const filialId = filialReport.filial.id;
 
-    // Fetch all active products for the filial
+    // Active products
     const products = await this.productRepository.find({
       where: {
         filial: { id: filialId },
@@ -329,24 +237,28 @@ export class ReInventoryService {
     });
 
     if (!products.length) {
-      return { message: 'No products found to clone.' };
+      return { message: 'No products found to clone.', count: 0 };
     }
 
-    // Prepare ReInventory entities
     const reInventoryEntities = products.map((product) => {
       return this.reInventoryRepo.create({
         product: product,
         bar_code: product.bar_code,
         count: product.count,
         y: product.y,
-        check_count: product.check_count, 
+        check_count: 0, // snapshot uchun — scan boshida 0
         comingPrice: product.comingPrice,
         filial_report: filialReport,
       });
     });
 
-    // Save in chunks to avoid memory issues if there are many products
     await this.reInventoryRepo.save(reInventoryEntities, { chunk: 100 });
+
+    // Active productlarning check_count ni 0 ga reset qilish
+    await this.productRepository.update(
+      { filial: { id: filialId }, is_deleted: false },
+      { check_count: 0 },
+    );
 
     return {
       message: 'Successfully cloned products to re-inventory',
@@ -357,14 +269,61 @@ export class ReInventoryService {
 
   async getAll({ page, limit }: { page: number, limit: number }, id: string, type: ProductReportEnum, search?: string) {
     const filial_report = await this.filialReportRepo.findOne({ where: { id }, relations: { filial: true } });
+    if (!filial_report) throw new NotFoundException('Filial report not found');
+    // Har doim re_inventory jadvalidan o'qiymiz (snapshot muzlatilgan)
+    return this.getForReportReInventory(id, page, limit, filial_report.filial.id, type, search);
+  }
 
-    if ([FilialReportStatusEnum.OPEN, FilialReportStatusEnum.ACCEPTED, FilialReportStatusEnum.REJECTED].includes(filial_report.status)) {
-      console.log("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
-      return this.getForReport(page, limit, filial_report.filial.id, type, search);
-    } else {
-      console.log("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa2222222222222222");
-      return this.getForReportReInventory(id, page, limit, filial_report.filial.id, type, search);
+  /**
+   * Re_inventory row uchun check_count yangilash (M-manager edit)
+   */
+  async updateCheckCount(id: string, check_count: number, userId?: string) {
+    const ri = await this.reInventoryRepo.findOne({
+      where: { id },
+      relations: { filial_report: true, bar_code: { size: true } },
+    });
+    if (!ri) throw new NotFoundException('Re-inventory row not found');
+    if (ri.filial_report.status !== FilialReportStatusEnum.OPEN) {
+      throw new BadRequestException('Faqat ochiq (OPEN) qayta ro\'yxatdagi rowni tahrirlash mumkin');
     }
+    if (check_count < 0) {
+      throw new BadRequestException('check_count 0 dan kichik bo\'lishi mumkin emas');
+    }
+    if (ri.bar_code?.isMetric && ri.bar_code?.size && check_count > Number(ri.bar_code.size.y) * 100) {
+      throw new BadRequestException('Shtrixkod uzunligidan oshib ketdi');
+    }
+
+    ri.check_count = check_count;
+    ri.last_checked_at = new Date();
+    if (userId) ri.last_checked_by = { id: userId } as any;
+    await this.reInventoryRepo.save(ri);
+    return { id: ri.id, check_count: ri.check_count };
+  }
+
+  /**
+   * Matched row uchun check_count=0 (reset). Ortiqcha (product=null) row — butkul delete.
+   */
+  async removeItem(id: string, userId?: string) {
+    const ri = await this.reInventoryRepo.findOne({
+      where: { id },
+      relations: { filial_report: true, product: true },
+    });
+    if (!ri) throw new NotFoundException('Re-inventory row not found');
+    if (ri.filial_report.status !== FilialReportStatusEnum.OPEN) {
+      throw new BadRequestException('Faqat ochiq (OPEN) qayta ro\'yxatdagi rowni o\'chirish mumkin');
+    }
+
+    if (ri.product?.id) {
+      // Matched row — check_count=0 ga tushuriladi (snapshot saqlanishi uchun)
+      ri.check_count = 0;
+      ri.last_checked_at = new Date();
+      if (userId) ri.last_checked_by = { id: userId } as any;
+      await this.reInventoryRepo.save(ri);
+      return { id: ri.id, reset: true };
+    }
+    // Ortiqcha row — butkul delete
+    await this.reInventoryRepo.delete(ri.id);
+    return { id: ri.id, deleted: true };
   }
 
   async getForReportGroupedByCollection(
@@ -453,16 +412,11 @@ export class ReInventoryService {
   }
 
 
-  async getAllTotals(id: string, type?: ProductReportEnum) {
+  async getAllTotals(id: string, type?: ProductReportEnum, search?: string) {
     const filial_report = await this.filialReportRepo.findOne({ where: { id }, relations: { filial: true } });
-
-    if ([FilialReportStatusEnum.OPEN, FilialReportStatusEnum.ACCEPTED, FilialReportStatusEnum.REJECTED].includes(filial_report.status)) {
-      return this.getReportProduct(filial_report.filial.id, type);
-    }
-    // **if end** //
-    else  {
-      return this.getReportReInventory(filial_report.id, type);
-    }
+    if (!filial_report) throw new NotFoundException('Filial report not found');
+    // Har doim re_inventory'dan — snapshot OPEN paytida olinadi
+    return this.getReportReInventory(filial_report.id, type, search);
   }
 
   // Utils for get inventories
@@ -482,6 +436,8 @@ export class ReInventoryService {
       .leftJoinAndSelect('bar_code.style', 'style')
       .leftJoinAndSelect('bar_code.color', 'color')
       .leftJoinAndSelect('product.partiya', 'partiya')
+      .leftJoinAndSelect('partiya.factory', 'factory')
+      .leftJoinAndSelect('partiya.partiya_no', 'partiya_no')
       .where('product.filialId = :filialId', { filialId })
       .andWhere('product.is_deleted = false');
 
@@ -550,6 +506,8 @@ export class ReInventoryService {
       .leftJoinAndSelect('bar_code.color', 'color')
       .leftJoinAndSelect('re_inventory.product', 'product')
       .leftJoinAndSelect('product.partiya', 'partiya')
+      .leftJoinAndSelect('partiya.factory', 'factory')
+      .leftJoinAndSelect('partiya.partiya_no', 'partiya_no')
       .where('filial_report.id = :id', { id });
 
     if (type === ProductReportEnum.SURPLUS) {
@@ -609,189 +567,164 @@ export class ReInventoryService {
 
 
   // need get price from collection price..
-  async getReportProduct(id: string, type?: ProductReportEnum) {
-    const params = [id];
-    let query = '';
+  async getReportProduct(id: string, type?: ProductReportEnum, search?: string) {
+    const params: any[] = [id];
 
+    // base CTE + select + from/joins are shared — only aggregate expressions & type filter differ
+    const priceCte = `
+      WITH latest_price AS (SELECT DISTINCT ON (cp."collectionId") cp."collectionId",
+                                                                   cp."priceMeter",
+                                                                   cp."comingPrice"
+                            FROM "collection-price" cp
+                            WHERE cp.type = 'filial'
+                            ORDER BY cp."collectionId", cp."date" DESC)
+    `;
+
+    const joinSearchTables = search ? `
+      LEFT JOIN model m  ON qb."modelId"   = m.id
+      LEFT JOIN country cn ON qb."countryId" = cn.id
+      LEFT JOIN shape sh  ON qb."shapeId"  = sh.id
+      LEFT JOIN style st  ON qb."styleId"  = st.id
+      LEFT JOIN color cl  ON qb."colorId"  = cl.id
+    ` : '';
+
+    let aggregate = '';
+    let extraWhere = '';
     switch (type) {
       case ProductReportEnum.SURPLUS:
-        query = `
-            WITH latest_price AS (SELECT DISTINCT ON (cp."collectionId") cp."collectionId",
-                                                                         cp."priceMeter",
-                                                                         cp."comingPrice"
-                                  FROM "collection-price" cp
-                                  WHERE cp.type = 'filial'
-                                  ORDER BY cp."collectionId", cp."date" DESC)
-            SELECT SUM(CASE WHEN "isMetric" = true THEN ((check_count::numeric / 100) - pe.y) ELSE "check_count" - "count" END * s.x * lp."priceMeter")::numeric AS total,
-                   SUM(CASE WHEN "isMetric" = true THEN (check_count::numeric / 100) - pe.y ELSE ("check_count" - "count") * (s.x * pe.y) END)::numeric          AS volume,
-                   SUM(CASE WHEN "isMetric" = true THEN 1 ELSE "check_count" - "count" END)                                                    AS count
-            FROM product pe
-                     LEFT JOIN qrbase qb ON pe."barCodeId" = qb.id
-                     LEFT JOIN collection c on qb."collectionId" = c.id
-                     LEFT JOIN size s ON qb."sizeId" = s.id
-                     LEFT JOIN latest_price lp ON lp."collectionId" = c.id
-            WHERE pe.is_deleted = false
-                  AND pe."filialId" = $1
-                  AND (("isMetric" = true AND "check_count" > pe."y") OR ("isMetric" = false AND "check_count" > pe."count"));
+        aggregate = `
+          SUM(CASE WHEN "isMetric" = true THEN ((check_count::numeric / 100) - pe.y) ELSE "check_count" - "count" END * s.x * lp."priceMeter")::numeric AS total,
+          SUM(CASE WHEN "isMetric" = true THEN (check_count::numeric / 100) - pe.y ELSE ("check_count" - "count") * (s.x * pe.y) END)::numeric AS volume,
+          SUM(CASE WHEN "isMetric" = true THEN 1 ELSE "check_count" - "count" END) AS count
         `;
+        extraWhere = `AND (("isMetric" = true AND "check_count" > pe."y") OR ("isMetric" = false AND "check_count" > pe."count"))`;
         break;
-
       case ProductReportEnum.DEFICIT:
-        query = `
-            WITH latest_price AS (SELECT DISTINCT ON (cp."collectionId") cp."collectionId",
-                                                                         cp."priceMeter",
-                                                                         cp."comingPrice"
-                                  FROM "collection-price" cp
-                                  WHERE cp.type = 'filial'
-                                  ORDER BY cp."collectionId", cp."date" DESC)
-            SELECT SUM(CASE WHEN "isMetric" = true THEN pe.y - check_count ELSE "count" - "check_count" END * s.x * lp."priceMeter")::numeric  AS total,
-                   SUM(CASE WHEN "isMetric" = true THEN pe.y - (check_count::numeric / 100) ELSE ("count" - "check_count") * (s.x * pe.y) END)::numeric AS volume,
-                   SUM(CASE WHEN "isMetric" = true THEN 1 ELSE "count" - "check_count" END)                                           AS count
-            FROM product pe
-                     LEFT JOIN qrbase qb ON pe."barCodeId" = qb.id
-                     LEFT JOIN collection c on qb."collectionId" = c.id
-                     LEFT JOIN size s ON qb."sizeId" = s.id
-                     LEFT JOIN latest_price lp ON lp."collectionId" = c.id
-            WHERE pe.is_deleted = false
-                  AND pe."filialId" = $1
-                  AND (("isMetric" = true AND "check_count" < pe."y") OR ("isMetric" = false AND "check_count" < pe."count"));
+        aggregate = `
+          SUM(CASE WHEN "isMetric" = true THEN pe.y - check_count ELSE "count" - "check_count" END * s.x * lp."priceMeter")::numeric AS total,
+          SUM(CASE WHEN "isMetric" = true THEN pe.y - (check_count::numeric / 100) ELSE ("count" - "check_count") * (s.x * pe.y) END)::numeric AS volume,
+          SUM(CASE WHEN "isMetric" = true THEN 1 ELSE "count" - "check_count" END) AS count
         `;
+        extraWhere = `AND (("isMetric" = true AND "check_count" < pe."y") OR ("isMetric" = false AND "check_count" < pe."count"))`;
         break;
-
       case ProductReportEnum.INVENTORY:
-        query = `          
-            WITH latest_price AS (SELECT DISTINCT ON (cp."collectionId") cp."collectionId",
-                                                                         cp."priceMeter",
-                                                                         cp."comingPrice"
-                                  FROM "collection-price" cp
-                                  WHERE cp.type = 'filial'
-                                  ORDER BY cp."collectionId", cp."date" DESC)
-            SELECT SUM(CASE WHEN "isMetric" = true THEN (check_count::numeric / 100) ELSE "check_count" * pe.y END * s.x * lp."priceMeter")::numeric(20, 2) AS total,
-                   SUM((CASE WHEN "isMetric" = false then (check_count::numeric * pe.y) else ((check_count::numeric / 100)) END * s.x)::numeric(20, 2))::numeric(20, 2)          AS volume,
-                   SUM(CASE WHEN "isMetric" = true THEN 1 ELSE "check_count" END)                                                                           AS count
-            FROM product pe
-                     LEFT JOIN qrbase qb ON pe."barCodeId" = qb.id
-                     LEFT JOIN collection c on qb."collectionId" = c.id
-                     LEFT JOIN size s ON qb."sizeId" = s.id
-                     LEFT JOIN latest_price lp ON lp."collectionId" = c.id
-            WHERE pe.is_deleted = false AND pe."filialId" = $1 AND check_count > 0;
+        aggregate = `
+          SUM(CASE WHEN "isMetric" = true THEN (check_count::numeric / 100) ELSE "check_count" * pe.y END * s.x * lp."priceMeter")::numeric(20, 2) AS total,
+          SUM((CASE WHEN "isMetric" = false then (check_count::numeric * pe.y) else ((check_count::numeric / 100)) END * s.x)::numeric(20, 2))::numeric(20, 2) AS volume,
+          SUM(CASE WHEN "isMetric" = true THEN 1 ELSE "check_count" END) AS count
         `;
+        extraWhere = `AND check_count > 0`;
         break;
-
       default:
-        query = `
-            WITH latest_price AS (SELECT DISTINCT ON (cp."collectionId") cp."collectionId",
-                                                                         cp."priceMeter",
-                                                                         cp."comingPrice"
-                                  FROM "collection-price" cp
-                                  WHERE cp.type = 'filial'
-                                  ORDER BY cp."collectionId", cp."date" DESC)
-            SELECT SUM(CASE WHEN "isMetric" = true THEN pe.y ELSE count * pe.y END * s.x * lp."priceMeter")::numeric AS total,
-                   SUM(CASE WHEN "isMetric" = true THEN pe.y ELSE count * pe.y END * s.x)::numeric                   AS volume,
-                   SUM(CASE WHEN "isMetric" = true THEN 1 ELSE "count" END)                                    AS count
-            FROM product pe
-                      LEFT JOIN qrbase qb ON pe."barCodeId" = qb.id
-                      LEFT JOIN collection c on qb."collectionId" = c.id
-                      LEFT JOIN size s ON qb."sizeId" = s.id
-                      LEFT JOIN latest_price lp ON lp."collectionId" = c.id
-            WHERE  pe.is_deleted = false 
-                   AND pe."filialId" = $1 
-                   AND (("isMetric" = true AND 0 < pe."y") OR ("isMetric" = false AND 0 < pe."count"));
-       `;
+        aggregate = `
+          SUM(CASE WHEN "isMetric" = true THEN pe.y ELSE count * pe.y END * s.x * lp."priceMeter")::numeric AS total,
+          SUM(CASE WHEN "isMetric" = true THEN pe.y ELSE count * pe.y END * s.x)::numeric AS volume,
+          SUM(CASE WHEN "isMetric" = true THEN 1 ELSE "count" END) AS count
+        `;
+        extraWhere = `AND (("isMetric" = true AND 0 < pe."y") OR ("isMetric" = false AND 0 < pe."count"))`;
     }
+
+    let searchClause = '';
+    if (search) {
+      params.push(`%${search.toLowerCase()}%`);
+      searchClause = `AND LOWER(CONCAT_WS(' ', c.title, m.title, s.title, cn.title, sh.title, st.title, cl.title, qb.code)) ILIKE $${params.length}`;
+    }
+
+    const query = `
+      ${priceCte}
+      SELECT ${aggregate}
+      FROM product pe
+        LEFT JOIN qrbase qb ON pe."barCodeId" = qb.id
+        LEFT JOIN collection c ON qb."collectionId" = c.id
+        LEFT JOIN size s ON qb."sizeId" = s.id
+        ${joinSearchTables}
+        LEFT JOIN latest_price lp ON lp."collectionId" = c.id
+      WHERE pe.is_deleted = false
+        AND pe."filialId" = $1
+        ${extraWhere}
+        ${searchClause};
+    `;
 
     const result = await this.dataSource.query(query, params);
     return result[0];
   }
 
   // need get price from collection price..
-  async getReportReInventory(id: string, type?: ProductReportEnum) {
-    const params = [id];
-    let query = '';
+  async getReportReInventory(id: string, type?: ProductReportEnum, search?: string) {
+    const params: any[] = [id];
 
+    const priceCte = `
+      WITH latest_price AS (SELECT DISTINCT ON (cp."collectionId") cp."collectionId",
+                                                                   cp."priceMeter",
+                                                                   cp."comingPrice"
+                            FROM "collection-price" cp
+                            WHERE cp.type = 'filial'
+                            ORDER BY cp."collectionId", cp."date" DESC)
+    `;
+
+    const joinSearchTables = search ? `
+      LEFT JOIN model m  ON qb."modelId"   = m.id
+      LEFT JOIN country cn ON qb."countryId" = cn.id
+      LEFT JOIN shape sh  ON qb."shapeId"  = sh.id
+      LEFT JOIN style st  ON qb."styleId"  = st.id
+      LEFT JOIN color cl  ON qb."colorId"  = cl.id
+    ` : '';
+
+    let aggregate = '';
+    let extraWhere = '';
     switch (type) {
       case ProductReportEnum.SURPLUS:
-        query = `
-            WITH latest_price AS (SELECT DISTINCT ON (cp."collectionId") cp."collectionId",
-                                                                         cp."priceMeter",
-                                                                         cp."comingPrice"
-                                  FROM "collection-price" cp
-                                  WHERE cp.type = 'filial'
-                                  ORDER BY cp."collectionId", cp."date" DESC)
-            SELECT SUM(CASE WHEN "isMetric" = true THEN ((check_count::numeric / 100) - pe.y) ELSE "check_count" - "count" END * s.x * lp."priceMeter")::numeric AS total,
-                   SUM(CASE WHEN "isMetric" = true THEN (check_count::numeric / 100) - pe.y ELSE ("check_count" - "count") * (s.x * s.y) END)::numeric          AS volume,
-                   SUM(CASE WHEN "isMetric" = true THEN 1 ELSE "check_count" - "count" END)                                                    AS count
-            FROM re_inventory pe
-                     LEFT JOIN qrbase qb ON pe."barCodeId" = qb.id
-                     LEFT JOIN collection c on qb."collectionId" = c.id
-                     LEFT JOIN size s ON qb."sizeId" = s.id
-                     LEFT JOIN latest_price lp ON lp."collectionId" = c.id
-            WHERE pe."filialReportId" = $1
-                  AND (("isMetric" = true AND "check_count" > pe."y") OR ("isMetric" = false AND "check_count" > pe."count"));
+        aggregate = `
+          SUM(CASE WHEN "isMetric" = true THEN ((check_count::numeric / 100) - pe.y) ELSE "check_count" - "count" END * s.x * lp."priceMeter")::numeric AS total,
+          SUM(CASE WHEN "isMetric" = true THEN (check_count::numeric / 100) - pe.y ELSE ("check_count" - "count") * (s.x * s.y) END)::numeric AS volume,
+          SUM(CASE WHEN "isMetric" = true THEN 1 ELSE "check_count" - "count" END) AS count
         `;
+        extraWhere = `AND (("isMetric" = true AND "check_count" > pe."y") OR ("isMetric" = false AND "check_count" > pe."count"))`;
         break;
-
       case ProductReportEnum.DEFICIT:
-        query = `
-            WITH latest_price AS (SELECT DISTINCT ON (cp."collectionId") cp."collectionId",
-                                                                         cp."priceMeter",
-                                                                         cp."comingPrice"
-                                  FROM "collection-price" cp
-                                  WHERE cp.type = 'filial'
-                                  ORDER BY cp."collectionId", cp."date" DESC)
-            SELECT SUM(CASE WHEN "isMetric" = true THEN pe.y - check_count ELSE "count" - "check_count" END * s.x * lp."priceMeter")::numeric  AS total,
-                   SUM(CASE WHEN "isMetric" = true THEN pe.y - (check_count::numeric / 100) ELSE ("count" - "check_count") * (s.x * s.y) END)::numeric AS volume,
-                   SUM(CASE WHEN "isMetric" = true THEN 1 ELSE "count" - "check_count" END)                                           AS count
-            FROM re_inventory pe
-                     LEFT JOIN qrbase qb ON pe."barCodeId" = qb.id
-                     LEFT JOIN collection c on qb."collectionId" = c.id
-                     LEFT JOIN size s ON qb."sizeId" = s.id
-                     LEFT JOIN latest_price lp ON lp."collectionId" = c.id
-            WHERE pe."filialReportId" = $1
-                  AND (("isMetric" = true AND "check_count" < pe."y") OR ("isMetric" = false AND "check_count" < pe."count"));
+        aggregate = `
+          SUM(CASE WHEN "isMetric" = true THEN pe.y - check_count ELSE "count" - "check_count" END * s.x * lp."priceMeter")::numeric AS total,
+          SUM(CASE WHEN "isMetric" = true THEN pe.y - (check_count::numeric / 100) ELSE ("count" - "check_count") * (s.x * s.y) END)::numeric AS volume,
+          SUM(CASE WHEN "isMetric" = true THEN 1 ELSE "count" - "check_count" END) AS count
         `;
+        extraWhere = `AND (("isMetric" = true AND "check_count" < pe."y") OR ("isMetric" = false AND "check_count" < pe."count"))`;
         break;
-
       case ProductReportEnum.INVENTORY:
-        query = `          
-            WITH latest_price AS (SELECT DISTINCT ON (cp."collectionId") cp."collectionId",
-                                                                         cp."priceMeter",
-                                                                         cp."comingPrice"
-                                  FROM "collection-price" cp
-                                  WHERE cp.type = 'filial'
-                                  ORDER BY cp."collectionId", cp."date" DESC)
-            SELECT SUM(CASE WHEN "isMetric" = true THEN (check_count::numeric / 100) ELSE "check_count" * s.y END * s.x * lp."priceMeter")::numeric(20, 2) AS total,
-                   SUM((CASE WHEN "isMetric" = false then (check_count::numeric * s.y) else ((check_count::numeric / 100)) END * s.x)::numeric(20, 2))::numeric(20, 2)          AS volume,
-                   SUM(CASE WHEN "isMetric" = true THEN 1 ELSE "check_count" END)                                                                           AS count
-            FROM re_inventory pe
-                     LEFT JOIN qrbase qb ON pe."barCodeId" = qb.id
-                     LEFT JOIN collection c on qb."collectionId" = c.id
-                     LEFT JOIN size s ON qb."sizeId" = s.id
-                     LEFT JOIN latest_price lp ON lp."collectionId" = c.id
-            WHERE pe."filialReportId" = $1 AND check_count > 0;
+        aggregate = `
+          SUM(CASE WHEN "isMetric" = true THEN (check_count::numeric / 100) ELSE "check_count" * s.y END * s.x * lp."priceMeter")::numeric(20, 2) AS total,
+          SUM((CASE WHEN "isMetric" = false then (check_count::numeric * s.y) else ((check_count::numeric / 100)) END * s.x)::numeric(20, 2))::numeric(20, 2) AS volume,
+          SUM(CASE WHEN "isMetric" = true THEN 1 ELSE "check_count" END) AS count
         `;
+        extraWhere = `AND check_count > 0`;
         break;
-
       default:
-        query = `
-            WITH latest_price AS (SELECT DISTINCT ON (cp."collectionId") cp."collectionId",
-                                                                         cp."priceMeter",
-                                                                         cp."comingPrice"
-                                  FROM "collection-price" cp
-                                  WHERE cp.type = 'filial'
-                                  ORDER BY cp."collectionId", cp."date" DESC)
-            SELECT SUM(CASE WHEN "isMetric" = true THEN pe.y ELSE count * pe.y END * s.x * lp."priceMeter")::numeric AS total,
-                   SUM(CASE WHEN "isMetric" = true THEN pe.y ELSE count * pe.y END * s.x)::numeric                   AS volume,
-                   SUM(CASE WHEN "isMetric" = true THEN 1 ELSE "check_count" END)                                    AS count
-            FROM re_inventory pe
-                      LEFT JOIN qrbase qb ON pe."barCodeId" = qb.id
-                      LEFT JOIN collection c on qb."collectionId" = c.id
-                      LEFT JOIN size s ON qb."sizeId" = s.id
-                      LEFT JOIN latest_price lp ON lp."collectionId" = c.id
-            WHERE  pe."filialReportId" = $1 
-                   AND (("isMetric" = true AND 0 < pe."y") OR ("isMetric" = false AND 0 < pe."count"));
-       `;
+        aggregate = `
+          SUM(CASE WHEN "isMetric" = true THEN pe.y ELSE count * pe.y END * s.x * lp."priceMeter")::numeric AS total,
+          SUM(CASE WHEN "isMetric" = true THEN pe.y ELSE count * pe.y END * s.x)::numeric AS volume,
+          SUM(CASE WHEN "isMetric" = true THEN 1 ELSE "check_count" END) AS count
+        `;
+        extraWhere = `AND (("isMetric" = true AND 0 < pe."y") OR ("isMetric" = false AND 0 < pe."count"))`;
     }
+
+    let searchClause = '';
+    if (search) {
+      params.push(`%${search.toLowerCase()}%`);
+      searchClause = `AND LOWER(CONCAT_WS(' ', c.title, m.title, s.title, cn.title, sh.title, st.title, cl.title, qb.code)) ILIKE $${params.length}`;
+    }
+
+    const query = `
+      ${priceCte}
+      SELECT ${aggregate}
+      FROM re_inventory pe
+        LEFT JOIN qrbase qb ON pe."barCodeId" = qb.id
+        LEFT JOIN collection c ON qb."collectionId" = c.id
+        LEFT JOIN size s ON qb."sizeId" = s.id
+        ${joinSearchTables}
+        LEFT JOIN latest_price lp ON lp."collectionId" = c.id
+      WHERE pe."filialReportId" = $1
+        ${extraWhere}
+        ${searchClause};
+    `;
 
     const result = await this.dataSource.query(query, params);
     return result[0];

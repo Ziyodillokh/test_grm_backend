@@ -213,6 +213,19 @@ export class PackageTransferService {
         throw new BadRequestException('Package has no dealer filial assigned');
       }
 
+      // Freeze guard: source yoki dealer filialida pereuchot bo'lmasligi kerak
+      const frozen: any[] = await filialRepo
+        .createQueryBuilder('f')
+        .select(['f.id', 'f.title'])
+        .where('f.id IN (:...ids)', { ids: [pkg.from?.id, pkg.dealer?.id].filter(Boolean) })
+        .andWhere('f.need_get_report = true')
+        .getMany();
+      if (frozen.length > 0) {
+        throw new BadRequestException(
+          `Filial qayta ro'yxat jarayonida — paket qabul qilib bo'lmaydi: ${frozen.map((f) => f.title).join(', ')}`,
+        );
+      }
+
       // 2) Load active transfers of this package with full product/collection tree
       const activeTransfers = await transferRepo
         .createQueryBuilder('transfer')
@@ -501,12 +514,29 @@ export class PackageTransferService {
       const packageRepo = manager.getRepository(PackageTransfer);
       const transferRepo = manager.getRepository(Transfer);
       const productRepo = manager.getRepository(Product);
+      const filialRepo = manager.getRepository(Filial);
 
-      const pkg = await packageRepo.findOne({ where: { id: packageId } });
+      const pkg = await packageRepo.findOne({
+        where: { id: packageId },
+        relations: { from: true, dealer: true },
+      });
       if (!pkg) throw new NotFoundException(`Package ${packageId} not found`);
       if (pkg.status === PackageTransferEnum.Accept) {
         throw new BadRequestException(
           'Paket tasdiqlangan — bekor qilish emas, vazvrat qiling',
+        );
+      }
+
+      // Freeze guard
+      const frozen: any[] = await filialRepo
+        .createQueryBuilder('f')
+        .select(['f.id', 'f.title'])
+        .where('f.id IN (:...ids)', { ids: [pkg.from?.id, pkg.dealer?.id].filter(Boolean) })
+        .andWhere('f.need_get_report = true')
+        .getMany();
+      if (frozen.length > 0) {
+        throw new BadRequestException(
+          `Filial qayta ro'yxat jarayonida — paket transferini bekor qilib bo'lmaydi: ${frozen.map((f) => f.title).join(', ')}`,
         );
       }
 
@@ -603,6 +633,19 @@ export class PackageTransferService {
       if (!pkg) throw new NotFoundException(`Package ${packageId} not found`);
       if (pkg.status !== PackageTransferEnum.Accept) {
         throw new BadRequestException('Faqat tasdiqlangan paketdan vazvrat qilish mumkin');
+      }
+
+      // Freeze guard: dealer va target filialida pereuchot bo'lmasligi kerak
+      const frozenR: any[] = await filialRepo
+        .createQueryBuilder('f')
+        .select(['f.id', 'f.title'])
+        .where('f.id IN (:...ids)', { ids: [pkg.dealer?.id, targetFilialId].filter(Boolean) })
+        .andWhere('f.need_get_report = true')
+        .getMany();
+      if (frozenR.length > 0) {
+        throw new BadRequestException(
+          `Filial qayta ro'yxat jarayonida — vazvrat mumkin emas: ${frozenR.map((f) => f.title).join(', ')}`,
+        );
       }
 
       // 2) Load transfer with full product tree

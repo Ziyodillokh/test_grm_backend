@@ -110,7 +110,28 @@ export class TransferService {
     return this.dataSource.transaction(async (manager) => {
       const transferRepo = manager.getRepository(Transfer);
       const productRepo = manager.getRepository(Product);
+      const filialRepo = manager.getRepository('filial');
       const results: Transfer[] = [];
+
+      // Freeze guard: manba va maqsad filiallarida pereuchot bo'lmasligi kerak
+      const involvedFilialIds = new Set<string>();
+      for (const dto of data) {
+        if (dto.from) involvedFilialIds.add(dto.from);
+        if (dto.to) involvedFilialIds.add(dto.to);
+      }
+      if (involvedFilialIds.size > 0) {
+        const frozen: any[] = await filialRepo
+          .createQueryBuilder('f')
+          .select(['f.id', 'f.title'])
+          .where('f.id IN (:...ids)', { ids: Array.from(involvedFilialIds) })
+          .andWhere('f.need_get_report = true')
+          .getMany();
+        if (frozen.length > 0) {
+          throw new BadRequestException(
+            `Filial qayta ro'yxat jarayonida — transfer amal mumkin emas: ${frozen.map((f) => f.title).join(', ')}`,
+          );
+        }
+      }
 
       for (const dto of data) {
         const product = await productRepo.findOne({
@@ -320,6 +341,20 @@ export class TransferService {
   ): Promise<void> {
     await this.dataSource.transaction(async (manager) => {
       const transferRepo = manager.getRepository(Transfer);
+
+      // Freeze guard
+      const filialRepo = manager.getRepository('filial');
+      const frozen: any[] = await filialRepo
+        .createQueryBuilder('f')
+        .select(['f.id', 'f.title'])
+        .where('f.id IN (:...ids)', { ids: [data.from, data.to].filter(Boolean) })
+        .andWhere('f.need_get_report = true')
+        .getMany();
+      if (frozen.length > 0) {
+        throw new BadRequestException(
+          `Filial qayta ro'yxat jarayonida — transfer qabul qilib bo'lmaydi: ${frozen.map((f) => f.title).join(', ')}`,
+        );
+      }
 
       const qb = transferRepo
         .createQueryBuilder('transfer')

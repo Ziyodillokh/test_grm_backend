@@ -4,6 +4,7 @@ import { Product } from '@modules/product/product.entity';
 import { QrBase } from '@modules/qr-base/qr-base.entity';
 import { ColumnNumericTransformer } from '@infra/helpers';
 import { FilialReport } from '@modules/filial-report/filial-report.entity';
+import { User } from '@modules/user/user.entity';
 
 @Entity('re_inventory')
 export class ReInventory extends BaseEntity {
@@ -47,4 +48,11 @@ export class ReInventory extends BaseEntity {
   @ManyToOne(() => FilialReport, filial_report => filial_report.re_inventory, { onDelete: 'CASCADE' })
   @JoinColumn()
   filial_report: FilialReport;
+
+  @ManyToOne(() => User, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn()
+  last_checked_by: User;
+
+  @Column({ type: 'timestamp', nullable: true })
+  last_checked_at: Date;
 }

@@ -1355,6 +1355,15 @@ export class ExcelService {
       latestCpByCollectionId.set(collectionId, savedCp);
     }
 
+    // Partiya title: "Factory-PartiyaNo-Year" (masalan "Afshar-2-2026")
+    const partiyaTitle = [
+      partiya.factory?.title,
+      partiya.partiya_no?.title,
+      partiya.date ? new Date(partiya.date).getFullYear() : null,
+    ]
+      .filter((v) => v !== null && v !== undefined && v !== '')
+      .join('-');
+
     // Endi har productni PartiyaCollectionPrice + CollectionPrice bilan yaratamiz
     const products: CreateProductDto[] = [];
     for (const product of excelProds) {
@@ -1382,6 +1391,7 @@ export class ExcelService {
         priceMeter: Number(cp?.priceMeter ?? 0),
         collection_price: cp?.id,
         filial: partiya.warehouse.id,
+        partiya_title: partiyaTitle,
       };
       products.push(data);
     }

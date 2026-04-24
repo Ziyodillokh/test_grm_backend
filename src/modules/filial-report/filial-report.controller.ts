@@ -4,6 +4,7 @@ import { FilialReportService } from './filial-report.service';
 import { FilialReportStatusEnum } from '../../infra/shared/enum';
 import { FilialReport } from './filial-report.entity';
 import { CreateFilialReportDto } from './dto';
+import { CurrentUser } from '@common/decorators/current-user.decorator';
 
 @ApiTags('Filial Report')
 @Controller('filial-report')
@@ -35,6 +36,11 @@ export class FilialReportController {
     return this.filialReportService.findAll(page, limit, filialId);
   }
 
+  @Get(':id')
+  async getOne(@Param('id') id: string) {
+    return this.filialReportService.getOne(id);
+  }
+
   @Get('status')
   @ApiQuery({ name: 'status', required: true, enum: FilialReportStatusEnum })
   async getByStatus(@Query('status') status: FilialReportStatusEnum) {
@@ -55,5 +61,20 @@ export class FilialReportController {
   @Delete(':id')
   async delete(@Param('id') id: string) {
     return this.filialReportService.delete(id);
+  }
+
+  @Post(':id/close')
+  async close(@Param('id') id: string, @CurrentUser('id') userId: string) {
+    return this.filialReportService.closeByFmanager(id, userId);
+  }
+
+  @Post(':id/accept')
+  async accept(@Param('id') id: string, @CurrentUser('id') userId: string) {
+    return this.filialReportService.acceptByMmanager(id, userId);
+  }
+
+  @Post(':id/reject')
+  async reject(@Param('id') id: string, @CurrentUser('id') userId: string) {
+    return this.filialReportService.rejectByMmanager(id, userId);
   }
 }

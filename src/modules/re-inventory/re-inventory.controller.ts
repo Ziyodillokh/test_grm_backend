@@ -1,7 +1,8 @@
 import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { Body, Controller, Get, HttpCode, HttpStatus, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Patch, Post, Query } from '@nestjs/common';
 import { ReInventoryService } from '@modules/re-inventory/re-inventory.service';
 import { ProcessInventoryDto, ReInventoryQueryDto } from '@modules/re-inventory/re-inventory.dto';
+import { CurrentUser } from '@common/decorators/current-user.decorator';
 
 @ApiTags('Re-Inventory')
 @Controller('re-inventory')
@@ -28,7 +29,7 @@ export class ReInventoryController {
   })
   @HttpCode(HttpStatus.OK)
   async getAllTotals(@Query() query: ReInventoryQueryDto, @Param('id') id: string) {
-    return await this.reInventoryService.getAllTotals(id, query.type);
+    return await this.reInventoryService.getAllTotals(id, query.type, query.search);
   }
 
   @Post('process')
@@ -37,8 +38,26 @@ export class ReInventoryController {
     description: 'The product checked successfully',
   })
   @HttpCode(HttpStatus.OK)
-  async process(@Body() dto: ProcessInventoryDto) {
-    return this.reInventoryService.processInventory(dto);
+  async process(@Body() dto: ProcessInventoryDto, @CurrentUser('id') userId: string) {
+    return this.reInventoryService.processInventory(dto, userId);
+  }
+
+  @Patch(':id')
+  @ApiOperation({ summary: 'Update re_inventory check_count' })
+  @HttpCode(HttpStatus.OK)
+  async updateCheckCount(
+    @Param('id') id: string,
+    @Body() body: { check_count: number },
+    @CurrentUser('id') userId: string,
+  ) {
+    return this.reInventoryService.updateCheckCount(id, Number(body.check_count), userId);
+  }
+
+  @Delete(':id')
+  @ApiOperation({ summary: 'Reset check_count (matched row) or delete (ortiqcha row)' })
+  @HttpCode(HttpStatus.OK)
+  async remove(@Param('id') id: string, @CurrentUser('id') userId: string) {
+    return this.reInventoryService.removeItem(id, userId);
   }
 
   @Post('/clone/:id')

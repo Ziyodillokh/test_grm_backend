@@ -105,6 +105,8 @@ import { VideoMessageModule } from './modules/video-message/video-message.module
     }),
     ServeStaticModule.forRoot({
       rootPath: join(__dirname, '..', 'uploads'),
+      serveRoot: '/uploads',
+      serveStaticOptions: { fallthrough: true, index: false },
     }),
 
     // ─── Core ─────────────────────────────────────────────────────

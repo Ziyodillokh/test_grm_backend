@@ -8,6 +8,8 @@ import { Transfer } from '@modules/transfer/transfer.entity';
 import { Product } from '@modules/product/product.entity';
 import { Order } from '@modules/order/order.entity';
 import { OrderBasket } from '@modules/order-basket/order-basket.entity';
+import { ReInventoryModule } from '@modules/re-inventory/re-inventory.module';
+import { PackageTransfer } from '@modules/package-transfer/package-transfer.entity';
 
 @Module({
   imports: [TypeOrmModule.forFeature([
@@ -15,8 +17,9 @@ import { OrderBasket } from '@modules/order-basket/order-basket.entity';
     Transfer,
     Product,
     Order,
-    OrderBasket
-  ]), forwardRef(() => FilialModule)],
+    OrderBasket,
+    PackageTransfer,
+  ]), forwardRef(() => FilialModule), forwardRef(() => ReInventoryModule)],
   providers: [FilialReportService],
   controllers: [FilialReportController],
   exports: [FilialReportService],

@@ -9,8 +9,11 @@ import { Product } from '@modules/product/product.entity';
 import { Order } from '@modules/order/order.entity';
 import { Transfer } from '@modules/transfer/transfer.entity';
 import { OrderBasket } from '@modules/order-basket/order-basket.entity';
-import { OrderEnum } from '@infra/shared/enum';
+import { OrderEnum, PackageTransferEnum } from '@infra/shared/enum';
 import progresEnum from '@infra/shared/enum/transfer-progres.enum';
+import { PackageTransfer } from '@modules/package-transfer/package-transfer.entity';
+import { ReInventoryService } from '@modules/re-inventory/re-inventory.service';
+import { Filial } from '@modules/filial/filial.entity';
 
 @Injectable()
 export class FilialReportService {
@@ -28,6 +31,8 @@ export class FilialReportService {
     private readonly orderBasketRepository: Repository<OrderBasket>,
     @Inject(forwardRef(() => FilialService))
     private readonly filialService: FilialService,
+    @Inject(forwardRef(() => ReInventoryService))
+    private readonly reInventoryService: ReInventoryService,
   ) {
   }
 
@@ -35,8 +40,14 @@ export class FilialReportService {
     const filial = await this.filialService.getOne(dto.filial);
     if (!filial) throw new NotFoundException('Filial not found');
 
-    const [checkFilialReport, incomplete_orders, incomplete_transfers, incomplete_basket] = await Promise.all([
-      await this.filialReportRepository.count({
+    const [
+      checkFilialReport,
+      incomplete_orders,
+      incomplete_transfers,
+      incomplete_basket,
+      incomplete_packages,
+    ] = await Promise.all([
+      this.filialReportRepository.count({
         where: {
           filial: { id: filial.id },
           status: In([FilialReportStatusEnum.OPEN, FilialReportStatusEnum.REJECTED, FilialReportStatusEnum.ACCEPTED]),
@@ -67,6 +78,12 @@ export class FilialReportService {
           },
         },
       }),
+      this.dataSource.getRepository(PackageTransfer).count({
+        where: [
+          { from: { id: filial.id }, status: PackageTransferEnum.Progress },
+          { dealer: { id: filial.id }, status: PackageTransferEnum.Progress },
+        ],
+      }),
     ]);
 
     if (checkFilialReport) {
@@ -85,9 +102,19 @@ export class FilialReportService {
       throw new BadRequestException(`Sizda tugatilinmagan bron(lar) mavjud!`);
     }
 
+    if (incomplete_packages) {
+      throw new BadRequestException(`Sizda tugatilinmagan paket transfer(lar) mavjud!`);
+    }
+
     const report = this.filialReportRepository.create({ ...dto, filial });
+    const saved = await this.filialReportRepository.save(report);
     await this.filialService.change({ need_get_report: true }, filial.id);
-    return this.filialReportRepository.save(report);
+
+    // Auto-snapshot: filial'dagi barcha aktiv productlarning hozirgi holatini
+    // re_inventory'ga ko'chirish (check_count=0 bilan)
+    await this.reInventoryService.cloneSnapshotForReport(saved.id);
+
+    return saved;
   }
 
   async findAllFilialsWithLatestReport(page: number, limit: number, search?: string) {
@@ -226,6 +253,141 @@ export class FilialReportService {
 
   async delete(id: string) {
     return this.filialReportRepository.delete(id);
+  }
+
+  /**
+   * F-manager "Tasdiqlashga yuborish" — OPEN → CLOSED
+   * Scanning to'xtaydi, M-manager ko'rib tasdiqlaydi/rad qiladi
+   */
+  async closeByFmanager(id: string, _userId: string) {
+    const report = await this.filialReportRepository.findOne({
+      where: { id },
+      relations: { filial: true, re_inventory: true },
+    });
+    if (!report) throw new NotFoundException('Filial report not found');
+    if (report.status !== FilialReportStatusEnum.OPEN) {
+      throw new BadRequestException('Faqat ochiq (OPEN) qayta ro\'yxatni yopish mumkin');
+    }
+
+    // Totals (audit uchun yoziladi)
+    const items = report.re_inventory || [];
+    const count = items.reduce((s, r) => s + (Number(r.check_count) || 0), 0);
+
+    await this.filialReportRepository.update(id, {
+      status: FilialReportStatusEnum.CLOSED,
+      count,
+    });
+    return { id, status: FilialReportStatusEnum.CLOSED };
+  }
+
+  /**
+   * M-manager "Tasdiqlash" — CLOSED → ACCEPTED
+   * Reconciliation bu yerda amalga oshiriladi
+   */
+  async acceptByMmanager(id: string, _userId: string) {
+    return this.dataSource.transaction(async (manager) => {
+      const report = await manager.findOne(FilialReport, {
+        where: { id },
+        relations: { filial: true },
+      });
+      if (!report) throw new NotFoundException('Filial report not found');
+      if (report.status !== FilialReportStatusEnum.CLOSED) {
+        throw new BadRequestException('Faqat yopilgan (CLOSED) qayta ro\'yxatni tasdiqlash mumkin');
+      }
+
+      // Re-inventory rowlarni to'liq relation'lar bilan olish
+      const items = await manager
+        .createQueryBuilder('re_inventory', 'ri')
+        .leftJoinAndSelect('ri.product', 'product')
+        .leftJoinAndSelect('ri.bar_code', 'bar_code')
+        .leftJoinAndSelect('bar_code.size', 'size')
+        .where('ri."filialReportId" = :id', { id })
+        .getMany();
+
+      for (const ri of items as any[]) {
+        const isMetric = !!ri.bar_code?.isMetric;
+        const checkCount = Number(ri.check_count || 0);
+        const sizeY = Number(ri.bar_code?.size?.y || 0);
+
+        if (ri.product?.id) {
+          // MATCHED row — reconcile Product
+          if (isMetric) {
+            if (checkCount > 0) {
+              // Strict match: y va count tegmaydi, check_count=y*100 yoziladi (frozen)
+              await manager.update(Product, ri.product.id, {
+                check_count: checkCount,
+              });
+            } else {
+              // Missing — to'liq yo'qolgan gilam
+              await manager.update(Product, ri.product.id, {
+                y: 0,
+                count: 0,
+                check_count: 0,
+              });
+            }
+          } else {
+            const originalCount = Number(ri.count || 0);
+            if (checkCount > originalCount) {
+              // Edge case: matched rowda check_count > count
+              // Original productni tegmaymiz (tarix saqlanadi), excess uchun yangi
+              const excess = checkCount - originalCount;
+              const newProduct = manager.create(Product, {
+                bar_code: ri.bar_code,
+                filial: report.filial,
+                count: excess,
+                check_count: excess,
+                y: sizeY,
+                partiya_title: `${report.filial.name || report.filial.title} — ortiqcha`,
+                is_deleted: false,
+              } as any);
+              await manager.save(newProduct);
+              await manager.update(Product, ri.product.id, {
+                count: originalCount,
+                check_count: originalCount,
+              });
+            } else {
+              // Normal: count va check_count teng yoziladi
+              await manager.update(Product, ri.product.id, {
+                count: checkCount,
+                check_count: checkCount,
+              });
+            }
+          }
+        } else {
+          // UNMATCHED (Ortiqcha) — yangi product
+          const newProduct = manager.create(Product, {
+            bar_code: ri.bar_code,
+            filial: report.filial,
+            count: isMetric ? 1 : checkCount,
+            check_count: isMetric ? Math.round(checkCount) : checkCount,
+            y: isMetric ? checkCount / 100 : sizeY,
+            partiya_title: `${report.filial.name || report.filial.title} — ortiqcha`,
+            is_deleted: false,
+          } as any);
+          const saved = await manager.save(newProduct);
+          await manager.update('re_inventory', { id: ri.id }, { product: saved as any });
+        }
+      }
+
+      await manager.update(FilialReport, id, {
+        status: FilialReportStatusEnum.ACCEPTED,
+      });
+      await manager.update(Filial, report.filial.id, { need_get_report: false });
+      return { id, status: FilialReportStatusEnum.ACCEPTED };
+    });
+  }
+
+  /**
+   * M-manager "Rad etish" — CLOSED → OPEN (qayta scan uchun)
+   */
+  async rejectByMmanager(id: string, _userId: string) {
+    const report = await this.filialReportRepository.findOne({ where: { id } });
+    if (!report) throw new NotFoundException('Filial report not found');
+    if (report.status !== FilialReportStatusEnum.CLOSED) {
+      throw new BadRequestException('Faqat yopilgan qayta ro\'yxatni rad etish mumkin');
+    }
+    await this.filialReportRepository.update(id, { status: FilialReportStatusEnum.OPEN });
+    return { id, status: FilialReportStatusEnum.OPEN };
   }
 
   async closeByFilialId({ filial_id, volume, cost }) {

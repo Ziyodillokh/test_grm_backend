@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ReInventory } from '@modules/re-inventory/re-inventory.entity';
 import { ReInventoryService } from '@modules/re-inventory/re-inventory.service';
@@ -6,10 +6,12 @@ import { ReInventoryController } from '@modules/re-inventory/re-inventory.contro
 import { FilialReport } from '@modules/filial-report/filial-report.entity';
 import { QrBase } from '@modules/qr-base/qr-base.entity';
 import { Product } from '@modules/product/product.entity';
+import { FilialReportModule } from '@modules/filial-report/filial-report.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([ReInventory, FilialReport, QrBase, Product]),
+    forwardRef(() => FilialReportModule),
   ],
   controllers: [ReInventoryController],
   providers: [ReInventoryService],

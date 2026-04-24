@@ -637,7 +637,7 @@ export class OrderService {
   async rejectOrder(id: string, createdBy: User) {
     const data = await this.orderRepository.findOne({
       where: { id },
-      relations: { product: { bar_code: true }, kassa: { filial: true }, cashflow: true, client: true },
+      relations: { product: { bar_code: true, filial: true }, kassa: { filial: true }, cashflow: true, client: true },
     });
 
     if (!data) {
@@ -653,6 +653,12 @@ export class OrderService {
     }
 
     if (data.status === OrderEnum.Reject) throw new BadRequestException('Allaqachon rad etilgan');
+
+    // Freeze guard
+    const productFilial = await this.dataSource.getRepository('filial').findOne({ where: { id: data.product.filial?.id || data.kassa.filial.id } }) as any;
+    if (productFilial?.need_get_report) {
+      throw new BadRequestException('Filial qayta ro\'yxat jarayonida — orderni rad etib bo\'lmaydi');
+    }
 
     // REJECT faqat PENDING statusdagi orderlarni rad etishi mumkin
     if (data.status !== OrderEnum.Progress) {
@@ -732,6 +738,12 @@ export class OrderService {
     // CANCEL faqat APPROVED (Accept) orderlarni qaytarishi mumkin
     if (order.status !== OrderEnum.Accept) {
       throw new BadRequestException('Faqat tasdiqlangan orderni qaytarish mumkin!');
+    }
+
+    // Freeze guard
+    const productFilialR = await this.dataSource.getRepository('filial').findOne({ where: { id: order.product.filial.id } }) as any;
+    if (productFilialR?.need_get_report) {
+      throw new BadRequestException('Filial qayta ro\'yxat jarayonida — order qaytarish mumkin emas');
     }
 
     // 1. Stock qaytarish
