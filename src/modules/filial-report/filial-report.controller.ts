@@ -36,11 +36,6 @@ export class FilialReportController {
     return this.filialReportService.findAll(page, limit, filialId);
   }
 
-  @Get(':id')
-  async getOne(@Param('id') id: string) {
-    return this.filialReportService.getOne(id);
-  }
-
   @Get('status')
   @ApiQuery({ name: 'status', required: true, enum: FilialReportStatusEnum })
   async getByStatus(@Query('status') status: FilialReportStatusEnum) {
@@ -51,16 +46,6 @@ export class FilialReportController {
   @ApiBody({ type: CreateFilialReportDto })
   async create(@Body() report: CreateFilialReportDto) {
     return this.filialReportService.create(report);
-  }
-
-  @Put(':id')
-  async update(@Param('id') id: string, @Body() updateData: Partial<FilialReport>) {
-    return this.filialReportService.update(id, updateData);
-  }
-
-  @Delete(':id')
-  async delete(@Param('id') id: string) {
-    return this.filialReportService.delete(id);
   }
 
   @Post(':id/close')
@@ -76,5 +61,20 @@ export class FilialReportController {
   @Post(':id/reject')
   async reject(@Param('id') id: string, @CurrentUser('id') userId: string) {
     return this.filialReportService.rejectByMmanager(id, userId);
+  }
+
+  @Put(':id')
+  async update(@Param('id') id: string, @Body() updateData: Partial<FilialReport>) {
+    return this.filialReportService.update(id, updateData);
+  }
+
+  @Delete(':id')
+  async delete(@Param('id') id: string) {
+    return this.filialReportService.delete(id);
+  }
+
+  @Get(':id')
+  async getOne(@Param('id') id: string) {
+    return this.filialReportService.getOne(id);
   }
 }

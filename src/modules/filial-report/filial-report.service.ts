@@ -365,7 +365,9 @@ export class FilialReportService {
             is_deleted: false,
           } as any);
           const saved = await manager.save(newProduct);
-          await manager.update('re_inventory', { id: ri.id }, { product: saved as any });
+          await manager
+            .getRepository('re_inventory')
+            .update(ri.id, { product: saved as any });
         }
       }
 
