@@ -2,14 +2,17 @@ import { IsDateString, IsNumber, IsOptional, IsString, IsUUID } from 'class-vali
 import { FilialReportStatusEnum } from '../../../infra/shared/enum';
 
 class CreateFilialReportDto {
+  @IsOptional()
   @IsDateString()
   date?: string;
 
+  @IsOptional()
   @IsNumber()
-  volume: number;
+  volume?: number;
 
+  @IsOptional()
   @IsNumber()
-  cost: number;
+  cost?: number;
 
   @IsOptional()
   @IsString()
@@ -18,7 +21,8 @@ class CreateFilialReportDto {
   @IsUUID()
   filial: string;
 
-  status?: FilialReportStatusEnum
+  @IsOptional()
+  status?: FilialReportStatusEnum;
 }
 
 export default CreateFilialReportDto;

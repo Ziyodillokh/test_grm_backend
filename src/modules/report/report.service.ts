@@ -3336,6 +3336,7 @@ export class ReportService {
         'COALESCE(SUM(dr."netProfitTotalSum"), 0)::NUMERIC(20, 2) AS net_profit',
         'COALESCE(SUM(dr.debt_sum), 0)::NUMERIC(20, 2) AS debt_sum',
         'COALESCE(SUM(dr.debt_kv), 0)::NUMERIC(20, 2) AS debt_kv',
+        'COALESCE(SUM(dr.debt_profit_sum), 0)::NUMERIC(20, 2) AS debt_profit_sum',
       ])
       .where('dr."filialType" = :dealerType', { dealerType: 'dealer' });
 
@@ -3390,7 +3391,9 @@ export class ReportService {
       SUM(in_hand) as in_hand,
       SUM("additionalProfitTotalSum") as add_profit,
       SUM("totalSaleReturn") as return_sale,
-      SUM("totalSaleSizeReturn") as return_size
+      SUM("totalSaleSizeReturn") as return_size,
+      SUM("netProfitTotalSum") as net_profit_kassa,
+      SUM("discount") as discount_kassa
     `)
       .where(`k."filialType" = 'filial'`);
 
@@ -3539,19 +3542,21 @@ export class ReportService {
 
       resultData = {
         turnover: {
-          price: Number(dealer_report?.total_sale ?? 0),
-          kv: Number(dealer_report?.total_size ?? 0),       // kv endi bor
+          // FIX: dealer turnover = debt_sum (package qarz savdosi)
+          price: Number(dealer_report?.debt_sum ?? 0),
+          kv: Number(dealer_report?.debt_kv ?? 0),
         },
         debt_trading: {
-          price: Number(dealer_report?.debt_sum ?? 0),       // to'g'ri: debt_sum
+          price: Number(dealer_report?.debt_sum ?? 0),
           kv: Number(dealer_report?.debt_kv ?? 0),
         },
         discount: {
-          price: Number(dealer_report?.total_discount ?? 0), // edi 0 — BUG FIX
+          price: Number(dealer_report?.total_discount ?? 0),
           kv: 0,
         },
         profit: {
-          price: Number(dealer_report?.net_profit ?? 0),
+          // FIX: dealer profit = debt_profit_sum (package qarz savdosi foydasi)
+          price: Number(dealer_report?.debt_profit_sum ?? 0),
           kv: 0,
         },
         profit_remaining: { price: 0, kv: 0 },              // dillerda yo'q
@@ -3623,11 +3628,8 @@ export class ReportService {
         report_summary_qb.getRawOne(),
       ]);
 
-      // O'tgan pul = Balance cashflow + report saldo (manager+bugalter)
-      const openingTotal =
-        Number(opening_balance?.cash ?? 0) +
-        Number(report_summary?.manager_saldo ?? 0) +
-        Number(report_summary?.accountant_saldo ?? 0);
+      // FIX: O'tgan pul = faqat cashflow.slug='balance' AND type='Приход' yig'indisi
+      const openingTotal = Number(opening_balance?.cash ?? 0);
 
       resultData = {
         turnover: {
@@ -3639,11 +3641,13 @@ export class ReportService {
           kv: Number(order_totals?.total_debt_kv ?? 0),
         }, // qarz savdosi
         discount: {
-          price: Number(order_totals?.total_discount ?? 0),
+          // FIX: Kassa.discount (filial uchun)
+          price: Number(plastic_cash_and_opening?.discount_kassa ?? 0),
           kv: 0,
         }, // chegirma
         profit: {
-          price: Number(order_totals?.total_profit_sum ?? 0),
+          // FIX: Kassa.netProfitTotalSum (filial uchun)
+          price: Number(plastic_cash_and_opening?.net_profit_kassa ?? 0),
           kv: 0,
         }, // foyda hisobi
         profit_remaining: { price: 0, kv: 0 }, // filialda ko'rinmaydi
@@ -3735,6 +3739,7 @@ export class ReportService {
         extra_income,    // qo'shimcha prixodlar
         add_profit_exp,  // navar rasxod (edi umumiyda 0 edi — BUG FIX)
         report_summary,  // manager/bugalter balans + saldo
+        opening_balance, // saldo cashflowlari (slug='balance' AND type='Приход')
       ] = await Promise.all([
         dealer_report_qb.getRawOne(),
         dealer_cash_qb.getRawOne(),
@@ -3751,41 +3756,41 @@ export class ReportService {
         extra_income_qb.getRawOne(),
         add_profit_exp_qb.getRawOne(),
         report_summary_qb.getRawOne(),
+        opening_balance_qb.getRawOne(),
       ]);
 
       // Biznes rasxod yig'indisi (foyda qoldig'i uchun)
       const businessTotal = Number(business?.cash ?? 0);
-      // Foyda hisobi
+      // Foyda hisobi: FIX — dealer.debt_profit_sum + SUM(Kassa.netProfitTotalSum)
       const profitTotal =
-        Number(dealer_report?.net_profit ?? 0) +
-        Number(order_totals?.total_profit_sum ?? 0);
-      // O'tgan pul = kassa opening + report saldo (manager+bugalter)
-      const openingTotal =
-        Number(plastic_cash_and_opening?.opening_balance ?? 0) +
-        Number(report_summary?.manager_saldo ?? 0) +
-        Number(report_summary?.accountant_saldo ?? 0);
+        Number(dealer_report?.debt_profit_sum ?? 0) +
+        Number(plastic_cash_and_opening?.net_profit_kassa ?? 0);
+      // O'tgan pul: FIX — faqat cashflow.slug='balance' AND type='Приход' yig'indisi
+      const openingTotal = Number(opening_balance?.cash ?? 0);
 
       resultData = {
         turnover: {
+          // FIX: dealer.debt_sum (package qarz savdosi) + barcha kassa orderlari
           price:
-            Number(dealer_report?.total_sale ?? 0) +   // DealerReport.totalSale
-            Number(order_totals?.total_sum ?? 0),       // Kassa orderlar
+            Number(dealer_report?.debt_sum ?? 0) +
+            Number(order_totals?.total_sum ?? 0),
           kv:
-            Number(dealer_report?.total_size ?? 0) +    // DealerReport.totalSize
+            Number(dealer_report?.debt_kv ?? 0) +
             Number(order_totals?.total_kv ?? 0),
         },
         debt_trading: {
           price:
-            Number(dealer_report?.debt_sum ?? 0) +      // DealerReport.debt_sum
+            Number(dealer_report?.debt_sum ?? 0) +
             Number(order_totals?.total_debt_sum ?? 0),
           kv:
-            Number(dealer_report?.debt_kv ?? 0) +       // DealerReport.debt_kv
+            Number(dealer_report?.debt_kv ?? 0) +
             Number(order_totals?.total_debt_kv ?? 0),
         },
         discount: {
+          // FIX: Kassa.discount + dealer.totalDiscount (order.discountSum o'rniga)
           price:
-            Number(dealer_report?.total_discount ?? 0) + // BUG FIX: diller chegirmasi qo'shildi
-            Number(order_totals?.total_discount ?? 0),
+            Number(dealer_report?.total_discount ?? 0) +
+            Number(plastic_cash_and_opening?.discount_kassa ?? 0),
           kv: 0,
         },
         profit: {
