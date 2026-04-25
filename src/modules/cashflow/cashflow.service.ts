@@ -172,6 +172,25 @@ export class CashflowService {
         report: filter.report,
       });
 
+    if (filter.reportMonth || filter.reportYear) {
+      baseQb.leftJoin('cashflow.report', 'cf_report');
+      if (filter.reportMonth)
+        baseQb.andWhere('cf_report.month = :reportMonth', {
+          reportMonth: Number(filter.reportMonth),
+        });
+      if (filter.reportYear)
+        baseQb.andWhere('cf_report.year = :reportYear', {
+          reportYear: Number(filter.reportYear),
+        });
+    }
+
+    if (filter.createdByRole !== undefined && filter.createdByRole !== null) {
+      baseQb.leftJoin('createdBy.position', 'createdByPosition');
+      baseQb.andWhere('createdByPosition.role = :createdByRole', {
+        createdByRole: Number(filter.createdByRole),
+      });
+    }
+
     if (filter.debt)
       baseQb.andWhere('cashflow.debtId = :debt', { debt: filter.debt });
 

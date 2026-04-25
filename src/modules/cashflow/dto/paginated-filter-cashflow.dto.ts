@@ -111,4 +111,22 @@ export class PaginatedFilterCashflowDto {
   @IsUUID('4')
   @IsOptional()
   cashflowTypeId?: string;
+
+  @ApiPropertyOptional({ description: 'Cashflow.report.month bo\'yicha filter' })
+  @Type(() => Number)
+  @IsNumber()
+  @IsOptional()
+  reportMonth?: number;
+
+  @ApiPropertyOptional({ description: 'Cashflow.report.year bo\'yicha filter' })
+  @Type(() => Number)
+  @IsNumber()
+  @IsOptional()
+  reportYear?: number;
+
+  @ApiPropertyOptional({ description: 'Cashflow yaratuvchi user.position.role bo\'yicha filter' })
+  @Type(() => Number)
+  @IsNumber()
+  @IsOptional()
+  createdByRole?: number;
 }
