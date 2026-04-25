@@ -293,6 +293,36 @@ export class ClientService {
     return Number(result?.totalDebt || 0);
   }
 
+  /**
+   * Boss Dashboard "Qarz" cardi uchun: yillik qaytarilgan + qoldiq qarz.
+   * - totalDebt: hozirgi yig'ilgan client qarzi (sum of client.owed)
+   * - totalReturned: yil davomida qaytarilgan qarz cashflow (slug='debt' AND type='Приход')
+   */
+  async getDebtSummary(year?: number): Promise<{ totalDebt: number; totalReturned: number }> {
+    const debtRow = await this.clientRepo
+      .createQueryBuilder('client')
+      .select('SUM(client.owed)', 'totalDebt')
+      .getRawOne();
+
+    const returnedQb = this.cashflowRepository
+      .createQueryBuilder('cashflow')
+      .leftJoin('cashflow.cashflow_type', 'cashflow_type')
+      .select('SUM(cashflow.price)', 'totalReturned')
+      .where('cashflow_type.slug = :slug', { slug: 'debt_repayment' })
+      .andWhere('cashflow.type = :type', { type: 'Приход' });
+
+    if (year) {
+      returnedQb.andWhere('EXTRACT(YEAR FROM cashflow.date) = :year', { year });
+    }
+
+    const returnedRow = await returnedQb.getRawOne();
+
+    return {
+      totalDebt: Number(debtRow?.totalDebt || 0),
+      totalReturned: Number(returnedRow?.totalReturned || 0),
+    };
+  }
+
   async getClientsWithDebtOrdersPaginated(
     filialId: string,
     options: IPaginationOptions,

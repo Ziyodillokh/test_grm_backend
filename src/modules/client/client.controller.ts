@@ -95,6 +95,12 @@ export class ClientController {
     return { totalDebt: total };
   }
 
+  @Get('debt/summary')
+  @ApiQuery({ name: 'year', required: false, type: Number })
+  async getDebtSummary(@Query('year') year?: number) {
+    return this.clientService.getDebtSummary(year ? Number(year) : undefined);
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Get a single client by ID' })
   @ApiParam({ name: 'id', type: String })
