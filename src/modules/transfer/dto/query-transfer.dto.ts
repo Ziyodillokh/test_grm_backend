@@ -33,4 +33,10 @@ export class QueryTransferDto {
   @ApiPropertyOptional({ description: 'Progress status filter' })
   @IsOptional()
   progress?: string | string[];
+
+  @ApiPropertyOptional({ description: 'Year filter — transfer.date yili' })
+  @Type(() => Number)
+  @IsNumber()
+  @IsOptional()
+  year?: number;
 }

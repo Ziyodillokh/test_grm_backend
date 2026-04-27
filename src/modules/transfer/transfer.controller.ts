@@ -55,7 +55,7 @@ export class TransferController {
   ) {
     return this.transferService.getAll(
       { limit: query.limit, page: query.page },
-      req.where || {},
+      { ...(req.where || {}), year: query.year, from: query.from, to: query.to, progress: query.progress },
       query.search,
     );
   }

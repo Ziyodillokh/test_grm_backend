@@ -66,6 +66,9 @@ export class TransferService {
     if (where.progress) {
       qb.andWhere('transfer.progress = :progress', { progress: where.progress });
     }
+    if (where.year) {
+      qb.andWhere('EXTRACT(YEAR FROM transfer.date) = :year', { year: Number(where.year) });
+    }
     if (search) {
       qb.andWhere(
         '(model.title ILIKE :search OR collection.title ILIKE :search)',
