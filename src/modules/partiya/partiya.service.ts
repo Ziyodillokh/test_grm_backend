@@ -12,6 +12,8 @@ import { PartiyaStatusService } from '../partiya-status/partiya-status.service';
 import { Filial } from '../filial/filial.entity';
 import { User } from '../user/user.entity';
 import { ExcelService } from '../excel/excel.service';
+import { PartiyaCollectionPriceService } from '../partiya-collection-price/partiya-collection-price.service';
+import { ProductExcel } from '../excel/excel-product.entity';
 
 @Injectable()
 export class PartiyaService {
@@ -24,7 +26,23 @@ export class PartiyaService {
     private readonly filialRepository: Repository<Filial>,
     @Inject(forwardRef(() => ExcelService))
     private readonly excelProductService: ExcelService,
+    @InjectRepository(ProductExcel)
+    private readonly productExcelRepository: Repository<ProductExcel>,
+    private readonly partiyaCollectionPriceService: PartiyaCollectionPriceService,
   ) {}
+
+  /** Partiyadagi unique kolleksiya idlarini topish */
+  private async getPartiyaCollectionIds(partiyaId: string): Promise<string[]> {
+    const rows = await this.productExcelRepository
+      .createQueryBuilder('product')
+      .leftJoin('product.bar_code', 'bar_code')
+      .leftJoin('bar_code.collection', 'collection')
+      .where('product.partiyaId = :partiyaId', { partiyaId })
+      .andWhere('collection.id IS NOT NULL')
+      .select('DISTINCT collection.id', 'collectionId')
+      .getRawMany();
+    return rows.map((r) => r.collectionId).filter(Boolean);
+  }
 
   async getAll(options: IPaginationOptions, where, user): Promise<Pagination<Partiya>> {
     if (user?.filial?.type === FilialTypeEnum.WAREHOUSE) {
@@ -120,13 +138,17 @@ export class PartiyaService {
     const partiya = await this.partiyaRepository.findOne({ where: { id } });
 
     if (!partiya) {
-      throw new BadRequestException('Партия не найдена!');
+      throw new BadRequestException('Partiya topilmadi!');
     } else if (status === PartiyaStatusEnum.PENDING && user.position.role === UserRoleEnum.M_MANAGER) {
       //
       const report = await this.excelProductService.getReport(partiya.id);
 
       if (Number(report.volume).toFixed(2) !== Number(partiya.volume).toFixed(2))
-        throw new BadRequestException('Партия не может быть закрыта до тех пор, пока объем продукции не сравняется с объемом партии.');
+        throw new BadRequestException('Partiyani yopib bo\'lmaydi: mahsulotlarning umumiy hajmi partiya hajmiga teng emas.');
+
+      // Hamma kolleksiyalarga narx kiritilganligini tekshirish
+      const collectionIds = await this.getPartiyaCollectionIds(partiya.id);
+      await this.partiyaCollectionPriceService.assertAllCollectionsPriced(partiya.id, collectionIds);
 
       return await this.partiyaRepository.update({ id }, { partiya_status: status });
       //
@@ -134,7 +156,7 @@ export class PartiyaService {
       //
       const report = await this.excelProductService.getReport(partiya.id, ProductReportEnum.INVENTORY);
       if (Number(report.volume).toFixed(2) !== Number(partiya.volume).toFixed(2))
-        throw new BadRequestException('Партия не может быть закрыта до тех пор, пока объем продукции не сравняется с объемом партии.');
+        throw new BadRequestException('Partiyani yopib bo\'lmaydi: mahsulotlarning umumiy hajmi partiya hajmiga teng emas.');
 
       return await this.partiyaRepository.update({ id }, { partiya_status: status });
       //
@@ -143,13 +165,13 @@ export class PartiyaService {
       const report = await this.excelProductService.getReport(partiya.id, ProductReportEnum.INVENTORY);
 
       if (Number(report.volume).toFixed(2) !== Number(partiya.volume).toFixed(2))
-        throw new BadRequestException('Партия не может быть закрыта до тех пор, пока объем продукции не сравняется с объемом партии.');
+        throw new BadRequestException('Partiyani yopib bo\'lmaydi: mahsulotlarning umumiy hajmi partiya hajmiga teng emas.');
 
       await this.excelProductService.createProducts(partiya.id);
       return await this.partiyaRepository.update({ id }, { partiya_status: status });
       //
     } else {
-      throw new BadRequestException(`вы не можете закрыть партию как ${user.position.title}`);
+      throw new BadRequestException(`${user.position.title} sifatida partiyani yopa olmaysiz`);
     }
   }
 

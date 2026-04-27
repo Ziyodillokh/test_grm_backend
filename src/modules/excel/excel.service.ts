@@ -1295,7 +1295,7 @@ export class ExcelService {
     });
 
     if (excelProds.length === 0) {
-      throw new BadRequestException('Вы не можете закончить партию, прежде чем вставить продукт!');
+      throw new BadRequestException('Mahsulot qo\'shmasdan partiyani yakunlab bo\'lmaydi!');
     }
 
     // Unique collectionlar — PartiyaCollectionPrice validatsiyasi uchun
