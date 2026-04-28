@@ -39,4 +39,14 @@ export class QueryTransferDto {
   @IsNumber()
   @IsOptional()
   year?: number;
+
+  @ApiPropertyOptional({ description: 'Start date filter (ISO string)' })
+  @IsOptional()
+  @IsString()
+  startDate?: string;
+
+  @ApiPropertyOptional({ description: 'End date filter (ISO string)' })
+  @IsOptional()
+  @IsString()
+  endDate?: string;
 }

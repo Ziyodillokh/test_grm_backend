@@ -69,9 +69,29 @@ export class TransferService {
     if (where.year) {
       qb.andWhere('EXTRACT(YEAR FROM transfer.date) = :year', { year: Number(where.year) });
     }
+    if (where.startDate) {
+      qb.andWhere('transfer.date >= :startDate', { startDate: where.startDate });
+    }
+    if (where.endDate) {
+      qb.andWhere('transfer.date <= :endDate', { endDate: where.endDate });
+    }
     if (search) {
       qb.andWhere(
-        '(model.title ILIKE :search OR collection.title ILIKE :search)',
+        `(
+          model.title ILIKE :search
+          OR collection.title ILIKE :search
+          OR color.title ILIKE :search
+          OR shape.title ILIKE :search
+          OR style.title ILIKE :search
+          OR size.title ILIKE :search
+          OR bar_code.code ILIKE :search
+          OR transferer."firstName" ILIKE :search
+          OR transferer."lastName" ILIKE :search
+          OR courier."firstName" ILIKE :search
+          OR courier."lastName" ILIKE :search
+          OR "from".title ILIKE :search
+          OR "to".title ILIKE :search
+        )`,
         { search: `%${search}%` },
       );
     }
