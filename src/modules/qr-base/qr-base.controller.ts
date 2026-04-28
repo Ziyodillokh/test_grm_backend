@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -54,10 +55,38 @@ export class QrBaseController {
   )
   @HttpCode(HttpStatus.CREATED)
   async importFromExcel(@UploadedFile() file: Express.Multer.File) {
-    const workbook = XLSX.readFile(file.path);
-    const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-    const data: any[] = XLSX.utils.sheet_to_json(worksheet);
-    deleteFile(file.path);
+    if (!file) {
+      throw new BadRequestException('Fayl yuklanmagan. Iltimos, Excel faylini tanlang.');
+    }
+    let data: any[];
+    try {
+      const workbook = XLSX.readFile(file.path);
+      const sheetName = workbook.SheetNames[0];
+      if (!sheetName) {
+        throw new BadRequestException("Excel faylda sheet topilmadi. Fayl bo'sh ko'rinmoqda.");
+      }
+      const worksheet = workbook.Sheets[sheetName];
+      data = XLSX.utils.sheet_to_json(worksheet);
+    } catch (err: any) {
+      if (err instanceof BadRequestException) throw err;
+      throw new BadRequestException(
+        "Excel faylni o'qishda xato. Fayl formati noto'g'ri yoki buzilgan bo'lishi mumkin.",
+      );
+    } finally {
+      deleteFile(file.path);
+    }
+
+    if (!data || data.length === 0) {
+      throw new BadRequestException(
+        "Excel faylda hech qanday qator topilmadi. Iltimos, ma'lumotlarni tekshiring.",
+      );
+    }
+    if (!data[0].code) {
+      throw new BadRequestException(
+        "Excel faylda 'code' ustuni topilmadi. Birinchi ustun nomi 'code' bo'lishi shart.",
+      );
+    }
+
     return this.qrBaseService.createFromExcelRows(data);
   }
 

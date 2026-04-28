@@ -26,6 +26,51 @@ export class CountryService {
     });
   }
 
+  /**
+   * Country list + her birida nechta QrBase ishlatilganini qaytaradi.
+   * Frontend data-library/countries sahifasi uchun.
+   */
+  async getAllWithCounts(options: IPaginationOptions, where: { title?: string }) {
+    const qb = this.countryRepository
+      .createQueryBuilder('country')
+      .leftJoin('qrbase', 'qb', 'qb."countryId" = country.id')
+      .select('country.id', 'id')
+      .addSelect('country.title', 'title')
+      .addSelect('COUNT(qb.id)', 'qrBaseCount')
+      .groupBy('country.id')
+      .orderBy('country.title', 'ASC');
+
+    if (where.title) {
+      qb.andWhere('country.title ILIKE :title', { title: `%${where.title}%` });
+    }
+
+    const limit = Number(options.limit) || 50;
+    const page = Number(options.page) || 1;
+    const offset = (page - 1) * limit;
+
+    const [items, totalCount] = await Promise.all([
+      qb.clone().offset(offset).limit(limit).getRawMany(),
+      this.countryRepository.count({
+        where: where.title ? { title: ILike(`%${where.title}%`) } : {},
+      }),
+    ]);
+
+    return {
+      items: items.map((it) => ({
+        id: it.id,
+        title: it.title,
+        qrBaseCount: Number(it.qrBaseCount) || 0,
+      })),
+      meta: {
+        totalItems: totalCount,
+        itemCount: items.length,
+        itemsPerPage: limit,
+        totalPages: Math.ceil(totalCount / limit),
+        currentPage: page,
+      },
+    };
+  }
+
   async find() {
     return await this.countryRepository.find();
   }

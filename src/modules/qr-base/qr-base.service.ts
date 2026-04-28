@@ -272,12 +272,23 @@ export class QrBaseService {
    * Bulk create QR bases from Excel rows.
    * Each row: { code, collection, model, color, size, country, factory, shape, style, isMetric, count }
    */
-  async createFromExcelRows(rows: any[]): Promise<{ created: number; updated: number; skipped: number }> {
+  async createFromExcelRows(
+    rows: any[],
+  ): Promise<{
+    created: number;
+    updated: number;
+    skipped: number;
+    errors: { row: number; code?: string; message: string }[];
+  }> {
     let created = 0;
     let updated = 0;
     let skipped = 0;
+    const errors: { row: number; code?: string; message: string }[] = [];
 
-    for (const row of rows) {
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+      const rowNumber = i + 2; // Excel'da 1-qator header, ma'lumot 2-qatordan
+
       if (!row.code) {
         skipped++;
         continue;
@@ -285,41 +296,61 @@ export class QrBaseService {
 
       const code = String(row.code).trim();
 
-      // Resolve relations by name → ID
-      const countryId = row.country ? await this.countryService.findOrCreate(String(row.country)) : null;
-      const factoryId = row.factory ? await this.factoryService.findOrCreate(String(row.factory), countryId) : null;
-      const collectionId = row.collection ? await this.collectionService.findOrCreate(String(row.collection), factoryId) : null;
-      const modelId = row.model && collectionId ? await this.modelService.findOrCreate(collectionId, String(row.model)) : null;
-      const colorId = row.color ? await this.colorService.findOrCreate(String(row.color)) : null;
-      const sizeId = row.size ? await this.sizeService.findOrCreate(String(row.size)) : null;
-      const shapeId = row.shape ? await this.shapeService.findOrCreate(String(row.shape)) : null;
-      const styleId = row.style ? await this.styleService.findOrCreate(String(row.style)) : null;
+      try {
+        // Resolve relations by name → ID
+        const countryId = row.country ? await this.countryService.findOrCreate(String(row.country)) : null;
+        const factoryId = row.factory ? await this.factoryService.findOrCreate(String(row.factory), countryId) : null;
+        const collectionId = row.collection ? await this.collectionService.findOrCreate(String(row.collection), factoryId) : null;
+        const modelId = row.model && collectionId ? await this.modelService.findOrCreate(collectionId, String(row.model)) : null;
+        const colorId = row.color ? await this.colorService.findOrCreate(String(row.color)) : null;
+        const sizeId = row.size ? await this.sizeService.findOrCreate(String(row.size)) : null;
+        const shapeId = row.shape ? await this.shapeService.findOrCreate(String(row.shape)) : null;
+        const styleId = row.style ? await this.styleService.findOrCreate(String(row.style)) : null;
 
-      const relationData = {
-        country: countryId ? { id: countryId } : null,
-        factory: factoryId ? { id: factoryId } : null,
-        collection: collectionId ? { id: collectionId } : null,
-        model: modelId ? { id: modelId } : null,
-        color: colorId ? { id: colorId } : null,
-        size: sizeId ? { id: sizeId } : null,
-        shape: shapeId ? { id: shapeId } : null,
-        style: styleId ? { id: styleId } : null,
-        isMetric: row.isMetric === true || row.isMetric === 'true',
-      };
+        const relationData = {
+          country: countryId ? { id: countryId } : null,
+          factory: factoryId ? { id: factoryId } : null,
+          collection: collectionId ? { id: collectionId } : null,
+          model: modelId ? { id: modelId } : null,
+          color: colorId ? { id: colorId } : null,
+          size: sizeId ? { id: sizeId } : null,
+          shape: shapeId ? { id: shapeId } : null,
+          style: styleId ? { id: styleId } : null,
+          isMetric: row.isMetric === true || row.isMetric === 'true',
+        };
 
-      const existing = await this.qrBaseRepository.findOne({ where: { code } });
+        const existing = await this.qrBaseRepository.findOne({ where: { code } });
 
-      if (existing) {
-        Object.assign(existing, relationData);
-        await this.qrBaseRepository.save(existing);
-        updated++;
-      } else {
-        const entity = this.qrBaseRepository.create({ code, ...relationData } as any);
-        await this.qrBaseRepository.save(entity);
-        created++;
+        if (existing) {
+          Object.assign(existing, relationData);
+          await this.qrBaseRepository.save(existing);
+          updated++;
+        } else {
+          const entity = this.qrBaseRepository.create({ code, ...relationData } as any);
+          await this.qrBaseRepository.save(entity);
+          created++;
+        }
+      } catch (err: any) {
+        this.logger.error(
+          `Excel import — qator ${rowNumber} (code=${code}): ${err?.message || err}`,
+        );
+        errors.push({
+          row: rowNumber,
+          code,
+          message: err?.message || "Noma'lum xato",
+        });
+        skipped++;
       }
     }
 
-    return { created, updated, skipped };
+    if (created === 0 && updated === 0 && errors.length > 0) {
+      // Hech qanday yozuv saqlanmadi — birinchi xato sababini foydalanuvchiga ko'rsatamiz
+      const first = errors[0];
+      throw new BadRequestException(
+        `Excel import muvaffaqiyatsiz: qator ${first.row} (code=${first.code || '—'}) — ${first.message}`,
+      );
+    }
+
+    return { created, updated, skipped, errors };
   }
 }

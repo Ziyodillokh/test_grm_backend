@@ -24,6 +24,13 @@ export class CountryController {
     return await this.countryService.getAll(query, {title: query.search});
   }
 
+  @Public()
+  @Get('/with-counts')
+  @ApiOperation({ summary: 'Method: returns countries with qrBaseCount' })
+  async getDataAllWithCounts(@Query() query: QueryCountryDto) {
+    return await this.countryService.getAllWithCounts(query, { title: query.search });
+  }
+
 
   @Get('/:id')
   @ApiOperation({ summary: 'Method: returns single country by id' })
