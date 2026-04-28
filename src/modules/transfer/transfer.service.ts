@@ -70,7 +70,11 @@ export class TransferService {
       if (p === 'accepted') {
         qb.andWhere('transfer.progress = :acceptedVal', { acceptedVal: 'Accepted' });
       } else if (p === 'pending') {
-        qb.andWhere('transfer.progress = :pendingVal', { pendingVal: 'Processing' });
+        // Defensive: hammasi accepted ham, rejected/returned ham bo'lmasa — pending.
+        // Bu legacy DB qiymatlari (Accepted_F, Booked, ...) migratsiya o'tgunicha to'g'ri ushlash uchun.
+        qb.andWhere('transfer.progress NOT IN (:...notPendingList)', {
+          notPendingList: ['Accepted', 'Rejected', 'Returned'],
+        });
       } else if (p === 'rejected') {
         qb.andWhere('transfer.progress IN (:...rejectedList)', {
           rejectedList: ['Rejected', 'Returned'],
