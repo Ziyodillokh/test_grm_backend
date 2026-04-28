@@ -64,7 +64,22 @@ export class TransferService {
       qb.andWhere('to.id = :toId', { toId: where.to });
     }
     if (where.progress) {
-      qb.andWhere('transfer.progress = :progress', { progress: where.progress });
+      const p = where.progress;
+      // Semantic groups: accepted = Accepted/Accepted_F, pending = barchasi (rad+accept tashqari),
+      // rejected = Rejected. Aks holda — to'g'ridan-to'g'ri qiymat solishtiriladi.
+      if (p === 'accepted') {
+        qb.andWhere('transfer.progress IN (:...acceptedList)', {
+          acceptedList: ['Accepted', 'Accepted_F'],
+        });
+      } else if (p === 'pending') {
+        qb.andWhere('transfer.progress NOT IN (:...notPendingList)', {
+          notPendingList: ['Accepted', 'Accepted_F', 'Rejected'],
+        });
+      } else if (p === 'rejected') {
+        qb.andWhere('transfer.progress = :rejectedVal', { rejectedVal: 'Rejected' });
+      } else {
+        qb.andWhere('transfer.progress = :progress', { progress: p });
+      }
     }
     if (where.year) {
       qb.andWhere('EXTRACT(YEAR FROM transfer.date) = :year', { year: Number(where.year) });
