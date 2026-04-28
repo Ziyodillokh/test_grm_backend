@@ -15,7 +15,7 @@ const telegram = async ({
   const chatId = process.env.CHATID;
   const shapes = {
     rectangle: 'Прямоугольный',
-    rulo: 'Метражный',
+    rulo: 'Metrli',
     oval: 'Овальный',
     daire: 'Круглый',
   };
