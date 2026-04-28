@@ -62,11 +62,11 @@ export class FilialReportService {
       this.transferRepository.count({
         where: [
           {
-            progress: progresEnum.accept_f,
+            progress: progresEnum.progress,
             from: { id: filial.id },
           },
           {
-            progress: progresEnum.accept_f,
+            progress: progresEnum.progress,
             to: { id: filial.id },
           },
         ],

@@ -65,16 +65,12 @@ export class TransferService {
     }
     if (where.progress) {
       const p = where.progress;
-      // Semantic groups: accepted = Accepted/Accepted_F, pending = barchasi (rad+accept tashqari),
-      // rejected = Rejected. Aks holda — to'g'ridan-to'g'ri qiymat solishtiriladi.
+      // 4 ta status: Processing, Accepted, Rejected, Returned.
+      // accepted = Accepted, pending = Processing, rejected = Rejected + Returned.
       if (p === 'accepted') {
-        qb.andWhere('transfer.progress IN (:...acceptedList)', {
-          acceptedList: ['Accepted', 'Accepted_F'],
-        });
+        qb.andWhere('transfer.progress = :acceptedVal', { acceptedVal: 'Accepted' });
       } else if (p === 'pending') {
-        qb.andWhere('transfer.progress IN (:...pendingList)', {
-          pendingList: ['Processing', 'Booked', 'New', 'InProgres', 'other'],
-        });
+        qb.andWhere('transfer.progress = :pendingVal', { pendingVal: 'Processing' });
       } else if (p === 'rejected') {
         qb.andWhere('transfer.progress IN (:...rejectedList)', {
           rejectedList: ['Rejected', 'Returned'],

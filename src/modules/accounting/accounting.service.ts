@@ -42,7 +42,7 @@ export class AccountingService {
       .leftJoin('kassa.filial', 'filial')
       .select('COALESCE(SUM(order.price + order.plasticSum), 0)', 'internetShopSum')
       .where('product.isInternetShop = :isInternetShop', { isInternetShop: true })
-      .andWhere('order.status IN (:...statuses)', { statuses: ['accepted', 'canceled'] });
+      .andWhere('order.status IN (:...statuses)', { statuses: ['accepted', 'returned'] });
 
     if (where?.filial) {
       qb.andWhere('filial.id = :filial', { filial: where.filial });

@@ -1502,13 +1502,13 @@ export class ReportService {
       `,
         `
       SUM(CASE
-        WHEN ord.status = 'canceled' THEN ord.price + ord."plasticSum"
+        WHEN ord.status = 'returned' THEN ord.price + ord."plasticSum"
         ELSE 0
       END)::NUMERIC(20, 2) as total_return
       `,
         `
       SUM(CASE
-        WHEN ord.status = 'canceled' THEN ord.kv
+        WHEN ord.status = 'returned' THEN ord.kv
         ELSE 0
       END)::NUMERIC(20, 2) as total_return_kv
       `,
@@ -1522,7 +1522,7 @@ export class ReportService {
       END)::NUMERIC(20, 2) as total_debt_count
       `,
       ])
-      .where('ord.status IN (:...status)', { status: [OrderEnum.Accept, OrderEnum.Cancel] });
+      .where('ord.status IN (:...status)', { status: [OrderEnum.Accept, OrderEnum.Return] });
 
     const [accountant, manager] = await Promise.all([
       this.userRepository.findOne({ where: { isActive: true, position: { role: UserRoleEnum.ACCOUNTANT } } }),
@@ -2422,7 +2422,7 @@ export class ReportService {
       const params: any = {};
 
       // Progress filter
-      whereClauses.push(`t.progress IN ('Processing', 'Accepted', 'Accepted_F')`);
+      whereClauses.push(`t.progress IN ('Processing', 'Accepted')`);
 
       // Date filter
       if (hasDateFilter) {
@@ -2522,7 +2522,7 @@ export class ReportService {
     if (mode === 'collection') {
       const offset = (page - 1) * limit;
 
-      const whereConditions = [`t.progres IN ('Processing', 'Accepted', 'Accepted_F')`];
+      const whereConditions = [`t.progres IN ('Processing', 'Accepted')`];
       const params: any[] = [];
       let paramIndex = 1;
 
@@ -2688,7 +2688,7 @@ export class ReportService {
             'lp',
             'lp."collectionId" = c.id',
           )
-          .where(`t.progress IN ('Processing', 'Accepted', 'Accepted_F')`)
+          .where(`t.progress IN ('Processing', 'Accepted')`)
           .andWhere(hasDateFilter ? 't.date BETWEEN :start AND :end' : '1=1', {
             start: startOfMonth,
             end: endOfMonth,
@@ -2737,7 +2737,7 @@ export class ReportService {
     if (mode === 'country') {
       const offset = (page - 1) * limit;
 
-      const whereConditions = [`t.progres IN ('Processing', 'Accepted', 'Accepted_F')`];
+      const whereConditions = [`t.progres IN ('Processing', 'Accepted')`];
       const params: any[] = [];
       let paramIndex = 1;
 
@@ -2898,7 +2898,7 @@ export class ReportService {
             'lp',
             'lp."collectionId" = c.id',
           )
-          .where(`t.progress IN ('Processing', 'Accepted', 'Accepted_F')`)
+          .where(`t.progress IN ('Processing', 'Accepted')`)
           .andWhere(hasDateFilter ? 't.date BETWEEN :start AND :end' : '1=1', {
             start: startOfMonth,
             end: endOfMonth,
@@ -2942,7 +2942,7 @@ export class ReportService {
     if (mode === 'factory') {
       const offset = (page - 1) * limit;
 
-      const whereConditions = [`t.progres IN ('Processing', 'Accepted', 'Accepted_F')`];
+      const whereConditions = [`t.progres IN ('Processing', 'Accepted')`];
       const params: any[] = [];
       let paramIndex = 1;
 
@@ -3109,7 +3109,7 @@ export class ReportService {
             'lp',
             'lp."collectionId" = c.id',
           )
-          .where(`t.progress IN ('Processing', 'Accepted', 'Accepted_F')`)
+          .where(`t.progress IN ('Processing', 'Accepted')`)
           .andWhere(hasDateFilter ? 't.date BETWEEN :start AND :end' : '1=1', {
             start: startOfMonth,
             end: endOfMonth,
@@ -3246,12 +3246,12 @@ export class ReportService {
     }
 
 
-    if (type === 'canceled') {
-      orders_qb.andWhere('o.status = :status', { status: 'canceled' });
+    if (type === 'returned') {
+      orders_qb.andWhere('o.status = :status', { status: 'returned' });
     } else if (type === 'debt') {
       orders_qb.andWhere('o.isDebt = true');
     } else {
-      orders_qb.andWhere('o.status = :status', { status: 'canceled' });
+      orders_qb.andWhere('o.status = :status', { status: 'returned' });
       orders_qb.andWhere('o.isDebt = true');
     }
 
@@ -3275,12 +3275,12 @@ export class ReportService {
       order_qb_totals.andWhere('k.filialId = :filial', { filial });
     }
 
-    if (type === 'canceled') {
-      order_qb_totals.andWhere('o.status = :status', { status: 'canceled' });
+    if (type === 'returned') {
+      order_qb_totals.andWhere('o.status = :status', { status: 'returned' });
     } else if (type === 'debt') {
       order_qb_totals.andWhere('o.isDebt = true');
     } else {
-      order_qb_totals.andWhere('o.status = :status', { status: 'canceled' });
+      order_qb_totals.andWhere('o.status = :status', { status: 'returned' });
       order_qb_totals.andWhere('o.isDebt = true');
     }
 
@@ -3364,7 +3364,7 @@ export class ReportService {
       )::NUMERIC(20, 2) as total_debt_count
       `,
       ])
-      .where('ord.status IN(:...status)', { status: [OrderEnum.Accept, OrderEnum.Cancel] });
+      .where('ord.status IN(:...status)', { status: [OrderEnum.Accept, OrderEnum.Return] });
 
     // Dealer kassa (naqd/online)
     const dealer_cash_qb = this.cashflowRepository.createQueryBuilder('cash')

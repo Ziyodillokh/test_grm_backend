@@ -1,6 +1,5 @@
 export * from './role.enum';
 export * from './scope.enum';
-export * from './order-status.enum';
 export * from './transfer-status.enum';
 export * from './cashflow-type.enum';
 export * from './filial-type.enum';

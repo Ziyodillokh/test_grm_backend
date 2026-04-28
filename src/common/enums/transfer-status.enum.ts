@@ -1,14 +1,15 @@
 /**
- * Unified transfer status enum.
+ * Unified transfer status enum — 4 ta real ishlatiladigan status.
  *
- * The actual DB values match the old progresEnum to avoid migration issues.
+ * State machine:
+ *   PROGRESS (default on create)
+ *     ├→ acceptTransfer / acceptPackage  → ACCEPT
+ *     │                                       └→ returnTransferFromPackage → RETURNED
+ *     └→ rejectTransfer / cancelTransferFromPackage → REJECT
  */
 export enum TransferStatus {
-  BOOK = 'Booked',
   PROGRESS = 'Processing',
-  REJECT = 'Rejected',
   ACCEPT = 'Accepted',
-  ACCEPT_F = 'Accepted_F',
-  OTHER = 'other',
+  REJECT = 'Rejected',
   RETURNED = 'Returned',
 }

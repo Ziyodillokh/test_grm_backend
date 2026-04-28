@@ -340,7 +340,7 @@ export class SellerReportItemService {
     );
 
     const allOrders = await this.orderRepository.find({
-      where: [{ status: OrderEnum.Accept }, { status: OrderEnum.Reject }, { status: OrderEnum.Cancel }],
+      where: [{ status: OrderEnum.Accept }, { status: OrderEnum.Reject }, { status: OrderEnum.Return }],
       relations: ['product', 'product.bar_code', 'seller'],
     });
 
@@ -400,7 +400,7 @@ export class SellerReportItemService {
         reportItem.additionalProfitTotalSum += order.netProfitSum || 0;
         reportItem.totalPlasticSum += order.plasticSum || 0;
         reportItem.totalDiscount += order.discountSum || 0;
-      } else if (order.status === OrderEnum.Reject || order.status === OrderEnum.Cancel) {
+      } else if (order.status === OrderEnum.Reject || order.status === OrderEnum.Return) {
         let returnCountToAdd = 0;
         if (!order.bar_code && !order.product) {
           returnCountToAdd = 1;

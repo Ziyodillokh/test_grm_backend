@@ -382,7 +382,7 @@ export class PaperReportService {
       .createQueryBuilder('order')
       .leftJoin('order.kassa', 'kassa')
       .where('order.date BETWEEN :start AND :end', { start: startDate, end: endDate })
-      .andWhere('order.status = :status', { status: OrderEnum.Cancel });
+      .andWhere('order.status = :status', { status: OrderEnum.Return });
 
     if (filialId) {
       canceledOrdersQuery.andWhere('kassa.filialId = :filialId', { filialId });
@@ -1431,7 +1431,7 @@ export class PaperReportService {
       ${filialId ? 'AND k."filialId" = $4' : ''}
     ORDER BY o.date DESC
   `;
-      const params = filialId ? [startDate, endDate, OrderEnum.Cancel, filialId] : [startDate, endDate, OrderEnum.Cancel];
+      const params = filialId ? [startDate, endDate, OrderEnum.Return, filialId] : [startDate, endDate, OrderEnum.Return];
       const data = await this.orderRepository.query(query, params);
 
       rows = data.map((row) => ({

@@ -733,7 +733,7 @@ export class OrderService {
       throw new BadRequestException(`Bu orderni mahsulotini filiali mavjud emas!`);
     }
 
-    if (order.status === OrderEnum.Cancel) throw new BadRequestException('Allaqachon qaytarilgan!');
+    if (order.status === OrderEnum.Return) throw new BadRequestException('Allaqachon qaytarilgan!');
 
     // CANCEL faqat APPROVED (Accept) orderlarni qaytarishi mumkin
     if (order.status !== OrderEnum.Accept) {
@@ -776,7 +776,7 @@ export class OrderService {
     }, userId);
 
     // 3. Order statusini Cancel qilish
-    await this.orderRepository.update({ id: order.id }, { status: OrderEnum.Cancel });
+    await this.orderRepository.update({ id: order.id }, { status: OrderEnum.Return });
 
     // 4. Eski Приход cashflow APPROVED qoladi (sotilgan, tasdiqlangan fakt o'zgarmaydi)
     // Yangi Расход cashflow CANCELLED statusda — vozvrat amalga oshganini bildiradi
@@ -788,7 +788,7 @@ export class OrderService {
     }
 
     const action = await this.actionService.create(
-      { ...order, status: OrderEnum.Cancel },
+      { ...order, status: OrderEnum.Return },
       userId,
       order.product.filial.id,
       'return_order',
@@ -903,7 +903,7 @@ export class OrderService {
       where: {
         ...where,
         additionalProfitSum: LessThan(0),
-        status: Equal('accept'),
+        status: Equal(OrderEnum.Accept),
       },
     });
 
@@ -915,7 +915,7 @@ export class OrderService {
       where: {
         ...where,
         additionalProfitSum: MoreThan(0),
-        status: Equal('accept'),
+        status: Equal(OrderEnum.Accept),
       },
     });
 
