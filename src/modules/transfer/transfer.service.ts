@@ -72,11 +72,13 @@ export class TransferService {
           acceptedList: ['Accepted', 'Accepted_F'],
         });
       } else if (p === 'pending') {
-        qb.andWhere('transfer.progress NOT IN (:...notPendingList)', {
-          notPendingList: ['Accepted', 'Accepted_F', 'Rejected'],
+        qb.andWhere('transfer.progress IN (:...pendingList)', {
+          pendingList: ['Processing', 'Booked', 'New', 'InProgres', 'other'],
         });
       } else if (p === 'rejected') {
-        qb.andWhere('transfer.progress = :rejectedVal', { rejectedVal: 'Rejected' });
+        qb.andWhere('transfer.progress IN (:...rejectedList)', {
+          rejectedList: ['Rejected', 'Returned'],
+        });
       } else {
         qb.andWhere('transfer.progress = :progress', { progress: p });
       }
