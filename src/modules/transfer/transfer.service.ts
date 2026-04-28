@@ -58,10 +58,11 @@ export class TransferService {
       .orderBy('transfer.date', 'DESC');
 
     if (where.from) {
-      qb.andWhere('from.id = :fromId', { fromId: where.from });
+      // "from" — SQL reserved keyword, alias quote bilan beriladi
+      qb.andWhere('"from".id = :fromId', { fromId: where.from });
     }
     if (where.to) {
-      qb.andWhere('to.id = :toId', { toId: where.to });
+      qb.andWhere('"to".id = :toId', { toId: where.to });
     }
     if (where.progress) {
       const p = where.progress;
