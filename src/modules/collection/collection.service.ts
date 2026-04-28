@@ -25,6 +25,36 @@ export class CollectionService {
     private readonly dataSource: DataSource,
   ) {}
 
+  async getAllWithCounts(options: IPaginationOptions, where: { title?: string }) {
+    const qb = this.collectionRepository
+      .createQueryBuilder('e')
+      .leftJoin('factory', 'p', 'p.id = e."factoryId"')
+      .leftJoin('qrbase', 'qb', 'qb."collectionId" = e.id')
+      .select('e.id', 'id')
+      .addSelect('e.title', 'title')
+      .addSelect('p.title', 'parentTitle')
+      .addSelect('COUNT(qb.id)', 'qrBaseCount')
+      .groupBy('e.id')
+      .addGroupBy('p.title')
+      .orderBy('e.title', 'ASC');
+    if (where.title) qb.andWhere('e.title ILIKE :title', { title: `%${where.title}%` });
+    const limit = Number(options.limit) || 50;
+    const page = Number(options.page) || 1;
+    const [items, totalCount] = await Promise.all([
+      qb.clone().offset((page - 1) * limit).limit(limit).getRawMany(),
+      this.collectionRepository.count({ where: where.title ? { title: ILike(`%${where.title}%`) } : {} }),
+    ]);
+    return {
+      items: items.map((it) => ({
+        id: it.id,
+        title: it.title,
+        parentTitle: it.parentTitle || null,
+        qrBaseCount: Number(it.qrBaseCount) || 0,
+      })),
+      meta: { totalItems: totalCount, itemCount: items.length, itemsPerPage: limit, totalPages: Math.ceil(totalCount / limit), currentPage: page },
+    };
+  }
+
   async getAll(options: IPaginationOptions, where?: FindOptionsWhere<Collection>): Promise<Pagination<Collection>> {
     return paginate<Collection>(this.collectionRepository, options, {
       order: {

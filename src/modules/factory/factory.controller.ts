@@ -67,6 +67,11 @@ export class FactoryController {
     return await this.service.getAll({ limit: query.limit, page: query.page, route }, {title: query.search});
   }
 
+  @Get('/with-counts')
+  async getAllWithCounts(@Query() query: FactoryQueryDto) {
+    return this.service.getAllWithCounts(query, { title: query.search });
+  }
+
   @Get('/:id')
   @ApiOperation({ summary: 'Method: returns single product by id' })
   @ApiOkResponse({

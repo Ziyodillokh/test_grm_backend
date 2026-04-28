@@ -27,6 +27,12 @@ export class StyleController {
     return this.styleService.getAll(query, {title: query.search});
   }
 
+  @Public()
+  @Get('/with-counts')
+  async getAllWithCounts(@Query() query: StyleQueryDto) {
+    return this.styleService.getAllWithCounts(query, { title: query.search });
+  }
+
   @Get('/:id')
   @ApiOperation({ summary: 'Method: returns single style by id' })
   @ApiOkResponse({

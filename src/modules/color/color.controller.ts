@@ -25,6 +25,12 @@ export class ColorController {
     return this.colorService.getAll(query, {title: query.search});
   }
 
+  @Public()
+  @Get('/with-counts')
+  async getAllWithCounts(@Query() query: QueryColorDto) {
+    return this.colorService.getAllWithCounts(query, { title: query.search });
+  }
+
   @Get('/:id')
   @ApiOperation({ summary: 'Method: returns single color by id' })
   @ApiOkResponse({

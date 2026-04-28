@@ -39,6 +39,12 @@ export class SizeController {
     return this.sizeService.getAll(query, {title: query.search});
   }
 
+  @Public()
+  @Get('/with-counts')
+  async getAllWithCounts(@Query() query: SizeQueryDto) {
+    return this.sizeService.getAllWithCounts(query, { title: query.search });
+  }
+
   @Get('/reports')
   @ApiOperation({ summary: 'Method: returns single size by id' })
   @ApiOkResponse({

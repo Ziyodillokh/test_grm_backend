@@ -37,6 +37,11 @@ export class ModelController {
     return await this.modelService.getAll({ ...query, route }, {title: query.search});
   }
 
+  @Get('/with-counts')
+  async getAllWithCounts(@Query() query: ModelQueryDto) {
+    return this.modelService.getAllWithCounts(query, { title: query.search });
+  }
+
   @Get('/models-report')
   @ApiOperation({ summary: 'Get models with aggregation data' })
   @ApiQuery({ name: 'page', required: false, type: Number, example: 1 })

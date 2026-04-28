@@ -27,6 +27,28 @@ export class StyleService {
     })
   }
 
+  async getAllWithCounts(options: IPaginationOptions, where: { title?: string }) {
+    const qb = this.styleRepository
+      .createQueryBuilder('e')
+      .leftJoin('qrbase', 'qb', 'qb."styleId" = e.id')
+      .select('e.id', 'id')
+      .addSelect('e.title', 'title')
+      .addSelect('COUNT(qb.id)', 'qrBaseCount')
+      .groupBy('e.id')
+      .orderBy('e.title', 'ASC');
+    if (where.title) qb.andWhere('e.title ILIKE :title', { title: `%${where.title}%` });
+    const limit = Number(options.limit) || 50;
+    const page = Number(options.page) || 1;
+    const [items, totalCount] = await Promise.all([
+      qb.clone().offset((page - 1) * limit).limit(limit).getRawMany(),
+      this.styleRepository.count({ where: where.title ? { title: ILike(`%${where.title}%`) } : {} }),
+    ]);
+    return {
+      items: items.map((it) => ({ id: it.id, title: it.title, qrBaseCount: Number(it.qrBaseCount) || 0 })),
+      meta: { totalItems: totalCount, itemCount: items.length, itemsPerPage: limit, totalPages: Math.ceil(totalCount / limit), currentPage: page },
+    };
+  }
+
   async getOne(id: string) {
     const data = await this.styleRepository
       .findOne({

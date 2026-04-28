@@ -45,6 +45,11 @@ export class CollectionController {
     return await this.collectionService.getAll({ ...query, route }, { title: query.title || query.search });
   }
 
+  @Get('/with-counts')
+  async getAllWithCounts(@Query() query: QueryCollectionDto) {
+    return this.collectionService.getAllWithCounts(query, { title: query.title || query.search });
+  }
+
   @Get('/transfer-collection')
   @ApiOperation({ summary: 'Method: returns all Collections' })
   @ApiOkResponse({

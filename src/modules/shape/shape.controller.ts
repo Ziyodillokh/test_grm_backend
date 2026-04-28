@@ -26,6 +26,12 @@ export class ShapeController {
     return this.shapeService.getAll(query, {title: query.search});
   }
 
+  @Public()
+  @Get('/with-counts')
+  async getAllWithCounts(@Query() query: ShapeQueryDto) {
+    return this.shapeService.getAllWithCounts(query, { title: query.search });
+  }
+
   @Get('/:id')
   @ApiOperation({ summary: 'Method: returns single Shape by id' })
   @ApiOkResponse({
