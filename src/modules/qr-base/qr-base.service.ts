@@ -35,34 +35,46 @@ export class QrBaseService {
     options: IPaginationOptions,
     query: QueryQrBaseDto,
   ): Promise<Pagination<QrBase>> {
-    const where: any = {};
+    const qb = this.qrBaseRepository
+      .createQueryBuilder('qb')
+      .leftJoinAndSelect('qb.collection', 'collection')
+      .leftJoinAndSelect('qb.color', 'color')
+      .leftJoinAndSelect('qb.model', 'model')
+      .leftJoinAndSelect('qb.size', 'size')
+      .leftJoinAndSelect('qb.shape', 'shape')
+      .leftJoinAndSelect('qb.style', 'style')
+      .leftJoinAndSelect('qb.country', 'country')
+      .leftJoinAndSelect('qb.factory', 'factory')
+      .orderBy('qb.date', 'DESC');
 
     if (query.is_active !== undefined) {
-      where.is_active = query.is_active === 'true';
+      qb.andWhere('qb.is_active = :isActive', {
+        isActive: query.is_active === 'true',
+      });
     }
 
     if (query.status) {
-      where.status = query.status;
+      qb.andWhere('qb.status = :status', { status: query.status });
     }
 
     if (query.search) {
-      where.code = ILike(`%${query.search}%`);
+      qb.andWhere(
+        `(
+          qb.code ILIKE :s
+          OR collection.title ILIKE :s
+          OR model.title ILIKE :s
+          OR color.title ILIKE :s
+          OR size.title ILIKE :s
+          OR shape.title ILIKE :s
+          OR style.title ILIKE :s
+          OR country.title ILIKE :s
+          OR factory.title ILIKE :s
+        )`,
+        { s: `%${query.search}%` },
+      );
     }
 
-    return paginate<QrBase>(this.qrBaseRepository, options, {
-      order: { date: 'DESC' },
-      where,
-      relations: {
-        collection: true,
-        color: true,
-        model: true,
-        size: true,
-        shape: true,
-        style: true,
-        country: true,
-        factory: true,
-      },
-    });
+    return paginate<QrBase>(qb, options);
   }
 
   async findOne(id: string): Promise<QrBase> {

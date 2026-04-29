@@ -37,13 +37,21 @@ export class CollectionService {
       .groupBy('e.id')
       .addGroupBy('p.title')
       .orderBy('e.title', 'ASC');
-    if (where.title) qb.andWhere('e.title ILIKE :title', { title: `%${where.title}%` });
+    if (where.title) {
+      qb.andWhere('(e.title ILIKE :s OR p.title ILIKE :s)', { s: `%${where.title}%` });
+    }
     const limit = Number(options.limit) || 50;
     const page = Number(options.page) || 1;
-    const [items, totalCount] = await Promise.all([
-      qb.clone().offset((page - 1) * limit).limit(limit).getRawMany(),
-      this.collectionRepository.count({ where: where.title ? { title: ILike(`%${where.title}%`) } : {} }),
-    ]);
+    const items = await qb.clone().offset((page - 1) * limit).limit(limit).getRawMany();
+
+    const countQb = this.collectionRepository
+      .createQueryBuilder('e')
+      .leftJoin('factory', 'p', 'p.id = e."factoryId"');
+    if (where.title) {
+      countQb.andWhere('(e.title ILIKE :s OR p.title ILIKE :s)', { s: `%${where.title}%` });
+    }
+    const totalCount = await countQb.getCount();
+
     return {
       items: items.map((it) => ({
         id: it.id,
