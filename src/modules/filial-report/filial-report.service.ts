@@ -301,85 +301,47 @@ export class FilialReportService {
         throw new BadRequestException('Faqat yopilgan (CLOSED) qayta ro\'yxatni tasdiqlash mumkin');
       }
 
-      // Re-inventory rowlarni to'liq relation'lar bilan olish
+      const filialId = report.filial.id;
+      const filialLabel = report.filial.name || report.filial.title;
+
+      // Snapshot olish (re_inventory tegilmaydi — immutable audit)
       const items = await manager
         .createQueryBuilder('re_inventory', 'ri')
-        .leftJoinAndSelect('ri.product', 'product')
         .leftJoinAndSelect('ri.bar_code', 'bar_code')
         .leftJoinAndSelect('bar_code.size', 'size')
         .where('ri."filialReportId" = :id', { id })
         .getMany();
 
+      // Barcode bo'yicha guruhlash
+      const groups = new Map<string, { isMetric: boolean; sizeY: number; total: number; metricScans: number[] }>();
       for (const ri of items as any[]) {
-        const isMetric = !!ri.bar_code?.isMetric;
+        const barCodeId = ri.bar_code?.id;
+        if (!barCodeId) continue;
         const checkCount = Number(ri.check_count || 0);
+        const isMetric = !!ri.bar_code?.isMetric;
         const sizeY = Number(ri.bar_code?.size?.y || 0);
 
-        if (ri.product?.id) {
-          // MATCHED row — reconcile Product
-          if (isMetric) {
-            if (checkCount > 0) {
-              // Strict match: y va count tegmaydi, check_count=y*100 yoziladi (frozen)
-              await manager.update(Product, ri.product.id, {
-                check_count: checkCount,
-              });
-            } else {
-              // Missing — to'liq yo'qolgan gilam
-              await manager.update(Product, ri.product.id, {
-                y: 0,
-                count: 0,
-                check_count: 0,
-              });
-            }
-          } else {
-            const originalCount = Number(ri.count || 0);
-            if (checkCount > originalCount) {
-              // Edge case: matched rowda check_count > count
-              // Original productni tegmaymiz (tarix saqlanadi), excess uchun yangi
-              const excess = checkCount - originalCount;
-              const newProduct = manager.create(Product, {
-                bar_code: ri.bar_code,
-                filial: report.filial,
-                count: excess,
-                check_count: excess,
-                y: sizeY,
-                partiya_title: `${report.filial.name || report.filial.title} qoldiq`,
-                is_deleted: false,
-              } as any);
-              await manager.save(newProduct);
-              await manager.update(Product, ri.product.id, {
-                count: originalCount,
-                check_count: originalCount,
-              });
-            } else {
-              // Normal: count va check_count teng yoziladi
-              await manager.update(Product, ri.product.id, {
-                count: checkCount,
-                check_count: checkCount,
-              });
-            }
-          }
+        if (!groups.has(barCodeId)) {
+          groups.set(barCodeId, { isMetric, sizeY, total: 0, metricScans: [] });
+        }
+        const g = groups.get(barCodeId)!;
+        g.total += checkCount;
+        if (isMetric && checkCount > 0) {
+          g.metricScans.push(checkCount);
+        }
+      }
+
+      // Har barcode uchun distribution algoritmi
+      for (const [barCodeId, g] of groups.entries()) {
+        if (g.isMetric) {
+          await this.distributeMetric(filialId, barCodeId, g.metricScans, filialLabel, manager);
         } else {
-          // UNMATCHED (Ortiqcha) — yangi product
-          const newProduct = manager.create(Product, {
-            bar_code: ri.bar_code,
-            filial: report.filial,
-            count: isMetric ? 1 : checkCount,
-            check_count: isMetric ? Math.round(checkCount) : checkCount,
-            y: isMetric ? checkCount / 100 : sizeY,
-            partiya_title: `${report.filial.name || report.filial.title} qoldiq`,
-            is_deleted: false,
-          } as any);
-          const saved = await manager.save(newProduct);
-          await manager
-            .getRepository('re_inventory')
-            .update(ri.id, { product: saved as any });
+          await this.distributeNonMetric(filialId, barCodeId, g.total, filialLabel, manager);
         }
       }
 
       // Defensive normalize: shu filial uchun partiyaId IS NULL va title bo'sh bo'lgan
       // har qanday Productga "{filial} qoldiq" qo'yish (metric + non-metric)
-      const filialLabel = report.filial.name || report.filial.title;
       await manager.query(
         `
         UPDATE product
@@ -389,18 +351,197 @@ export class FilialReportService {
           AND (partiya_title IS NULL OR partiya_title = '')
           AND is_deleted = false
         `,
-        [`${filialLabel} qoldiq`, report.filial.id],
+        [`${filialLabel} qoldiq`, filialId],
       );
 
-      // Non-metric dublikatlarni eng eskisiga merge qilish (metric tegilmaydi)
-      await this.mergeNullPartiyaDuplicates(report.filial.id, filialLabel, manager);
+      // Non-metric dublikatlarni eng eskisiga merge qilish (final safety net)
+      await this.mergeNullPartiyaDuplicates(filialId, filialLabel, manager);
 
       await manager.update(FilialReport, id, {
         status: FilialReportStatusEnum.ACCEPTED,
       });
-      await manager.update(Filial, report.filial.id, { need_get_report: false });
+      await manager.update(Filial, filialId, { need_get_report: false });
       return { id, status: FilialReportStatusEnum.ACCEPTED };
     });
+  }
+
+  /**
+   * Non-metric FIFO distribution: totalScanned ni mavjud Productlar
+   * ustiga FIFO tartibida (partiyali eng eski → partiyasiz eng eski) taqsimlaydi.
+   * Ortiqcha qism "{filial} qoldiq" Product'ga yoziladi.
+   * Yetib bormagan Productlar count=0 va is_deleted=true bo'ladi.
+   */
+  private async distributeNonMetric(
+    filialId: string,
+    barCodeId: string,
+    totalScanned: number,
+    filialLabel: string,
+    manager: EntityManager,
+  ): Promise<void> {
+    // FIFO tartib: partiyali (NOT NULL) avval, ichida createdAt ASC; keyin partiyasiz, ichida createdAt ASC
+    // DB ustun: "dateOne" — BaseEntity'dagi @CreateDateColumn({ name: 'dateOne' }) tufayli
+    const products: Array<{ id: string; count: string | number; partiyaId: string | null }> =
+      await manager.query(
+        `
+        SELECT id, count, "partiyaId"
+        FROM product
+        WHERE "filialId" = $1
+          AND "barCodeId" = $2
+          AND is_deleted = false
+        ORDER BY ("partiyaId" IS NULL) ASC, "dateOne" ASC NULLS LAST, id ASC
+        `,
+        [filialId, barCodeId],
+      );
+
+      let remaining = totalScanned;
+
+      for (const p of products) {
+        const cap = Number(p.count || 0);
+        if (remaining > 0) {
+          const allocated = Math.min(remaining, cap);
+          await manager.update(Product, { id: p.id }, {
+            count: allocated,
+            check_count: allocated,
+            booking_count: 0,
+          });
+          remaining -= allocated;
+          if (allocated < cap) {
+            // Productni qisman to'ldirildi — qolgan qismi yo'qoladi (closeByFmanager logikasi
+            // bilan mos: scan qilinmagan qism is_deleted=true bo'ladi)
+          }
+        } else {
+          // Yetib bormadi → soft-delete
+          await manager.update(Product, { id: p.id }, {
+            count: 0,
+            check_count: 0,
+            booking_count: 0,
+            is_deleted: true,
+          });
+        }
+      }
+
+      if (remaining > 0) {
+        // Ortiqcha — qoldiq Product'ga yoziladi (mavjud bo'lsa unga qo'shiladi)
+        const qoldiq = await this.findOrCreateQoldiqProduct(filialId, barCodeId, filialLabel, manager);
+        const newCount = Number(qoldiq.count || 0) + remaining;
+        await manager.update(Product, { id: qoldiq.id }, {
+          count: newCount,
+          check_count: newCount,
+          booking_count: 0,
+          is_deleted: false,
+        });
+      }
+  }
+
+  /**
+   * Metric strict 1:1 match: har scan event uchun y*100=scan bo'lgan
+   * mavjud Product topiladi (FIFO createdAt ASC). Topilmasa "qoldiq"
+   * sifatida yangi Product yaratiladi. Hech qaysi scan'ga mos kelmagan
+   * mavjud Productlar count=0, is_deleted=true bo'ladi.
+   */
+  private async distributeMetric(
+    filialId: string,
+    barCodeId: string,
+    scanValues: number[],
+    filialLabel: string,
+    manager: EntityManager,
+  ): Promise<void> {
+    // Mavjud metric Productlar — FIFO
+    const products: Array<{ id: string; y: string | number }> = await manager.query(
+      `
+      SELECT id, y
+      FROM product
+      WHERE "filialId" = $1
+        AND "barCodeId" = $2
+        AND is_deleted = false
+      ORDER BY "dateOne" ASC NULLS LAST, id ASC
+      `,
+      [filialId, barCodeId],
+    );
+
+    const consumed = new Set<string>();
+
+    for (const scanValue of scanValues) {
+      // y*100 == scanValue match topish (consumed bo'lmagan)
+      const target = products.find(
+        (p) => !consumed.has(p.id) && Math.round(Number(p.y) * 100) === scanValue,
+      );
+      if (target) {
+        await manager.update(Product, { id: target.id }, {
+          check_count: scanValue,
+        });
+        consumed.add(target.id);
+      } else {
+        // Mos kelmadi — yangi qoldiq Product
+        const yMeters = scanValue / 100;
+        const newProduct = manager.create(Product, {
+          bar_code: { id: barCodeId } as any,
+          filial: { id: filialId } as any,
+          count: 1,
+          check_count: scanValue,
+          y: yMeters,
+          partiya_title: `${filialLabel} qoldiq`,
+          is_deleted: false,
+        } as any);
+        await manager.save(newProduct);
+      }
+    }
+
+    // Hech qaysi scan'ga mos kelmagan Productlar yo'qolgan
+    for (const p of products) {
+      if (!consumed.has(p.id)) {
+        await manager.update(Product, { id: p.id }, {
+          count: 0,
+          check_count: 0,
+          booking_count: 0,
+          is_deleted: true,
+        });
+      }
+    }
+  }
+
+  /**
+   * Filial uchun shu barcode'ning "{filial} qoldiq" Product'ini topadi yoki yaratadi.
+   * Distribution natijasidagi ortiqcha non-metric mahsulotlar shu yerga jamlanadi.
+   */
+  private async findOrCreateQoldiqProduct(
+    filialId: string,
+    barCodeId: string,
+    filialLabel: string,
+    manager: EntityManager,
+  ): Promise<{ id: string; count: number }> {
+    const expectedTitle = `${filialLabel} qoldiq`;
+
+    const existing: Array<{ id: string; count: string | number }> = await manager.query(
+      `
+      SELECT id, count
+      FROM product
+      WHERE "filialId" = $1
+        AND "barCodeId" = $2
+        AND "partiyaId" IS NULL
+        AND is_deleted = false
+        AND partiya_title = $3
+      ORDER BY "dateOne" ASC NULLS LAST, id ASC
+      LIMIT 1
+      `,
+      [filialId, barCodeId, expectedTitle],
+    );
+
+    if (existing.length > 0) {
+      return { id: existing[0].id, count: Number(existing[0].count || 0) };
+    }
+
+    const newProduct = manager.create(Product, {
+      bar_code: { id: barCodeId } as any,
+      filial: { id: filialId } as any,
+      count: 0,
+      check_count: 0,
+      booking_count: 0,
+      partiya_title: expectedTitle,
+      is_deleted: false,
+    } as any);
+    const saved = (await manager.save(newProduct)) as unknown as Product;
+    return { id: saved.id, count: 0 };
   }
 
   /**

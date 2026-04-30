@@ -38,7 +38,7 @@ export class ReInventoryService {
     await queryRunner.startTransaction();
 
     try {
-      const { code, isMetric, value, filialId } = dto;
+      const { code, isMetric: dtoIsMetric, value, filialId } = dto;
 
       // Filialda faqat OPEN holatdagi filial_report bo'lishi kerak
       const openReport = await queryRunner.manager.findOne(FilialReport, {
@@ -74,7 +74,7 @@ export class ReInventoryService {
 
       if (!barCode) {
         barCode = queryRunner.manager.create(QrBase, {
-          code, isMetric, country, collection, size, shape, style, model, color, factory,
+          code, isMetric: dtoIsMetric, country, collection, size, shape, style, model, color, factory,
         });
         await queryRunner.manager.save(barCode);
       } else {
@@ -88,7 +88,7 @@ export class ReInventoryService {
           ...(factory && { factory }),
           ...(country && { country }),
           ...(collection && { collection }),
-          isMetric,
+          isMetric: dtoIsMetric,
         });
       }
 
@@ -103,94 +103,26 @@ export class ReInventoryService {
         : { last_checked_at: now };
 
       // ===========================================
-      // 2) METRIC — strict match
+      // 2) Per-scan event log — har scan = INSERT yangi row
+      //    Aggregation/merge faqat acceptByMmanager paytida sodir bo'ladi.
+      //    Audit (kim, qachon, qancha) har row'da saqlanadi.
       // ===========================================
-      if (barCode.isMetric) {
-        // Faqat aniq tenglik (y*100 == value) bo'lgan re_inventory rowlar match hisoblanadi
-        const matched = await queryRunner.manager
-          .createQueryBuilder(ReInventory, 'ri')
-          .setLock('pessimistic_write')
-          .where('ri."filialReportId" = :rid', { rid: openReport.id })
-          .andWhere('ri."barCodeId" = :bcid', { bcid: barCode.id })
-          .andWhere('ri.check_count = 0')
-          .andWhere('(ri.y * 100) = :val', { val: Number(value) })
-          .orderBy('ri.y', 'DESC')
-          .getOne();
+      const isMetric = !!barCode.isMetric;
+      const sizeY = barCode.size?.y ? Number(barCode.size.y) : 0;
 
-        if (matched) {
-          matched.check_count = Number(value);
-          Object.assign(matched, auditPatch);
-          await queryRunner.manager.save(matched);
-          await queryRunner.commitTransaction();
-          return { barCodeId: barCode.id, isMetric: true, updated: [matched.id], created: [] };
-        }
-
-        // Tenglik yo'q — yangi re_inventory rowi (Ortiqcha)
-        const newRi = queryRunner.manager.create(ReInventory, {
-          bar_code: barCode,
-          count: 1,
-          y: 0,
-          check_count: Number(value),
-          comingPrice: 0,
-          filial_report: openReport,
-          ...auditPatch,
-        });
-        await queryRunner.manager.save(newRi);
-        await queryRunner.commitTransaction();
-        return { barCodeId: barCode.id, isMetric: true, updated: [], created: [newRi.id] };
-      }
-
-      // ===========================================
-      // 3) NON-METRIC — fill capacity, then new row
-      // ===========================================
-      const rows = await queryRunner.manager
-        .createQueryBuilder(ReInventory, 'ri')
-        .setLock('pessimistic_write')
-        .where('ri."filialReportId" = :rid', { rid: openReport.id })
-        .andWhere('ri."barCodeId" = :bcid', { bcid: barCode.id })
-        .orderBy('ri.count', 'DESC')
-        .getMany();
-
-      let amountLeft = Number(value);
-      const updated: string[] = [];
-      const created: string[] = [];
-
-      for (const ri of rows) {
-        if (amountLeft <= 0) break;
-        const currentCheck = Number(ri.check_count || 0);
-        const cnt = Number(ri.count || 0);
-        const capacity = cnt - currentCheck;
-        if (capacity <= 0) continue;
-
-        if (amountLeft >= capacity) {
-          ri.check_count = currentCheck + capacity;
-          amountLeft -= capacity;
-        } else {
-          ri.check_count = currentCheck + amountLeft;
-          amountLeft = 0;
-        }
-        Object.assign(ri, auditPatch);
-        await queryRunner.manager.save(ri);
-        updated.push(ri.id);
-      }
-
-      if (amountLeft > 0) {
-        const sizeY = barCode.size?.y ? Number(barCode.size.y) : 0;
-        const newRi = queryRunner.manager.create(ReInventory, {
-          bar_code: barCode,
-          count: 0,
-          y: sizeY,
-          check_count: amountLeft,
-          comingPrice: 0,
-          filial_report: openReport,
-          ...auditPatch,
-        });
-        await queryRunner.manager.save(newRi);
-        created.push(newRi.id);
-      }
+      const newRi = queryRunner.manager.create(ReInventory, {
+        bar_code: barCode,
+        count: isMetric ? 1 : 0,
+        y: isMetric ? Number(value) / 100 : sizeY,
+        check_count: Number(value),
+        comingPrice: 0,
+        filial_report: openReport,
+        ...auditPatch,
+      });
+      await queryRunner.manager.save(newRi);
 
       await queryRunner.commitTransaction();
-      return { barCodeId: barCode.id, isMetric: false, updated, created };
+      return { barCodeId: barCode.id, isMetric, updated: [], created: [newRi.id] };
     } catch (error) {
       await queryRunner.rollbackTransaction();
       console.error('Inventory transaction error:', error);
