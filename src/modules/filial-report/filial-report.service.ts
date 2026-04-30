@@ -1,6 +1,6 @@
 import { BadRequestException, forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { FilialReport } from './filial-report.entity';
-import { DataSource, In, Repository } from 'typeorm';
+import { DataSource, EntityManager, In, Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { FilialService } from '../filial/filial.service';
 import { CreateFilialReportDto } from './dto';
@@ -343,7 +343,7 @@ export class FilialReportService {
                 count: excess,
                 check_count: excess,
                 y: sizeY,
-                partiya_title: `${report.filial.name || report.filial.title} — ortiqcha`,
+                partiya_title: `${report.filial.name || report.filial.title} qoldiq`,
                 is_deleted: false,
               } as any);
               await manager.save(newProduct);
@@ -367,7 +367,7 @@ export class FilialReportService {
             count: isMetric ? 1 : checkCount,
             check_count: isMetric ? Math.round(checkCount) : checkCount,
             y: isMetric ? checkCount / 100 : sizeY,
-            partiya_title: `${report.filial.name || report.filial.title} — ortiqcha`,
+            partiya_title: `${report.filial.name || report.filial.title} qoldiq`,
             is_deleted: false,
           } as any);
           const saved = await manager.save(newProduct);
@@ -377,12 +377,102 @@ export class FilialReportService {
         }
       }
 
+      // Defensive normalize: shu filial uchun partiyaId IS NULL va title bo'sh bo'lgan
+      // har qanday Productga "{filial} qoldiq" qo'yish (metric + non-metric)
+      const filialLabel = report.filial.name || report.filial.title;
+      await manager.query(
+        `
+        UPDATE product
+        SET partiya_title = $1
+        WHERE "filialId" = $2
+          AND "partiyaId" IS NULL
+          AND (partiya_title IS NULL OR partiya_title = '')
+          AND is_deleted = false
+        `,
+        [`${filialLabel} qoldiq`, report.filial.id],
+      );
+
+      // Non-metric dublikatlarni eng eskisiga merge qilish (metric tegilmaydi)
+      await this.mergeNullPartiyaDuplicates(report.filial.id, filialLabel, manager);
+
       await manager.update(FilialReport, id, {
         status: FilialReportStatusEnum.ACCEPTED,
       });
       await manager.update(Filial, report.filial.id, { need_get_report: false });
       return { id, status: FilialReportStatusEnum.ACCEPTED };
     });
+  }
+
+  /**
+   * Bir xil barCodeId + partiyaId IS NULL bo'lgan non-metric Productlarni eng eskisiga merge qiladi.
+   * Eng eski tanlash: createdAt (DB ustun nomi "dateOne") ASC.
+   * Master ga count va check_count summa qilinadi, dublikatlar is_deleted=true.
+   * Metric mahsulotlar tegilmaydi (har biri alohida fizik mahsulot).
+   */
+  private async mergeNullPartiyaDuplicates(
+    filialId: string,
+    filialLabel: string,
+    manager: EntityManager,
+  ): Promise<void> {
+    // Eslatma: BaseEntity'da @CreateDateColumn({ name: 'dateOne' }) — TypeORM property
+    // "createdAt", lekin DB ustun nomi hali ham "dateOne". Raw SQL'da DB ustun nomi.
+    const groups: Array<{
+      barCodeId: string;
+      ids: string[];
+      counts: (string | number)[];
+      check_counts: (string | number)[];
+      titles: (string | null)[];
+    }> = await manager.query(
+      `
+      SELECT
+        p."barCodeId",
+        array_agg(p.id ORDER BY p."dateOne" ASC NULLS LAST, p.id ASC) AS ids,
+        array_agg(p.count ORDER BY p."dateOne" ASC NULLS LAST, p.id ASC) AS counts,
+        array_agg(p.check_count ORDER BY p."dateOne" ASC NULLS LAST, p.id ASC) AS check_counts,
+        array_agg(p.partiya_title ORDER BY p."dateOne" ASC NULLS LAST, p.id ASC) AS titles
+      FROM product p
+      LEFT JOIN qrbase qb ON p."barCodeId" = qb.id
+      WHERE p."filialId" = $1
+        AND p.is_deleted = false
+        AND p."barCodeId" IS NOT NULL
+        AND p."partiyaId" IS NULL
+        AND qb."isMetric" = false
+      GROUP BY p."barCodeId"
+      HAVING COUNT(p.id) > 1
+      `,
+      [filialId],
+    );
+
+    for (const g of groups) {
+      const [masterId, ...dupIds] = g.ids;
+      const totalCount = g.counts.reduce<number>((s, c) => s + Number(c || 0), 0);
+      const totalCheck = g.check_counts.reduce<number>((s, c) => s + Number(c || 0), 0);
+      const masterTitle = g.titles[0]?.trim() || `${filialLabel} qoldiq`;
+
+      await manager.update(
+        Product,
+        { id: masterId },
+        {
+          count: totalCount,
+          check_count: totalCheck,
+          booking_count: 0,
+          partiya_title: masterTitle,
+        },
+      );
+
+      if (dupIds.length) {
+        await manager.update(
+          Product,
+          { id: In(dupIds) },
+          {
+            count: 0,
+            check_count: 0,
+            booking_count: 0,
+            is_deleted: true,
+          },
+        );
+      }
+    }
   }
 
   /**
