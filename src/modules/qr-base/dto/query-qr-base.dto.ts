@@ -18,11 +18,6 @@ export class QueryQrBaseDto {
   @IsString()
   readonly search?: string;
 
-  @ApiPropertyOptional({ description: 'Filter by is_active' })
-  @IsOptional()
-  @IsString()
-  readonly is_active?: string;
-
   @ApiPropertyOptional({ description: 'Filter by status' })
   @IsOptional()
   @IsString()

@@ -29,7 +29,7 @@ export class ShapeService {
   async getAllWithCounts(options: IPaginationOptions, where: { title?: string }) {
     const qb = this.shapeRepository
       .createQueryBuilder('e')
-      .leftJoin('qrbase', 'qb', 'qb."shapeId" = e.id')
+      .leftJoin('qrbase', 'qb', 'qb."shapeId" = e.id AND qb."deletedDate" IS NULL')
       .select('e.id', 'id')
       .addSelect('e.title', 'title')
       .addSelect('COUNT(qb.id)', 'qrBaseCount')

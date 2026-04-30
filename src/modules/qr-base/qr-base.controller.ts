@@ -6,6 +6,7 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  NotFoundException,
   Param,
   ParseUUIDPipe,
   Patch,
@@ -114,8 +115,8 @@ export class QrBaseController {
   @ApiOperation({ summary: 'Get single QR base for internet market by ID' })
   @ApiOkResponse({ description: 'QR base for i-market returned successfully' })
   @HttpCode(HttpStatus.OK)
-  async findOneIMarket(@Param('id', ParseUUIDPipe) id: string): Promise<QrBase[]> {
-    return this.qrBaseService.findOneIMarket(id);
+  async findOneIMarket(@Param('id', ParseUUIDPipe) id: string): Promise<QrBase> {
+    return this.qrBaseService.findOne(id, { includeMedia: true });
   }
 
   @Post('internet-shop')
@@ -168,11 +169,15 @@ export class QrBaseController {
 
   @Get('find-by/:code')
   @Roles(Role.BOSS, Role.M_MANAGER, Role.W_MANAGER, Role.F_MANAGER, Role.SELLER, Role.I_MANAGER)
-  @ApiOperation({ summary: 'Get a QR base by code (find-by alias)' })
+  @ApiOperation({ summary: 'Get a QR base by code with relations (find-by alias)' })
   @ApiOkResponse({ description: 'QR base returned successfully' })
   @HttpCode(HttpStatus.OK)
   async findByCodeAlias(@Param('code') code: string): Promise<QrBase> {
-    return this.qrBaseService.getOneByCode(code);
+    const entity = await this.qrBaseService.findByCode(code, { includeRelations: true });
+    if (!entity) {
+      throw new NotFoundException(`QrBase with code "${code}" not found`);
+    }
+    return entity;
   }
 
   @Get('code/:code')
@@ -183,7 +188,7 @@ export class QrBaseController {
   async findByCode(@Param('code') code: string): Promise<QrBase> {
     const entity = await this.qrBaseService.findByCode(code);
     if (!entity) {
-      throw new Error(`QrBase with code "${code}" not found`);
+      throw new NotFoundException(`QrBase with code "${code}" not found`);
     }
     return entity;
   }

@@ -30,7 +30,7 @@ export class StyleService {
   async getAllWithCounts(options: IPaginationOptions, where: { title?: string }) {
     const qb = this.styleRepository
       .createQueryBuilder('e')
-      .leftJoin('qrbase', 'qb', 'qb."styleId" = e.id')
+      .leftJoin('qrbase', 'qb', 'qb."styleId" = e.id AND qb."deletedDate" IS NULL')
       .select('e.id', 'id')
       .addSelect('e.title', 'title')
       .addSelect('COUNT(qb.id)', 'qrBaseCount')

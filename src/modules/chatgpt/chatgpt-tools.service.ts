@@ -1080,7 +1080,7 @@ Har bir savolga mos ravishda dona, KV, narx qaytaradi.`,
 
     const collection = await this.collectionRepo.findOne({
       where: { title: ILike(`%${resolvedName}%`) },
-      relations: ['country', 'factory'],
+      relations: ['country', 'factory', 'collection_prices'],
     });
 
     if (!collection) {
@@ -1110,13 +1110,15 @@ Har bir savolga mos ravishda dona, KV, narx qaytaradi.`,
 
     const stockRows = await stockQb.getRawMany();
 
+    const latestPrice = collection.collection_prices?.[0];
+
     return {
       name: collection.title,
       country: collection.country?.title || "Noma'lum",
       factory: collection.factory?.title || "Noma'lum",
-      price_per_meter: this.fmt(collection.priceMeter),
-      second_price: this.fmt(collection.secondPrice),
-      coming_price: this.fmt(collection.comingPrice),
+      price_per_meter: this.fmt(latestPrice?.priceMeter ?? 0),
+      second_price: this.fmt(latestPrice?.secondPrice ?? 0),
+      coming_price: this.fmt(latestPrice?.comingPrice ?? 0),
       description: collection.description || '',
       stock_by_filial: stockRows.map((r) => ({
         filial: r.filial_name,

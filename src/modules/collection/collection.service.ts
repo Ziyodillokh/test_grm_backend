@@ -29,7 +29,7 @@ export class CollectionService {
     const qb = this.collectionRepository
       .createQueryBuilder('e')
       .leftJoin('factory', 'p', 'p.id = e."factoryId"')
-      .leftJoin('qrbase', 'qb', 'qb."collectionId" = e.id')
+      .leftJoin('qrbase', 'qb', 'qb."collectionId" = e.id AND qb."deletedDate" IS NULL')
       .select('e.id', 'id')
       .addSelect('e.title', 'title')
       .addSelect('p.title', 'parentTitle')

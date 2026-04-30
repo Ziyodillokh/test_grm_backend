@@ -35,14 +35,6 @@ export class QrBase extends BaseEntity {
   @Column({ type: 'boolean', default: false })
   isMetric: boolean;
 
-  /** @deprecated Use status field instead (PUBLISHED = active + accepted) */
-  @Column({ type: 'boolean', default: true })
-  is_active: boolean;
-
-  /** @deprecated Use status field instead (PUBLISHED = active + accepted) */
-  @Column({ type: 'boolean', default: false })
-  is_accepted: boolean;
-
   @Column('varchar', { default: ProductStatus.NOT_READY })
   status: ProductStatus;
 

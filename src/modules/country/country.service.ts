@@ -33,7 +33,7 @@ export class CountryService {
   async getAllWithCounts(options: IPaginationOptions, where: { title?: string }) {
     const qb = this.countryRepository
       .createQueryBuilder('country')
-      .leftJoin('qrbase', 'qb', 'qb."countryId" = country.id')
+      .leftJoin('qrbase', 'qb', 'qb."countryId" = country.id AND qb."deletedDate" IS NULL')
       .select('country.id', 'id')
       .addSelect('country.title', 'title')
       .addSelect('COUNT(qb.id)', 'qrBaseCount')

@@ -7,9 +7,6 @@ export class Shape extends BaseEntity {
   @Column('varchar', { unique: true })
   title: string;
 
-  @Column({ default: false, nullable: true })
-  meter: string;
-
   @OneToMany(() => QrBase, (qrBase) => qrBase.shape, { onDelete: 'SET NULL' })
   qrBase: QrBase[];
 }

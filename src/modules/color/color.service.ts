@@ -1,10 +1,9 @@
-import { forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, ILike, Repository } from 'typeorm';
 
 import { Color } from './color.entity';
 import { CreateColorDto, UpdateColorDto } from './dto';
-import { QrBaseService } from '../qr-base/qr-base.service';
 import { IPaginationOptions, paginate } from 'nestjs-typeorm-paginate';
 
 @Injectable()
@@ -12,8 +11,6 @@ export class ColorService {
   constructor(
     @InjectRepository(Color)
     private readonly colorRepository: Repository<Color>,
-    @Inject(forwardRef(() => QrBaseService))
-    private readonly qrBaseService: QrBaseService,
     private readonly dataSource: DataSource,
   ) {}
 
@@ -31,7 +28,7 @@ export class ColorService {
   async getAllWithCounts(options: IPaginationOptions, where: { title?: string }) {
     const qb = this.colorRepository
       .createQueryBuilder('e')
-      .leftJoin('qrbase', 'qb', 'qb."colorId" = e.id')
+      .leftJoin('qrbase', 'qb', 'qb."colorId" = e.id AND qb."deletedDate" IS NULL')
       .select('e.id', 'id')
       .addSelect('e.title', 'title')
       .addSelect('COUNT(qb.id)', 'qrBaseCount')
@@ -67,7 +64,6 @@ export class ColorService {
   }
 
   async deleteOne(id: string) {
-    await this.qrBaseService.changeInActive(id);
     return await this.colorRepository.delete(id).catch(() => {
       throw new NotFoundException('Color not found');
     });
@@ -87,7 +83,7 @@ export class ColorService {
       .map((word: string) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
       .join(" ");
     const response = await this.colorRepository.findOne({
-      where: { title },
+      where: { title: ILike(title) },
     });
 
     if (!response) {

@@ -1,13 +1,12 @@
-import { forwardRef, Module } from '@nestjs/common';
+import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { Color } from './color.entity';
 import { ColorService } from './color.service';
 import { ColorController } from './color.controller';
-import { QrBaseModule } from '../qr-base/qr-base.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Color]), forwardRef(() => QrBaseModule)],
+  imports: [TypeOrmModule.forFeature([Color])],
   controllers: [ColorController],
   providers: [ColorService],
   exports: [ColorService],

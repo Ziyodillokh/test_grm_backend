@@ -49,7 +49,7 @@ export class FactoryService {
     const qb = this.repository
       .createQueryBuilder('e')
       .leftJoin('country', 'p', 'p.id = e."countryId"')
-      .leftJoin('qrbase', 'qb', 'qb."factoryId" = e.id')
+      .leftJoin('qrbase', 'qb', 'qb."factoryId" = e.id AND qb."deletedDate" IS NULL')
       .select('e.id', 'id')
       .addSelect('e.title', 'title')
       .addSelect('p.title', 'parentTitle')
