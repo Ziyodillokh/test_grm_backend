@@ -153,14 +153,7 @@ export class CollectionService {
   }
 
   async deleteOne(id: string) {
-    await this.entityManager
-      .getRepository('qrbase')
-      .createQueryBuilder('qrbase')
-      .update()
-      .set({ is_active: false })
-      .where('collectionId = :id', { id })
-      .execute();
-
+    // Collection o'chirilganda, bog'liq qrbase'lar collectionId NULL ga o'tadi (onDelete: 'SET NULL')
     return await this.collectionRepository.delete(id).catch(() => {
       throw new NotFoundException('collection not found');
     });

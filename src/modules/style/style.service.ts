@@ -74,11 +74,7 @@ export class StyleService {
   }
 
   async deleteOne(id: string) {
-    await this.entityManager
-      .getRepository('qrbase')
-      .createQueryBuilder('qrbase').update().set({ is_active: false })
-      .where('styleId = :id', { id }).execute();
-
+    // Style o'chirilganda, bog'liq qrbase'lar styleId NULL ga o'tadi (onDelete: 'SET NULL')
     return await this.styleRepository.delete(id).catch(() => {
       throw new NotFoundException('Style not found');
     });

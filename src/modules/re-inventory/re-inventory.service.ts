@@ -75,7 +75,6 @@ export class ReInventoryService {
       if (!barCode) {
         barCode = queryRunner.manager.create(QrBase, {
           code, isMetric, country, collection, size, shape, style, model, color, factory,
-          is_active: true, is_accepted: true,
         });
         await queryRunner.manager.save(barCode);
       } else {

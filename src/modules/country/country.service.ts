@@ -88,11 +88,7 @@ export class CountryService {
   }
 
   async deleteOne(id: string) {
-    console.log(id);
-    await this.entityManager
-      .getRepository('qrbase')
-      .createQueryBuilder('qrbase').update().set({ is_active: false })
-      .where('countryId = :id', { id }).execute();
+    // Country o'chirilganda, bog'liq qrbase'lar countryId NULL ga o'tadi (FK cascade)
     return await this.countryRepository.delete(id).catch(() => {
       throw new NotFoundException('Country not found');
     });

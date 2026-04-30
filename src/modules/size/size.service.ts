@@ -75,10 +75,7 @@ export class SizeService {
   }
 
   async deleteOne(id: string) {
-    await this.entityManager
-      .getRepository('qrbase')
-      .createQueryBuilder('qrbase').update().set({ is_active: false })
-      .where('sizeId = :id', { id }).execute();
+    // Size o'chirilganda, bog'liq qrbase'lar sizeId NULL ga o'tadi (onDelete: 'SET NULL')
     return await this.sizeRepository.delete(id).catch(() => {
       throw new NotFoundException('Size not found');
     });

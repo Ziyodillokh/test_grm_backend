@@ -88,11 +88,7 @@ export class FactoryService {
   }
 
   async deleteOne(id: string) {
-    await this.entityManager
-      .getRepository('qrbase')
-      .createQueryBuilder('qrbase').update().set({ is_active: false })
-      .where('factoryId = :id', { id }).execute();
-
+    // Factory o'chirilganda, bog'liq qrbase'lar factoryId NULL ga o'tadi (FK cascade)
     return await this.repository.delete(id).catch(() => {
       throw new NotFoundException('factory not found');
     });

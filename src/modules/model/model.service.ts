@@ -127,11 +127,7 @@ export class ModelService {
   }
 
   async deleteOne(id: string) {
-    await this.entityManager
-      .getRepository('qrbase')
-      .createQueryBuilder('qrbase').update().set({ is_active: false })
-      .where('modelId = :id', { id }).execute();
-
+    // Model o'chirilganda, bog'liq qrbase'lar modelId NULL ga o'tadi (onDelete: 'SET NULL')
     return await this.modelRepository.delete(id).catch(() => {
       throw new NotFoundException('Model not found');
     });
