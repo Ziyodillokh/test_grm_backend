@@ -1080,7 +1080,7 @@ Har bir savolga mos ravishda dona, KV, narx qaytaradi.`,
 
     const collection = await this.collectionRepo.findOne({
       where: { title: ILike(`%${resolvedName}%`) },
-      relations: ['country', 'factory', 'collection_prices'],
+      relations: ['factory', 'factory.country', 'collection_prices'],
     });
 
     if (!collection) {
@@ -1114,7 +1114,7 @@ Har bir savolga mos ravishda dona, KV, narx qaytaradi.`,
 
     return {
       name: collection.title,
-      country: collection.country?.title || "Noma'lum",
+      country: collection.factory?.country?.title || "Noma'lum",
       factory: collection.factory?.title || "Noma'lum",
       price_per_meter: this.fmt(latestPrice?.priceMeter ?? 0),
       second_price: this.fmt(latestPrice?.secondPrice ?? 0),

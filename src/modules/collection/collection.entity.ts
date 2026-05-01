@@ -4,7 +4,6 @@ import { QrBase } from '../qr-base/qr-base.entity';
 import { CollectionPrice } from '../collection-price/collection-price.entity';
 import { CollectionReportItem } from '../collection-report-item/collection-report-item.entity';
 import { BaseEntity } from '../../common/database/base.entity';
-import { Country } from '@modules/country/country.entity';
 import { Factory } from '@modules/factory/factory.entity';
 
 @Entity('collection')
@@ -29,10 +28,6 @@ export class Collection extends BaseEntity {
 
   @OneToMany(() => CollectionReportItem, (collectionReportItem) => collectionReportItem.collection, { onDelete: 'SET NULL' })
   collectionReportItem: CollectionReportItem[];
-
-  @ManyToOne(() => Country, (country) => country.collections, { onDelete: 'SET NULL' })
-  @JoinColumn()
-  country: Country;
 
   @ManyToOne(() => Factory, (factory) => factory.collections, { onDelete: 'SET NULL' })
   @JoinColumn()

@@ -69,8 +69,7 @@ export class CollectionService {
         title: 'ASC',
       },
       relations: {
-        factory: true,
-        country: true,
+        factory: { country: true },
       },
       where: {
         ...(where.title && { title: ILike(`%${where.title}%`) }),
@@ -113,8 +112,7 @@ export class CollectionService {
         where: { id },
         relations: {
           model: true,
-          country: true,
-          factory: true,
+          factory: { country: true },
         },
       })
       .catch(() => {
@@ -163,14 +161,12 @@ export class CollectionService {
     if (value.factory) {
       const factory = await this.factoryRepository.findOne({
         where: { id: value.factory },
-        relations: { country: true },
       });
 
       if (!factory)
         throw new BadRequestException('Factory topilmadi!');
 
       value.factory = factory.id;
-      value.country = factory?.country?.id || null;
     }
     const data = await this.collectionRepository.update({ id }, value as unknown as Collection);
     if(value.factory){
@@ -183,12 +179,10 @@ export class CollectionService {
   async create(value: CreateCollectionDto) {
     const factory = await this.factoryRepository.findOne({
       where: { id: value.factory },
-      relations: { country: true },
     });
     const data = this.collectionRepository.create({
       title: value.title,
       factory: factory || null,
-      country: factory?.country || null,
     });
     return await this.collectionRepository.save(data);
   }
