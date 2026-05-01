@@ -56,9 +56,6 @@ export class Filial extends BaseEntity {
   @Column({ nullable: true })
   endWorkTime: string;
 
-  @Column({ type: 'boolean', default: false })
-  test: boolean;
-
   /**
    * @deprecated Use BaseEntity.deletedDate (TypeORM @DeleteDateColumn) for soft-delete.
    * Kept temporarily for backward compatibility with existing queries.
@@ -81,9 +78,6 @@ export class Filial extends BaseEntity {
 
   @Column({ type: 'boolean', default: true })
   isActive: boolean;
-
-  @Column({ type: 'boolean', default: true })
-  hickCompleted: boolean;
 
   @Column({ type: 'boolean', default: false })
   need_get_report: boolean;

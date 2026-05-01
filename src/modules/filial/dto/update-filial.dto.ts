@@ -82,9 +82,6 @@ class UpdateFilialDto {
   @IsString()
   readonly endWorkTime?: string;
 
-  @IsOptional()
-  hickCompleted?: boolean;
-
   need_get_report?: boolean;
 }
 
