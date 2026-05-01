@@ -27,7 +27,7 @@ export class Size extends BaseEntity {
   @Column('numeric', {
     nullable: true,
     precision: 20,
-    scale: 2,
+    scale: 3,
     transformer: new ColumnNumericTransformer(),
   })
   kv: number;

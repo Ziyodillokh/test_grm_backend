@@ -41,7 +41,7 @@ export class Order extends BaseEntity {
 
   @Column('numeric', {
     precision: 20,
-    scale: 2,
+    scale: 3,
     transformer: new ColumnNumericTransformer(),
     default: 0,
   })
