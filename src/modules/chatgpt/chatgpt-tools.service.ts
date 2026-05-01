@@ -446,7 +446,7 @@ Har bir savolga mos ravishda dona, KV, narx qaytaradi.`,
       ])
       .where('o.date BETWEEN :start AND :end', { start, end });
 
-    if (role === UserRoleEnum.SELLER || role === UserRoleEnum.OTHER) {
+    if (role === UserRoleEnum.SELLER || role === UserRoleEnum.WORKER) {
       qb.andWhere('seller.id = :uid', { uid: user.id });
     } else if (filialId) {
       qb.andWhere('filial.id = :fid', { fid: filialId });
@@ -1132,7 +1132,7 @@ Har bir savolga mos ravishda dona, KV, narx qaytaradi.`,
 
   async getDailySummary(user: User) {
     const role = user.position?.role;
-    const isSeller = role === UserRoleEnum.SELLER || role === UserRoleEnum.OTHER;
+    const isSeller = role === UserRoleEnum.SELLER || role === UserRoleEnum.WORKER;
 
     // Today's sales
     const sales = isSeller

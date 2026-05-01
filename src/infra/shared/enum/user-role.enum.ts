@@ -1,8 +1,7 @@
 enum UserRoleEnum {
-  OTHER = 0,
   CLIENT = 1,
   SELLER = 2,
-  CASHIER = 3,
+  WORKER = 3,
   F_MANAGER = 4,
   DEALER = 5,
   D_MANAGER = 6,

@@ -121,7 +121,7 @@ export class OrderBasketService {
   }
 
   async create(value: createOrderBasketDto, user: User) {
-    if (![UserRoleEnum.SELLER, UserRoleEnum.OTHER].includes(user.position.role)) {
+    if (![UserRoleEnum.SELLER, UserRoleEnum.WORKER].includes(user.position.role)) {
       throw new BadRequestException('Вы не можете бронировать товар!');
     }
 
@@ -272,7 +272,7 @@ export class OrderBasketService {
   }
 
   async createMultiple(values: createOrderBasketDto[], user: User) {
-    if (![UserRoleEnum.SELLER, UserRoleEnum.OTHER].includes(user.position.role)) {
+    if (![UserRoleEnum.SELLER, UserRoleEnum.WORKER].includes(user.position.role)) {
       throw new BadRequestException('Вы не можете бронировать товар!');
     }
 
