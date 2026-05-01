@@ -46,11 +46,6 @@ class UpdateInternetInfo {
 
   @ApiProperty()
   @IsOptional()
-  @IsNumber()
-  secondPrice: number;
-
-  @ApiProperty()
-  @IsOptional()
   @IsString()
   internetTitle: string;
 
