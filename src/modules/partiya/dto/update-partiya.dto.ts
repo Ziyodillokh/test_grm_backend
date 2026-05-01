@@ -69,8 +69,6 @@ class UpdatePartiyaDto {
   @IsOptional()
   @IsString()
   readonly user: string;
-
-  expensePerKv: number;
 }
 
 export default UpdatePartiyaDto;

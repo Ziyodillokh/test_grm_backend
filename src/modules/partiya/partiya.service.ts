@@ -94,8 +94,6 @@ export class PartiyaService {
   async change(value: UpdatePartiyaDto, id: string) {
     const partiya = await this.partiyaRepository.findOne({ where: { id } });
     value = { volume: partiya.volume, expense: partiya.expense, ...value };
-    value.expensePerKv = value.expense / value.volume;
-
     return await this.partiyaRepository.update({ id }, value as unknown as Partiya);
   }
 
@@ -108,8 +106,7 @@ export class PartiyaService {
     if (!partiya) {
       throw new NotFoundException('Partiya not found!');
     }
-    const expensePerKv = value / partiya.volume;
-    const response = await this.partiyaRepository.update({ id }, { expense: value, expensePerKv });
+    const response = await this.partiyaRepository.update({ id }, { expense: value });
     await this.actionService.create(partiya, user.id, null, 'update_partiya', `Партия изминил. $${value}`);
     return response;
   }
@@ -128,7 +125,6 @@ export class PartiyaService {
 
     const data = this.partiyaRepository.create({
       ...value,
-      expensePerKv: value.expense / value.volume,
       partiya_status: PartiyaStatusEnum.NEW,
     } as unknown as Partiya);
     return await this.partiyaRepository.save(data);

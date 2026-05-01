@@ -689,7 +689,6 @@ export class ExcelService {
       model: item.model?.length ? item.model[0] : null,
       displayPrice: item.displayPrice ? item.displayPrice : 0,
       collectionPrice: item.collectionPrice?.length ? item.collectionPrice[0] : null,
-      expense: partiya.expensePerKv || (partiya.expense / partiya.volume).toFixed(2),
       factoryPricePerKv: Number(item.factoryPricePerKv) || 0,
       overheadPerKv: Number(item.overheadPerKv) || 0,
     }));
@@ -1445,13 +1444,14 @@ export class ExcelService {
         query = `
           SELECT
               SUM("displayPrice" * pe.y * s.x * CASE WHEN "isMetric" = true THEN 1 ELSE "check_count" - "count" END) AS total,
-              SUM(p."expensePerKv" * pe.y * s.x * CASE WHEN "isMetric" = true THEN 1 ELSE "check_count" - "count" END) AS expence,
+              SUM(COALESCE(pcp."factoryPricePerKv" + pcp."overheadPerKv", 0) * pe.y * s.x * CASE WHEN "isMetric" = true THEN 1 ELSE "check_count" - "count" END) AS expence,
               SUM(pe.y * s.x * CASE WHEN "isMetric" = true THEN 1 ELSE "check_count" - "count" END) AS volume,
               SUM(CASE WHEN "isMetric" = true THEN 1 ELSE "check_count" - "count" END) AS count
           FROM productexcel pe
           LEFT JOIN qrbase qb ON pe."barCodeId" = qb.id
           LEFT JOIN size s ON qb."sizeId" = s.id
-          LEFT JOIN partiya p ON pe."partiyaId" = p.id
+          LEFT JOIN "partiya-collection-price" pcp
+            ON pcp."partiyaId" = pe."partiyaId" AND pcp."collectionId" = qb."collectionId"
           WHERE pe."partiyaId" = $1 AND (
               ("isMetric" = true AND "check_count" > pe."y") OR
               ("isMetric" = false AND "check_count" > pe."count")
@@ -1463,13 +1463,14 @@ export class ExcelService {
         query = `
           SELECT
               SUM("displayPrice" * pe.y * s.x * CASE WHEN "isMetric" = true THEN 1 ELSE "count" - "check_count" END) AS total,
-              SUM(p."expensePerKv" * pe.y * s.x * CASE WHEN "isMetric" = true THEN 1 ELSE "count" - "check_count" END) AS expence,
+              SUM(COALESCE(pcp."factoryPricePerKv" + pcp."overheadPerKv", 0) * pe.y * s.x * CASE WHEN "isMetric" = true THEN 1 ELSE "count" - "check_count" END) AS expence,
               SUM(pe.y * s.x * CASE WHEN "isMetric" = true THEN 1 ELSE "count" - "check_count" END) AS volume,
               SUM(CASE WHEN "isMetric" = true THEN 1 ELSE "count" - "check_count" END) AS count
           FROM productexcel pe
           LEFT JOIN qrbase qb ON pe."barCodeId" = qb.id
           LEFT JOIN size s ON qb."sizeId" = s.id
-          LEFT JOIN partiya p ON pe."partiyaId" = p.id
+          LEFT JOIN "partiya-collection-price" pcp
+            ON pcp."partiyaId" = pe."partiyaId" AND pcp."collectionId" = qb."collectionId"
           WHERE pe."partiyaId" = $1 AND (
               ("isMetric" = true AND "check_count" < pe."y") OR
               ("isMetric" = false AND "check_count" < pe."count")
@@ -1478,18 +1479,18 @@ export class ExcelService {
         break;
 
       case ProductReportEnum.INVENTORY:
-        query = `          
-          SELECT 
+        query = `
+          SELECT
               SUM(
-                CASE 
+                CASE
                  when "isMetric" = true THEN "displayPrice" * check_count::numeric / 100 * s.x
                  else "displayPrice" * s.y * s.x * "check_count"
                 END
                   )            AS total,
               SUM(
-                 CASE 
-                  when "isMetric" = true THEN p."expensePerKv" * check_count::numeric / 100 * s.x
-                  else p."expensePerKv" * s.y * s.x * "check_count"
+                 CASE
+                  when "isMetric" = true THEN COALESCE(pcp."factoryPricePerKv" + pcp."overheadPerKv", 0) * check_count::numeric / 100 * s.x
+                  else COALESCE(pcp."factoryPricePerKv" + pcp."overheadPerKv", 0) * s.y * s.x * "check_count"
                  END
                   )            AS expence,
               ROUND(SUM(
@@ -1500,7 +1501,8 @@ export class ExcelService {
           FROM productexcel pe
                    LEFT JOIN qrbase qb ON pe."barCodeId" = qb.id
                    LEFT JOIN size s ON qb."sizeId" = s.id
-                   LEFT JOIN partiya p ON pe."partiyaId" = p.id
+                   LEFT JOIN "partiya-collection-price" pcp
+                     ON pcp."partiyaId" = pe."partiyaId" AND pcp."collectionId" = qb."collectionId"
           WHERE pe."partiyaId" = $1 and check_count > 0
         `;
         break;
@@ -1509,7 +1511,7 @@ export class ExcelService {
         query = `
           SELECT
               SUM("displayPrice" * pe.y * s.x * "count") AS total,
-              SUM(p."expensePerKv" * pe.y * s.x * "count") AS expence,
+              SUM(COALESCE(pcp."factoryPricePerKv" + pcp."overheadPerKv", 0) * pe.y * s.x * "count") AS expence,
               SUM(
               CASE
               when "isMetric" = true THEN pe.y * s.x ELSE pe.y * s.x * count END)             AS volume,
@@ -1517,7 +1519,8 @@ export class ExcelService {
           FROM productexcel pe
           LEFT JOIN qrbase qb ON pe."barCodeId" = qb.id
           LEFT JOIN size s ON qb."sizeId" = s.id
-          LEFT JOIN partiya p ON pe."partiyaId" = p.id
+          LEFT JOIN "partiya-collection-price" pcp
+            ON pcp."partiyaId" = pe."partiyaId" AND pcp."collectionId" = qb."collectionId"
           WHERE pe."partiyaId" = $1 AND "count" > 0 AND pe.y > 0
         `;
     }

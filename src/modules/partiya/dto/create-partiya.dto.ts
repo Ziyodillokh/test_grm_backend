@@ -65,8 +65,6 @@ class CreatePartiyaDto {
   @IsNotEmpty()
   @IsString()
   readonly user: string;
-
-  expensePerKv: number;
 }
 
 export default CreatePartiyaDto;
