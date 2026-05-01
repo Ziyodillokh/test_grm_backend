@@ -1093,11 +1093,12 @@ Har bir savolga mos ravishda dona, KV, narx qaytaradi.`,
       .createQueryBuilder('p')
       .leftJoin('p.bar_code', 'qr')
       .leftJoin('qr.collection', 'col')
+      .leftJoin('qr.size', 'sz')
       .leftJoin('p.filial', 'filial')
       .select([
         'filial.title as filial_name',
         'COALESCE(SUM(p.count), 0) as pieces',
-        'COALESCE(SUM(p.totalSize), 0) as total_kv',
+        'COALESCE(SUM(sz.x * (CASE WHEN qr."isMetric" THEN p.y ELSE sz.y END) * p.count), 0) as total_kv',
       ])
       .where('col.id = :cid', { cid: collection.id })
       .andWhere('p.is_deleted = false')

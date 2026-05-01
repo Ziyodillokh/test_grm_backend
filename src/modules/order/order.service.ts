@@ -853,7 +853,6 @@ export class OrderService {
       price: (product?.collection_price?.priceMeter || 0) * product.y * x,
       comingPrice: product.comingPrice,
       priceMeter: product?.collection_price?.priceMeter || 0,
-      totalSize: x * product.bar_code.size.x * product.count,
       x: product.bar_code.size.x,
       y: x,
       partiya: product?.partiya?.id || null,

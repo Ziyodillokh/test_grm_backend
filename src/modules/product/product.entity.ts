@@ -102,14 +102,6 @@ export class Product extends BaseEntity {
   })
   y: number;
 
-  @Column('numeric', {
-    nullable: true,
-    precision: 20,
-    scale: 2,
-    transformer: new NumericTransformer(),
-  })
-  totalSize: number;
-
   @Column({ type: 'boolean', default: false })
   isInternetShop: boolean;
 

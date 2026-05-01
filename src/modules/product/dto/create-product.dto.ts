@@ -60,10 +60,6 @@ export class CreateProductDto {
   @IsNumber()
   y?: number;
 
-  @IsOptional()
-  @IsNumber()
-  totalSize?: number;
-
   collection_price?: string;
 
   partiya_title?: string;

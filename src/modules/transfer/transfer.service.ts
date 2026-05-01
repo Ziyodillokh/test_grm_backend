@@ -809,7 +809,6 @@ export class TransferService {
       draft_comingPrice: source.draft_comingPrice,
       x: source.x,
       y: isMetric ? transferredY : source.y,
-      totalSize: source.totalSize,
       isInternetShop: false,
       is_deleted: false,
       partiya_title: source.partiya_title,

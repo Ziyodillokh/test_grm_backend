@@ -249,18 +249,17 @@ export class QrBaseService {
   }
 
   // ---------------------------------------------------------------------------
-  // Cascade — Product.totalSize recompute
+  // Cascade — Product x/y resync after qrbase size change
   // ---------------------------------------------------------------------------
 
   /**
-   * Berilgan qrbase'larga bog'liq Product.totalSize qiymatlarini yangi size bo'yicha qayta hisoblaydi.
+   * Berilgan qrbase'larga bog'liq Product.x va Product.y qiymatlarini yangi size dan sinxronlaydi.
    *
-   * Formula:
-   *  - Metric: totalSize = (product.y * size.x) / 100      (product.y — santimetrlardagi sotilgan uzunlik)
-   *  - Non-metric: totalSize = size.x * size.y * product.count
+   * Non-metric uchun product.y = size.y, product.x = size.x.
+   * Metric uchun product.x = size.x; product.y o'zgarmaydi (sotuvga qarab kamayadigan qoldiq uzunlik).
    *
-   * Shuningdek Product.x va Product.y ham yangi size dan sinxronlash uchun yangilanadi
-   * (non-metric uchun product.y = size.y; metric uchun product.y o'zgarmaydi — sotilgan miqdor).
+   * totalSize qiymatini saqlamaymiz — har joyda count * size.x * (isMetric ? y : size.y) formulasi
+   * orqali real-time hisoblanadi.
    */
   private async recomputeProductSizes(
     qrbaseIds: string[],
@@ -272,10 +271,6 @@ export class QrBaseService {
       `
       UPDATE product p
       SET
-        "totalSize" = CASE
-          WHEN qb."isMetric" = TRUE THEN (COALESCE(p.y, 0) * COALESCE(s.x, 0)) / 100
-          ELSE COALESCE(s.x, 0) * COALESCE(s.y, 0) * COALESCE(p.count, 0)
-        END,
         x = COALESCE(s.x, p.x),
         y = CASE WHEN qb."isMetric" = TRUE THEN p.y ELSE COALESCE(s.y, p.y) END
       FROM qrbase qb
@@ -352,7 +347,7 @@ export class QrBaseService {
    *  - Lookup tablelar bulk SELECT (8 query, oldin har row uchun ketma-ket).
    *  - Mavjud qrbase'lar bitta SELECT bilan topiladi.
    *  - Hammasi bitta transaction ichida.
-   *  - Size o'zgargan qrbase'larga bog'liq Product.totalSize bulk recompute qilinadi.
+   *  - Size o'zgargan qrbase'larga bog'liq Product.x va Product.y bulk recompute qilinadi.
    *
    * Each row: { code, collection, model, color, size, country, factory, shape, style, isMetric }
    */
@@ -529,7 +524,7 @@ export class QrBaseService {
         }
       }
 
-      // 4) Cascade: size o'zgargan qrbase'larga bog'liq Product.totalSize ni qayta hisoblash
+      // 4) Cascade: size o'zgargan qrbase'larga bog'liq Product.x va Product.y ni resync qilish
       if (sizeChangedQrbaseIds.length > 0) {
         await this.recomputeProductSizes(sizeChangedQrbaseIds, manager);
       }

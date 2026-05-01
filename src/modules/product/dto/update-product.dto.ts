@@ -111,9 +111,6 @@ export class UpdateProductDto {
   @IsOptional()
   y?: number;
 
-  @IsOptional()
-  totalSize?: number;
-
   video?: string;
   is_deleted?: boolean;
 }

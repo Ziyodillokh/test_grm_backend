@@ -506,7 +506,7 @@ export class CollectionService {
       this.collectionRepository,
       { limit, page },
       {
-        relations: { model: { qrBase: { products: { filial: true }, color: true, model: { collection: true } } } },
+        relations: { model: { qrBase: { products: { filial: true }, color: true, size: true, model: { collection: true } } } },
         where,
       },
     );
@@ -518,9 +518,15 @@ export class CollectionService {
         remainingCount = 0,
         products = [];
       for (let j = 0; j < data2.items[i].model.length; j++) {
-        const items = data2.items[i].model[j].qrBase[j].products;
+        const qrBase = data2.items[i].model[j].qrBase[j];
+        const items = qrBase.products;
+        const sizeX = +(qrBase.size?.x ?? 0);
+        const sizeY = +(qrBase.size?.y ?? 0);
+        const isMetric = !!qrBase.isMetric;
         remainingSum += items.length ? items.map((p) => +p.price * p.count).reduce((a, b) => a + b) : 0;
-        remainingSize += items.length ? items.map((p) => +p.totalSize).reduce((a, b) => a + b) : 0;
+        remainingSize += items.length
+          ? items.map((p) => sizeX * (isMetric ? +p.y : sizeY) * +p.count).reduce((a, b) => a + b)
+          : 0;
         remainingCount += items.length ? items.map((p) => p.count).reduce((a, b) => a + b) : 0;
         collection && products.push(...items);
       }
