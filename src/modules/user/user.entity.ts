@@ -107,9 +107,6 @@ export class User extends BaseEntity {
   @OneToMany(() => Order, (order) => order.seller)
   sellerOrders: Order[];
 
-  @OneToMany(() => Order, (order) => order.createdBy)
-  createdByOrders: Order[];
-
   @OneToMany(() => Cashflow, (cashflow) => cashflow.createdBy)
   cashflow: Cashflow[];
 

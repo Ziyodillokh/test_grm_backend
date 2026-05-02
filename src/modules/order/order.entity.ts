@@ -1,12 +1,11 @@
 import { OrderEnum } from 'src/infra/shared/enum';
-import { Column, Entity, JoinColumn, ManyToOne, OneToMany, OneToOne } from 'typeorm';
+import { Column, Entity, JoinColumn, ManyToOne, OneToMany } from 'typeorm';
 import { Kassa } from '../kassa/kassa.entity';
 import { Product } from '../product/product.entity';
 import { User } from '../user/user.entity';
 import { ColumnNumericTransformer } from '../../infra/helpers';
 import { QrBase } from '../qr-base/qr-base.entity';
 import { Cashflow } from '../cashflow/cashflow.entity';
-import { QrCode } from '../qr-code/qr-code.entity';
 import { SellerReport } from '../seller-report/seller-report.entity';
 import { SellerReportItem } from '../seller-report-item/seller-report-item.entity';
 import { CollectionReportItem } from '../collection-report-item/collection-report-item.entity';
@@ -56,7 +55,7 @@ export class Order extends BaseEntity {
     transformer: new ColumnNumericTransformer(),
     default: 0,
   })
-  additionalProfitSum: number;
+  additionalProfit: number;
 
   @Column('numeric', {
     precision: 20,
@@ -64,7 +63,7 @@ export class Order extends BaseEntity {
     transformer: new ColumnNumericTransformer(),
     default: 0,
   })
-  netProfitSum: number;
+  netProfit: number;
 
   @Column('numeric', {
     precision: 20,
@@ -72,7 +71,7 @@ export class Order extends BaseEntity {
     transformer: new ColumnNumericTransformer(),
     default: 0,
   })
-  discountSum: number;
+  discount: number;
 
   @Column('numeric', {
     precision: 20,
@@ -80,7 +79,7 @@ export class Order extends BaseEntity {
     transformer: new ColumnNumericTransformer(),
     default: 0,
   })
-  managerDiscountSum: number;
+  managerDiscount: number;
 
   @Column({ type: 'decimal', nullable: true, default: 0 })
   discountPercentage: number;
@@ -97,15 +96,11 @@ export class Order extends BaseEntity {
     transformer: new ColumnNumericTransformer(),
     default: 0,
   })
-  plasticSum: number;
+  plastic: number;
 
   @ManyToOne(() => User, (user) => user.sellerOrders)
   @JoinColumn()
   seller: User;
-
-  @ManyToOne(() => User, (user) => user.createdByOrders)
-  @JoinColumn()
-  createdBy: User;
 
   @ManyToOne(() => Kassa, (kassa) => kassa.orders, {
     onDelete: 'CASCADE',
@@ -127,10 +122,6 @@ export class Order extends BaseEntity {
 
   @OneToMany(() => Cashflow, (cashflow) => cashflow.order, { onDelete: 'SET NULL', nullable: true })
   cashflow: Cashflow[];
-
-  @OneToOne(() => QrCode, (qr_code) => qr_code.product)
-  @JoinColumn()
-  qr_code: QrCode;
 
   @ManyToOne(() => SellerReport, (sellerReport) => sellerReport.orders, { onDelete: 'SET NULL' })
   @JoinColumn()

@@ -9,7 +9,6 @@ import { ColumnNumericTransformer } from '../../infra/helpers';
 import { Cashflow } from '../cashflow/cashflow.entity';
 import { Kassa } from '../kassa/kassa.entity';
 import ReportProgresEnum from 'src/infra/shared/enum/report-progres.enum';
-import { BossReport } from '../boss-report/boss-report.entity';
 import { FilialTypeEnum } from 'src/infra/shared/enum';
 import { Filial } from '../filial/filial.entity';
 import { BaseEntity } from '../../common/database/base.entity';
@@ -23,8 +22,9 @@ export class Report extends BaseEntity implements IReportAggregates {
   @Column({ type: 'int' })
   month: number;
 
+  // ─── Sotuv aggregatlari (report darajasi: total prefix + Sum suffix) ──
   @Column({ type: 'int', default: 0 })
-  totalSellCount: number;
+  totalSaleCount: number;
 
   @Column('numeric', {
     precision: 20,
@@ -32,47 +32,7 @@ export class Report extends BaseEntity implements IReportAggregates {
     transformer: new ColumnNumericTransformer(),
     default: 0,
   })
-  additionalProfitTotalSum: number;
-
-  @Column('numeric', {
-    precision: 20,
-    scale: 2,
-    transformer: new ColumnNumericTransformer(),
-    default: 0,
-  })
-  in_hand: number;
-
-  @Column('numeric', {
-    precision: 20,
-    scale: 2,
-    transformer: new ColumnNumericTransformer(),
-    default: 0,
-  })
-  netProfitTotalSum: number;
-
-  @Column('numeric', {
-    precision: 20,
-    scale: 2,
-    transformer: new ColumnNumericTransformer(),
-    default: 0,
-  })
-  totalSize: number;
-
-  @Column('numeric', {
-    precision: 20,
-    scale: 2,
-    transformer: new ColumnNumericTransformer(),
-    default: 0,
-  })
-  totalPlasticSum: number;
-
-  @Column('numeric', {
-    precision: 20,
-    scale: 2,
-    transformer: new ColumnNumericTransformer(),
-    default: 0,
-  })
-  totalInternetShopSum: number;
+  totalSaleSize: number;
 
   @Column('numeric', {
     precision: 20,
@@ -96,7 +56,7 @@ export class Report extends BaseEntity implements IReportAggregates {
     transformer: new ColumnNumericTransformer(),
     default: 0,
   })
-  totalCashCollection: number;
+  totalSizeReturn: number;
 
   @Column('numeric', {
     precision: 20,
@@ -104,8 +64,41 @@ export class Report extends BaseEntity implements IReportAggregates {
     transformer: new ColumnNumericTransformer(),
     default: 0,
   })
-  totalDiscount: number;
+  totalAdditionalProfitSum: number;
 
+  @Column('numeric', {
+    precision: 20,
+    scale: 2,
+    transformer: new ColumnNumericTransformer(),
+    default: 0,
+  })
+  totalNetProfitSum: number;
+
+  @Column('numeric', {
+    precision: 20,
+    scale: 2,
+    transformer: new ColumnNumericTransformer(),
+    default: 0,
+  })
+  totalDiscountSum: number;
+
+  @Column('numeric', {
+    precision: 20,
+    scale: 2,
+    transformer: new ColumnNumericTransformer(),
+    default: 0,
+  })
+  totalPlasticSum: number;
+
+  @Column('numeric', {
+    precision: 20,
+    scale: 2,
+    transformer: new ColumnNumericTransformer(),
+    default: 0,
+  })
+  totalInternetShopSum: number;
+
+  // ─── Pul oqimi (income/expense — Sum qo'shilmaydi) ────────
   @Column('numeric', {
     precision: 20,
     scale: 2,
@@ -128,7 +121,17 @@ export class Report extends BaseEntity implements IReportAggregates {
     transformer: new ColumnNumericTransformer(),
     default: 0,
   })
+  totalCashCollection: number;
+
+  // ─── Manager va accountant hisob-kitobi ─────────────────────
+  @Column('numeric', {
+    precision: 20,
+    scale: 2,
+    transformer: new ColumnNumericTransformer(),
+    default: 0,
+  })
   managerSum: number;
+
   @Column('numeric', {
     precision: 20,
     scale: 2,
@@ -154,8 +157,9 @@ export class Report extends BaseEntity implements IReportAggregates {
   })
   accountantSaldo: number;
 
-  @Column('int', {default: 0})
-  debt_count: number
+  // ─── Qarz aggregatlari ─────────────────────────────────────
+  @Column('int', { default: 0 })
+  totalDebtCount: number;
 
   @Column('numeric', {
     precision: 20,
@@ -163,7 +167,7 @@ export class Report extends BaseEntity implements IReportAggregates {
     transformer: new ColumnNumericTransformer(),
     default: 0,
   })
-  debt_kv: number;
+  totalDebtSize: number;
 
   @Column('numeric', {
     precision: 20,
@@ -171,7 +175,7 @@ export class Report extends BaseEntity implements IReportAggregates {
     transformer: new ColumnNumericTransformer(),
     default: 0,
   })
-  debt_sum: number;
+  totalDebtSum: number;
 
   @Column('numeric', {
     precision: 20,
@@ -179,7 +183,7 @@ export class Report extends BaseEntity implements IReportAggregates {
     transformer: new ColumnNumericTransformer(),
     default: 0,
   })
-  dealer_frozen_owed: number;
+  totalDebtProfitSum: number;
 
   @Column('numeric', {
     precision: 20,
@@ -187,7 +191,7 @@ export class Report extends BaseEntity implements IReportAggregates {
     transformer: new ColumnNumericTransformer(),
     default: 0,
   })
-  debt_profit_sum: number;
+  totalFrozenOwed: number;
 
   @Column('numeric', {
     precision: 20,
@@ -195,10 +199,11 @@ export class Report extends BaseEntity implements IReportAggregates {
     transformer: new ColumnNumericTransformer(),
     default: 0,
   })
-  dealer_plan: number;
+  dealerPlan: number;
 
+  // ─── Status va workflow ────────────────────────────────────
   @Column({ default: false })
-  is_cancelled: boolean;
+  isCancelled: boolean;
 
   @Column({ default: false })
   isAccountantConfirmed: boolean;
@@ -209,15 +214,15 @@ export class Report extends BaseEntity implements IReportAggregates {
   @Column('varchar', { default: ReportProgresEnum.OPEN })
   status: ReportProgresEnum;
 
+  @Column('int', { default: 0 })
+  reportStatus: number;
+
   @Column('varchar', { default: FilialTypeEnum.FILIAL })
   filialType: FilialTypeEnum;
 
+  // ─── Relations ─────────────────────────────────────────────
   @OneToMany(() => Kassa, (kassa) => kassa.report)
   kassas: Kassa[];
-
-  @ManyToOne(() => BossReport, (bossReport) => bossReport.report, { onDelete: 'SET NULL' })
-  @JoinColumn()
-  bossReport: BossReport;
 
   @OneToMany(() => Cashflow, (cashflow) => cashflow.report)
   cashflow: Cashflow[];
@@ -225,7 +230,4 @@ export class Report extends BaseEntity implements IReportAggregates {
   @ManyToOne(() => Filial, (filial) => filial.report, { onDelete: 'SET NULL' })
   @JoinColumn()
   filial: Filial;
-
-  @Column('int', { default: 0 })
-  reportStatus: number;
 }

@@ -8,7 +8,6 @@ import {
 } from 'typeorm';
 import { Product } from '../product/product.entity';
 import { QrBase } from '../qr-base/qr-base.entity';
-import { Order } from '../order/order.entity';
 import { OrderBasket } from '../order-basket/order-basket.entity';
 import { BaseEntity } from '../../common/database/base.entity';
 
@@ -31,10 +30,6 @@ export class QrCode extends BaseEntity {
   @ManyToOne(() => Product, (product) => product.qr_code, { nullable: true })
   @JoinColumn()
   product: Product;
-
-  @OneToOne(() => Order, (order) => order.qr_code, { onDelete: 'SET NULL' })
-  @JoinColumn()
-  order: Order;
 
   @OneToOne(() => OrderBasket, (order_basket) => order_basket.qr_code)
   @JoinColumn()

@@ -85,7 +85,7 @@ export class DiscountService {
   async getOrderByDiscount(discountId: string) {
     return await this.orderRepository
       .createQueryBuilder('order')
-      .where('order.managerDiscountSum > 0')
+      .where('order.managerDiscount > 0')
       .leftJoinAndSelect('order.product', 'product')
       .leftJoinAndSelect('product.bar_code', 'bar_code')
       .leftJoinAndSelect('bar_code.collection', 'collection')

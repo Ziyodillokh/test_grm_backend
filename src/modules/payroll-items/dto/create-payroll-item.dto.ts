@@ -25,7 +25,7 @@ class CreatePayrollItemDto {
   @ApiProperty()
   @IsOptional()
   @IsNumber()
-  in_hand: number;
+  inHand: number;
 
   @ApiProperty()
   @IsOptional()

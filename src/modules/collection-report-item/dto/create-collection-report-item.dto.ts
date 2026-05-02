@@ -26,15 +26,15 @@ export class CreateCollectionReportItemDto {
 
   @IsNumber()
   @IsOptional()
-  totalSellCount?: number = 0;
+  totalSaleCount?: number = 0;
 
   @IsNumber()
   @IsOptional()
-  totalSellKv?: number = 0;
+  totalSaleSize?: number = 0;
 
   @IsNumber()
   @IsOptional()
-  totalSellPrice?: number = 0;
+  totalSalePrice?: number = 0;
 
   @IsNumber()
   @IsOptional()

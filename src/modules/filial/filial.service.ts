@@ -117,7 +117,6 @@ export class FilialService {
     if (savedFilial.type !== FilialTypeEnum.WAREHOUSE) {
       const newKassa = this.kassaRepository.create({
         filial: savedFilial,
-        startDate: new Date(),
         isActive: true,
       });
 

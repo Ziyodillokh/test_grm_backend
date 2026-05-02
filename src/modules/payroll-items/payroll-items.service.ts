@@ -136,7 +136,7 @@ export class PayrollItemsService {
 
       totalSum += itemTotal;
       totalPlastic += item.plastic || 0;
-      totalInHand += item.in_hand || 0;
+      totalInHand += item.inHand || 0;
       totalAward += awardSum;
       totalPrepayment += prepayment;
       totalBonus += bonusAmount;
@@ -145,7 +145,7 @@ export class PayrollItemsService {
     await this.payrollRepo.update(payrollId, {
       total: totalSum,
       plastic: totalPlastic,
-      in_hand: totalInHand,
+      inHand: totalInHand,
       award: totalAward,
       prepayment: totalPrepayment,
       bonus: totalBonus,
@@ -368,18 +368,18 @@ export class PayrollItemsService {
       await this.userService.change({ salary: dto.salary }, user.id);
     }
 
-    const inHand = dto.in_hand ?? existing.in_hand;
+    const inHand = dto.inHand ?? existing.inHand;
     const plastic = dto.plastic ?? existing.plastic;
 
     const total = salary + (prepayment || 0) + awardSum + bonusAmount;
 
-    // Tekshirish: total = in_hand + plastic
+    // Tekshirish: total = inHand + plastic
     if (Math.abs(total - (inHand + plastic)) > 0.01) {
       // Float xatoliklarini hisobga olish
       throw new BadRequestException(`Сумма не равна общей сумме! Total: ${total}, In hand: ${inHand}, Plastic: ${plastic}`);
     }
 
-    updateData.in_hand = inHand;
+    updateData.inHand = inHand;
     updateData.plastic = plastic;
     updateData.total = total;
 

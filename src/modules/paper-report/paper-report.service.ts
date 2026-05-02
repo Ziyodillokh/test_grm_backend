@@ -180,16 +180,16 @@ export class PaperReportService {
     ]);
 
     // Asosiy hisoblar
-    const skidka = sales.reduce((acc, r) => acc + Number(r.discount || 0), 0);
-    const inkasatsiya = sales.reduce((acc, r) => acc + Number(r.cash_collection || 0), 0);
+    const skidka = sales.reduce((acc, r) => acc + Number(r.discountSum || 0), 0);
+    const inkasatsiya = sales.reduce((acc, r) => acc + Number(r.cashCollection || 0), 0);
     const terminal = salesFilial.reduce((acc, r) => acc + Number(r.plasticSum || 0), 0);
     const terminalDealer = salesDealer.reduce((acc, r) => acc + Number(r.plasticSum || 0), 0);
 
     // Naqd hisoblar - ikkala field ham totalSum ishlatiladi (TUZATILDI)
-    const naqdFilial = salesFilialNaqd.reduce((acc, r) => acc + Number(r.in_hand || 0), 0);
+    const naqdFilial = salesFilialNaqd.reduce((acc, r) => acc + Number(r.inHand || 0), 0);
     const naqdDealer = salesDealerNaqd.reduce((acc, r) => acc + Number((r.income || 0) - (r.plasticSum || 0)), 0);
 
-    const foyda1 = sales.reduce((acc, r) => acc + Number(r.netProfitTotalSum || 0), 0);
+    const foyda1 = sales.reduce((acc, r) => acc + Number(r.netProfitSum || 0), 0);
 
     // Magazin rasxodlari - TUZATILGAN query
     const storeExpensesQuery = this.cashflowRepository
@@ -461,7 +461,7 @@ export class PaperReportService {
 
     const savdoNarxi = acceptedOrders.reduce((acc, order) => acc + Number(order.price || 0), 0);
     const savdoKv = acceptedOrders.reduce((acc, order) => acc + Number(order.kv || 0), 0);
-    const navar = acceptedOrders.reduce((acc, order) => acc + Number(order.additionalProfitSum || 0), 0);
+    const navar = acceptedOrders.reduce((acc, order) => acc + Number(order.additionalProfit || 0), 0);
 
     const qarzgaSotilganKv = debtOrders.reduce((acc, order) => acc + Number(order.kv || 0), 0);
     const qarzgaSotilganNarx = debtOrders.reduce((acc, order) => acc + Number(order.price || 0), 0);
@@ -904,7 +904,7 @@ export class PaperReportService {
 
       // User ma'lumotlarini olish
       const userIds = [
-        ...new Set([...orders.map((o) => o.sellerId).filter(Boolean), ...orders.map((o) => o.createdById).filter(Boolean)]),
+        ...new Set([...orders.map((o) => o.sellerId).filter(Boolean), ...orders.map((o) => o.sellerId).filter(Boolean)]),
       ];
       let usersMap = new Map();
       if (userIds.length > 0) {
@@ -936,7 +936,7 @@ export class PaperReportService {
         Zavod: order.factory_title || '',
         Filial: order.filial_title || '',
         Sotuvchi: usersMap.get(order.sellerId) || '',
-        Kassir: usersMap.get(order.createdById) || '',
+        Kassir: usersMap.get(order.sellerId) || '',
         Sana: order.date ? new Date(order.date).toLocaleDateString('uz-UZ') : '',
         Izoh: order.comment || '',
       }));
@@ -1095,7 +1095,7 @@ export class PaperReportService {
 
       const kassaReportsQuery = `
     SELECT
-      k."in_hand" as naqd_summa,
+      k."inHand" as naqd_summa,
       k.comment as izoh,
       f.title as filial,
       u."firstName" as kassir_name,
@@ -1105,7 +1105,7 @@ export class PaperReportService {
     INNER JOIN filial f ON k."filialId" = f.id AND f.type = $3
     LEFT JOIN "users" u ON k."createdById" = u.id
     WHERE k."createdAt" BETWEEN $1 AND $2
-      AND k."in_hand" > 0
+      AND k."inHand" > 0
       ${filialId ? 'AND k."filialId" = $4' : ''}
     ORDER BY k."createdAt" DESC
   `;
@@ -2055,13 +2055,13 @@ export class PaperReportService {
     if (!filialId) {
       addRow('Naqd kassa', 'cash');
       addRow('Terminal va perechesleniya', 'terminal');
-      addRow('Inkassatsiya', 'cash_collection');
+      addRow('Inkassatsiya', 'cashCollection');
       addRow('Diller Naqd', 'dealer_cash');
       addRow('Diller perechesleniya', 'dealer_terminal');
     }
 
     addRow('Kelgan qarzlar', 'owed_debt');
-    addRow('Oldingi oydan o‘tgan pul', 'opening_balance');
+    addRow('Oldingi oydan o‘tgan pul', 'openingBalance');
     addRow('Filial balansi', 'filial_balance');
     addRow('Boss prixod', 'boss_income');
     if (!filialId) {
@@ -2084,7 +2084,7 @@ export class PaperReportService {
 
     filialId && addRow('Naqd kassa', 'cash');
     filialId && addRow('Terminal va perechisleniya', 'terminal');
-    filialId && addRow('Inkassatsiya', 'cash_collection');
+    filialId && addRow('Inkassatsiya', 'cashCollection');
     if (!filialId) {
       addRow('Kent rasxod', 'kent_expense');
     }

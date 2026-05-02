@@ -1,22 +1,10 @@
 /**
- * Shared aggregate fields used across Kassa, KassaReport, Report, and BossReport entities.
- * When changing calculation logic, ensure all 4 entities stay in sync.
+ * Bu interface 3 qatlamli aggregation pattern'ni tasvirlaydi:
+ *  - order  (atomic)        — additionalProfit, netProfit, discount, plastic
+ *  - kassa  (per-month)     — additionalProfitSum, netProfitSum, discountSum, plasticSum, saleSize, saleCount
+ *  - report (cross-filial)  — totalAdditionalProfitSum, totalNetProfitSum, totalDiscountSum, totalPlasticSum, totalSaleSize, totalSaleCount
  *
- * Note: Kassa uses shorter field names (sale, plasticSum, internetShopSum, etc.)
- * while KassaReport, Report, and BossReport use prefixed names (totalSale, totalPlasticSum, etc.).
- * Optional fields (?) are ones that don't exist in ALL 4 entities with that exact name.
+ * Hozir bu interface bo'sh — kelgusi naming refactor tugagandan keyin har qatlam uchun
+ * alohida interface yaratish mumkin (IOrderAggregates, IKassaAggregates, IReportAggregates).
  */
-export interface IReportAggregates {
-  totalSellCount: number;
-  additionalProfitTotalSum: number;
-  netProfitTotalSum: number;
-  totalSize: number;
-  totalPlasticSum?: number;
-  totalInternetShopSum?: number;
-  totalSale?: number;
-  totalSaleReturn?: number;
-  totalCashCollection?: number;
-  totalDiscount?: number;
-  totalIncome?: number;
-  totalExpense?: number;
-}
+export interface IReportAggregates {}

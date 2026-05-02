@@ -27,7 +27,7 @@ export class Payroll extends BaseEntity {
   plastic: number;
 
   @Column({ type: 'float', default: 0 })
-  in_hand: number;
+  inHand: number;
 
   @Column({ type: 'float', default: 0 })
   prepayment: number;

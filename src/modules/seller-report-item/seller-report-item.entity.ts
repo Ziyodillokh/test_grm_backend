@@ -35,7 +35,7 @@ export class SellerReportItem extends BaseEntity {
     transformer: new ColumnNumericTransformer(),
     default: 0,
   })
-  additionalProfitTotalSum: number;
+  additionalProfitSum: number;
 
   @Column('numeric', {
     precision: 20,

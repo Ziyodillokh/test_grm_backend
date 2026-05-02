@@ -169,7 +169,7 @@ export class ClientService {
       // qarzga tegishli orderlar (client da bir nechta debt order bo'lishi mumkin)
       const orders = await orderRepo.find({
         where: { client: { id: client.id }, isDebt: true },
-        relations: { createdBy: { avatar: true }, kassa: { filial: true } },
+        relations: { seller: { avatar: true }, kassa: { filial: true } },
         order: { createdAt: 'DESC' },
       });
 
@@ -185,7 +185,7 @@ export class ClientService {
         relations: {},
       });
 
-      console.log('📦 Found debt order:', { orderId: order.id, kassa: order.kassa?.id, createdBy: order.createdBy?.id });
+      console.log('📦 Found debt order:', { orderId: order.id, kassa: order.kassa?.id, createdBy: order.seller?.id });
 
       // cashflow_type
       const slugDolg = await this.getOneBySlug('debt_repayment');
@@ -201,7 +201,7 @@ export class ClientService {
         date: new Date().toISOString(),
         kassa: openKassa,
         filial: order.kassa.filial,
-        createdBy: order.createdBy,
+        createdBy: order.seller,
         is_online: false,
         is_static: true,
       });
@@ -217,7 +217,7 @@ export class ClientService {
         given: savedClient.given,
       });
 
-      openKassa.in_hand += amount;
+      openKassa.inHand += amount;
       openKassa.income += amount;
 
       await kassaRepo.save(openKassa);

@@ -24,7 +24,7 @@ export class CreatePayrollDto {
   // @ApiProperty({ type: 'number', default: 0 })
   @IsOptional()
   @IsNumber()
-  in_hand?: number;
+  inHand?: number;
 
   @ApiProperty({ example: '1' })
   @IsInt()

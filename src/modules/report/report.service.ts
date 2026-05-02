@@ -167,15 +167,15 @@ export class ReportService {
       ...result,
       items: result.items.map((report) => ({
         ...report,
-        additionalProfitTotalSum: Number(Number(report.additionalProfitTotalSum ?? 0).toFixed(2)),
-        netProfitTotalSum: Number(Number(report.netProfitTotalSum ?? 0).toFixed(2)),
-        totalSize: Number(Number(report.totalSize ?? 0).toFixed(2)),
+        additionalProfitSum: Number(Number(report.totalAdditionalProfitSum ?? 0).toFixed(2)),
+        netProfitSum: Number(Number(report.totalNetProfitSum ?? 0).toFixed(2)),
+        totalSize: Number(Number(report.totalSaleSize ?? 0).toFixed(2)),
         totalPlasticSum: Number(Number(report.totalPlasticSum ?? 0).toFixed(2)),
         totalInternetShopSum: Number(Number(report.totalInternetShopSum ?? 0).toFixed(2)),
         totalSale: Number(Number(report.totalSale ?? 0).toFixed(2)),
         totalSaleReturn: Number(Number(report.totalSaleReturn ?? 0).toFixed(2)),
         totalCashCollection: Number(Number(report.totalCashCollection ?? 0).toFixed(2)),
-        totalDiscount: Number(Number(report.totalDiscount ?? 0).toFixed(2)),
+        totalDiscount: Number(Number(report.totalDiscountSum ?? 0).toFixed(2)),
         totalIncome: Number(Number(report.totalIncome ?? 0).toFixed(2)),
         totalExpense: Number(Number(report.totalExpense ?? 0).toFixed(2)),
         managerSum: Number(Number(report.managerSum ?? 0).toFixed(2)),
@@ -187,8 +187,8 @@ export class ReportService {
 
   async getTotalReports(query: ReportQueryDto): Promise<{
     totalSellCount: number;
-    additionalProfitTotalSum: number;
-    netProfitTotalSum: number;
+    additionalProfitSum: number;
+    netProfitSum: number;
     totalSize: number;
     totalPlasticSum: number;
     totalInternetShopSum: number;
@@ -212,16 +212,16 @@ export class ReportService {
     }
 
     const result = await qb
-      .select('SUM(report.totalSellCount)', 'totalSellCount')
-      .addSelect('SUM(report.additionalProfitTotalSum)', 'additionalProfitTotalSum')
-      .addSelect('SUM(report.netProfitTotalSum)', 'netProfitTotalSum')
-      .addSelect('SUM(report.totalSize)', 'totalSize')
+      .select('SUM(report.totalSaleCount)', 'totalSellCount')
+      .addSelect('SUM(report.totalAdditionalProfitSum)', 'additionalProfitSum')
+      .addSelect('SUM(report.totalNetProfitSum)', 'netProfitSum')
+      .addSelect('SUM(report.totalSaleSize)', 'totalSize')
       .addSelect('SUM(report.totalPlasticSum)', 'totalPlasticSum')
       .addSelect('SUM(report.totalInternetShopSum)', 'totalInternetShopSum')
       .addSelect('SUM(report.totalSale)', 'totalSale')
       .addSelect('SUM(report.totalSaleReturn)', 'totalSaleReturn')
       .addSelect('SUM(report.totalCashCollection)', 'totalCashCollection')
-      .addSelect('SUM(report.totalDiscount)', 'totalDiscount')
+      .addSelect('SUM(report.totalDiscountSum)', 'totalDiscount')
       .addSelect('SUM(report.totalIncome)', 'totalIncome')
       .addSelect('SUM(report.totalExpense)', 'totalExpense')
       .addSelect('SUM(report.managerSum)', 'managerSum')
@@ -232,15 +232,15 @@ export class ReportService {
 
     return {
       totalSellCount: parseInt(result?.totalSellCount || '0', 10),
-      additionalProfitTotalSum: parseFloat(result?.additionalProfitTotalSum || '0'),
-      netProfitTotalSum: parseFloat(result?.netProfitTotalSum || '0'),
+      additionalProfitSum: parseFloat(result?.additionalProfitSum || '0'),
+      netProfitSum: parseFloat(result?.netProfitSum || '0'),
       totalSize: parseFloat(result?.totalSize || '0'),
       totalPlasticSum: parseFloat(result?.totalPlasticSum || '0'),
       totalInternetShopSum: parseFloat(result?.totalInternetShopSum || '0'),
       totalSale: parseFloat(result?.totalSale || '0'),
       totalSaleReturn: parseFloat(result?.totalSaleReturn || '0'),
       totalCashCollection: parseFloat(result?.totalCashCollection || '0'),
-      totalDiscount: parseFloat(result?.totalDiscount || '0'),
+      totalDiscount: parseFloat(result?.totalDiscountSum || '0'),
       totalIncome: parseFloat(result?.totalIncome || '0'),
       totalExpense: parseFloat(result?.totalExpense || '0'),
       totalSum: parseFloat(result?.totalSum || '0'),
@@ -257,66 +257,66 @@ export class ReportService {
     });
 
     const report = await this.getReportByDate(filial, { year, month });
-    if (report.is_cancelled) throw new BadRequestException('Report already cancelled');
+    if (report.isCancelled) throw new BadRequestException('Report already cancelled');
 
     Object.assign(report, {
       totalSellCount: 0,
       totalSize: 0,
       totalSale: 0,
       totalCashCollection: 0,
-      additionalProfitTotalSum: 0,
+      additionalProfitSum: 0,
       totalInternetShopSum: 0,
       totalDiscount: 0,
       totalPlasticSum: 0,
-      netProfitTotalSum: 0,
+      netProfitSum: 0,
       totalSum: 0,
       totalExpense: 0,
       totalIncome: 0,
     });
 
     for (const k of kassas) {
-      report.totalSellCount += k.totalSellCount || 0;
-      report.totalSize += k.totalSize || 0;
+      report.totalSaleCount += k.saleCount || 0;
+      report.totalSaleSize += k.saleSize || 0;
       report.totalSale += k.sale || 0;
-      report.totalCashCollection += k.cash_collection || 0;
-      report.additionalProfitTotalSum += k.additionalProfitTotalSum || 0;
+      report.totalCashCollection += k.cashCollection || 0;
+      report.totalAdditionalProfitSum += k.additionalProfitSum || 0;
       report.totalInternetShopSum += k.internetShopSum || 0;
-      report.totalDiscount += k.discount || 0;
+      report.totalDiscountSum += k.discountSum || 0;
       report.totalPlasticSum += k.plasticSum || 0;
-      report.netProfitTotalSum += k.netProfitTotalSum || 0;
-      report.accountantSum += Math.max(k.plasticSum + k.cash_collection, 0);
+      report.totalNetProfitSum += k.netProfitSum || 0;
+      report.accountantSum += Math.max(k.plasticSum + k.cashCollection, 0);
       report.totalExpense += k.expense || 0;
       report.totalIncome += k.income || 0;
     }
 
-    report.is_cancelled = false;
+    report.isCancelled = false;
     return this.reportRepo.save(report);
   }
 
   async cancelValueReport(dto: CancelReportDto, reportId: string): Promise<Report> {
     const kassa = await this.kassaRepo.findOne({ where: { id: dto.kassaReportId } });
     const report = await this.findOne(reportId);
-    if (report.is_cancelled) throw new BadRequestException('Report already cancelled');
+    if (report.isCancelled) throw new BadRequestException('Report already cancelled');
 
     if (!kassa) {
       throw new BadRequestException('Kassa is not found');
     }
 
     Object.assign(report, {
-      totalSellCount: report.totalSellCount - (kassa.totalSellCount || 0),
-      totalSize: report.totalSize - (kassa.totalSize || 0),
+      totalSellCount: report.totalSaleCount - (kassa.saleCount || 0),
+      totalSize: report.totalSaleSize - (kassa.saleSize || 0),
       totalSale: report.totalSale - (kassa.sale || 0),
-      totalCashCollection: Math.max(0, report.totalCashCollection - (kassa.cash_collection || 0)),
-      additionalProfitTotalSum: report.additionalProfitTotalSum - (kassa.additionalProfitTotalSum || 0),
+      totalCashCollection: Math.max(0, report.totalCashCollection - (kassa.cashCollection || 0)),
+      additionalProfitSum: report.totalAdditionalProfitSum - (kassa.additionalProfitSum || 0),
       totalInternetShopSum: report.totalInternetShopSum - (kassa.internetShopSum || 0),
-      totalDiscount: report.totalDiscount - (kassa.discount || 0),
+      totalDiscount: report.totalDiscountSum - (kassa.discountSum || 0),
       totalPlasticSum: report.totalPlasticSum - (kassa.plasticSum || 0),
-      netProfitTotalSum: report.netProfitTotalSum - (kassa.netProfitTotalSum || 0),
-      accountantSum: report.accountantSum - ((kassa.plasticSum + kassa.cash_collection) || 0),
+      netProfitSum: report.totalNetProfitSum - (kassa.netProfitSum || 0),
+      accountantSum: report.accountantSum - ((kassa.plasticSum + kassa.cashCollection) || 0),
       totalExpense: report.totalExpense - (kassa.expense || 0),
       totalIncome: report.totalIncome - (kassa.income || 0),
     });
-    report.is_cancelled = true;
+    report.isCancelled = true;
     return this.reportRepo.save(report);
   }
 
@@ -686,16 +686,16 @@ export class ReportService {
         });
 
         const kassaAggregated = {
-          totalSellCount: 0,
-          additionalProfitTotalSum: 0,
-          netProfitTotalSum: 0,
-          totalSize: 0,
+          totalSaleCount: 0,
+          totalAdditionalProfitSum: 0,
+          totalNetProfitSum: 0,
+          totalSaleSize: 0,
           totalPlasticSum: 0,
           totalInternetShopSum: 0,
           totalSale: 0,
           totalSaleReturn: 0,
           totalCashCollection: 0,
-          totalDiscount: 0,
+          totalDiscountSum: 0,
           totalIncome: 0,
           totalExpense: 0,
           managerSum: 0,
@@ -705,19 +705,19 @@ export class ReportService {
         // Har bir kassani alohida logga yozish
         for (const k of kassas) {
 
-          kassaAggregated.totalSellCount += k.totalSellCount || 0;
-          kassaAggregated.additionalProfitTotalSum += k.additionalProfitTotalSum || 0;
-          kassaAggregated.netProfitTotalSum += k.netProfitTotalSum || 0;
-          kassaAggregated.totalSize += k.totalSize || 0;
+          kassaAggregated.totalSaleCount += k.saleCount || 0;
+          kassaAggregated.totalAdditionalProfitSum += k.additionalProfitSum || 0;
+          kassaAggregated.totalNetProfitSum += k.netProfitSum || 0;
+          kassaAggregated.totalSaleSize += k.saleSize || 0;
           kassaAggregated.totalPlasticSum += k.plasticSum || 0;
           kassaAggregated.totalInternetShopSum += k.internetShopSum || 0;
           kassaAggregated.totalSale += k.sale || 0;
-          kassaAggregated.totalSaleReturn += k.totalSaleReturn || 0;
-          kassaAggregated.totalCashCollection += k.cash_collection || 0;
-          kassaAggregated.totalDiscount += k.discount || 0;
+          kassaAggregated.totalSaleReturn += k.saleReturn || 0;
+          kassaAggregated.totalCashCollection += k.cashCollection || 0;
+          kassaAggregated.totalDiscountSum += k.discountSum || 0;
           kassaAggregated.totalIncome += k.income || 0;
           kassaAggregated.totalExpense += k.expense || 0;
-          kassaAggregated.accountantSum += (k.plasticSum + k.cash_collection) || 0;
+          kassaAggregated.accountantSum += (k.plasticSum + k.cashCollection) || 0;
         }
 
         let report = await reportRepo.findOne({
@@ -731,7 +731,7 @@ export class ReportService {
             filialType: type,
             ...kassaAggregated,
             reportStatus: 1,
-            is_cancelled: false,
+            isCancelled: false,
             accountantSum: 0,
             managerSum: 0,
           });
@@ -1018,7 +1018,7 @@ export class ReportService {
         .andWhere('filial.isActive = true')
         .getRawOne();
 
-      report.dealer_frozen_owed = totalOwed;
+      report.totalFrozenOwed = totalOwed;
 
       // await this.moveToNextMonthDealerReport(report);
     }
@@ -1076,11 +1076,11 @@ export class ReportService {
     filialReport.managerSum -= dealerReport.totalPlasticSum ?? 0;
 
     // Dealer debt fieldlarni FILIAL reportga qo'shish
-    filialReport.debt_count += dealerReport.debt_count ?? 0;
-    filialReport.debt_kv += dealerReport.debt_kv ?? 0;
-    filialReport.debt_sum += dealerReport.debt_sum ?? 0;
-    filialReport.debt_profit_sum += dealerReport.debt_profit_sum ?? 0;
-    filialReport.totalDiscount += dealerReport.totalDiscount ?? 0;
+    filialReport.totalDebtCount += dealerReport.totalDebtCount ?? 0;
+    filialReport.totalDebtSize += dealerReport.totalDebtSize ?? 0;
+    filialReport.totalDebtSum += dealerReport.totalDebtSum ?? 0;
+    filialReport.totalDebtProfitSum += dealerReport.totalDebtProfitSum ?? 0;
+    filialReport.totalDiscountSum += dealerReport.totalDiscountSum ?? 0;
 
     await reportRepo.save(filialReport);
   }
@@ -1253,9 +1253,9 @@ export class ReportService {
       },
     });
 
-    report.accountantSum += (kassa.plasticSum + kassa.cash_collection) || 0;
+    report.accountantSum += (kassa.plasticSum + kassa.cashCollection) || 0;
     report.totalPlasticSum += kassa.plasticSum || 0;
-    report.totalCashCollection += kassa.cash_collection || 0;
+    report.totalCashCollection += kassa.cashCollection || 0;
 
     await this.reportRepo.save(report);
     console.log(`  Report saqlandi`);
@@ -1282,14 +1282,14 @@ export class ReportService {
     if (!report) {
       throw new NotFoundException('Ushbu yil va oy uchun report topilmadi');
     }
-    report.totalSellCount += kassa.totalSellCount || 0;
-    report.additionalProfitTotalSum += kassa.additionalProfitTotalSum || 0;
-    report.netProfitTotalSum += kassa.netProfitTotalSum || 0;
-    report.totalSize += kassa.totalSize || 0;
+    report.totalSaleCount += kassa.saleCount || 0;
+    report.totalAdditionalProfitSum += kassa.additionalProfitSum || 0;
+    report.totalNetProfitSum += kassa.netProfitSum || 0;
+    report.totalSaleSize += kassa.saleSize || 0;
     report.totalInternetShopSum += kassa.internetShopSum || 0;
     report.totalSale += kassa.sale || 0;
-    report.totalSaleReturn += kassa.totalSaleReturn || 0;
-    report.totalDiscount += kassa.discount || 0;
+    report.totalSaleReturn += kassa.saleReturn || 0;
+    report.totalDiscountSum += kassa.discountSum || 0;
     report.totalExpense += kassa.expense || 0;
 
     await this.reportRepo.save(report);
@@ -1355,329 +1355,6 @@ export class ReportService {
     await this.reportRepo.update({ id }, { ...data });
   }
 
-  async bossReport(from: string | Date, to: string | Date, filial?: string): Promise<BossReport> {
-    if (!from || !to) {
-      throw new Error('`from` and `to` are required');
-    }
-
-    // normalize dates to be inclusive on the end (<= to)
-    // If caller already passes Date objects with times set, this is still fine.
-    const fromParam = from instanceof Date ? from : new Date(from);
-    const toParam = to instanceof Date ? to : new Date(to);
-
-    const qb = this.entityManager.getRepository(Cashflow)
-      .createQueryBuilder('cf')
-      .leftJoin('cf.cashflow_type', 'ct')
-      .leftJoin('cf.filial', 'filial')
-      .where('cf.is_cancelled = false')
-      .andWhere('cf.date >= :from AND cf.date <= :to', { from: fromParam, to: toParam });
-
-    if (filial) {
-      // Works whether `filial` is an id or entity relation (TypeORM will compare by FK)
-      qb.andWhere('cf.filial = :filial', { filial });
-    }
-
-    // Use SUM(CASE ...) so this runs regardless of DB settings (FILTER works in Postgres, but CASE is portable)
-    qb.select([
-      // overall totals
-      `COALESCE(SUM(cf.price), 0)                                           AS total_all`,
-      `COALESCE(SUM(CASE WHEN cf.type = 'Приход' THEN cf.price END), 0)     AS total_income`,
-      `COALESCE(SUM(CASE WHEN cf.type = 'Расход' THEN cf.price END), 0)     AS total_consumption`,
-
-      // by tip (cashflow)
-      `COALESCE(SUM(CASE WHEN cf.tip = 'cashflow' AND cf.type = 'Приход' THEN cf.price END), 0) AS cashflow_income`,
-      `COALESCE(SUM(CASE WHEN cf.tip = 'cashflow' AND cf.type = 'Расход' THEN cf.price END), 0) AS cashflow_consumption`,
-
-      // by tip (order)
-      `COALESCE(SUM(CASE WHEN cf.tip = 'order' AND cf.type = 'Приход' THEN cf.price END), 0) AS order_income`,
-      `COALESCE(SUM(CASE WHEN cf.tip = 'order' AND cf.type = 'Расход' THEN cf.price END), 0)  AS order_consumption`,
-
-      // by tip (debt)
-      `COALESCE(SUM(CASE WHEN cf.tip = 'debt' AND cf.type = 'Приход' THEN cf.price END), 0)   AS debt_income`,
-      `COALESCE(SUM(CASE WHEN cf.tip = 'debt' AND cf.type = 'Расход' THEN cf.price END), 0)    AS debt_consumption`,
-
-      // ONLY "debt inside order" (tip='order' AND linked debt)
-      `COALESCE(SUM(CASE WHEN cf.tip = 'order' AND cf.debt IS NOT NULL AND cf.type = 'Приход' THEN cf.price END), 0) AS order_debt_income`,
-      `COALESCE(SUM(CASE WHEN cf.tip = 'order' AND cf.debt IS NOT NULL AND cf.type = 'Расход' THEN cf.price END), 0)  AS order_debt_consumption`,
-
-      // income by specific cashflow_type slugs (only Приход)
-      `COALESCE(SUM(CASE WHEN cf.type = 'Приход' AND ct.slug = 'manager'  THEN cf.price END), 0) AS income_manager`,
-      `COALESCE(SUM(CASE WHEN cf.type = 'Приход' AND ct.slug = 'accountant' THEN cf.price END), 0) AS income_bugalter`,
-    ]);
-
-    const row = await qb.getRawOne<{
-      total_all: string | number;
-      total_income: string | number;
-      total_consumption: string | number;
-
-      cashflow_income: string | number;
-      cashflow_consumption: string | number;
-
-      order_income: string | number;
-      order_consumption: string | number;
-
-      debt_income: string | number;
-      debt_consumption: string | number;
-
-      order_debt_income: string | number;
-      order_debt_consumption: string | number;
-
-      income_manager: string | number;
-      income_bugalter: string | number;
-    }>();
-
-    const num = (v: string | number | null | undefined) => Number(v ?? 0);
-
-    return {
-      period: { from: fromParam, to: toParam, filial },
-      totals: {
-        total: num(row?.total_all),
-        income: num(row?.total_income),
-        consumption: num(row?.total_consumption),
-      },
-      byTip: {
-        cashflow: {
-          income: num(row?.cashflow_income),
-          consumption: num(row?.cashflow_consumption),
-          total: num(row?.cashflow_income) + num(row?.cashflow_consumption),
-        },
-        order: {
-          income: num(row?.order_income),
-          consumption: num(row?.order_consumption),
-          total: num(row?.order_income) + num(row?.order_consumption),
-        },
-        debt: {
-          income: num(row?.debt_income),
-          consumption: num(row?.debt_consumption),
-          total: num(row?.debt_income) + num(row?.debt_consumption),
-        },
-        orderDebtOnly: {
-          income: num(row?.order_debt_income),
-          consumption: num(row?.order_debt_consumption),
-          total: num(row?.order_debt_income) + num(row?.order_debt_consumption),
-        },
-      },
-      incomeBySlug: {
-        manager: num(row?.income_manager),
-        accountant: num(row?.income_bugalter),
-      },
-    };
-  }
-
-  async bossCurrentMonth({ filial_id, startDate, endDate, month, year }: {
-    filial_id: string,
-    startDate: Date,
-    endDate: Date,
-    month: number,
-    year: number
-  }) {
-    const cacheKey = `bossCurrentMonth:${filial_id || 'all'}:${startDate?.toISOString()}:${endDate?.toISOString()}:${month || 'month'}:${year || 'year'}`;
-    const cacheTTL = 180; // 3 minutes
-
-    const cached = await this.redis.get(cacheKey);
-    if (cached) return JSON.parse(cached);
-
-    const qb = this.packageTransfer.createQueryBuilder('pt')
-      .select([
-        'COALESCE(SUM(pt.total_sum), 0)::NUMERIC(20, 2) AS total_sum',
-        'COALESCE(SUM(pt.total_profit_sum), 0)::NUMERIC(20, 2) AS total_profit_sum',
-        'COALESCE(SUM(pt.total_kv), 0)::NUMERIC(20, 2) AS total_kv',
-        'COALESCE(SUM(pt.total_count), 0)::NUMERIC(20, 2) AS total_count',
-      ])
-      .where('pt.status = :status', { status: PackageTransferEnum.Accept });
-
-    const order_qb = this.orderRepo.createQueryBuilder('ord')
-      .leftJoin('ord.bar_code', 'bar_code')
-      .leftJoin('ord.kassa', 'kassa')
-      .select([
-        `COALESCE(SUM(ord.price + ord.plasticSum), 0)::NUMERIC(20, 2) AS total_sum`,
-        `COALESCE(SUM(ord.kv), 0)::NUMERIC(20, 2) AS total_kv`,
-        `COALESCE(SUM(ord.netProfitSum), 0)::NUMERIC(20, 2) AS total_profit_sum`,
-        `COALESCE(SUM(ord."discountSum"), 0)::NUMERIC(20, 2) AS total_discount_sum  `,
-        `
-      SUM(CASE
-        WHEN bar_code.isMetric = true THEN 1
-        ELSE ord.x
-      END)::NUMERIC(20, 2) as total_count
-      `,
-        `
-      SUM(CASE
-        WHEN ord.status = 'returned' THEN ord.price + ord."plasticSum"
-        ELSE 0
-      END)::NUMERIC(20, 2) as total_return
-      `,
-        `
-      SUM(CASE
-        WHEN ord.status = 'returned' THEN ord.kv
-        ELSE 0
-      END)::NUMERIC(20, 2) as total_return_kv
-      `,
-        `COALESCE(SUM(CASE WHEN ord.isDebt = true then ord.price ELSE 0 END), 0)::NUMERIC(20, 2) as total_debt_sum`,
-        `COALESCE(SUM(CASE WHEN ord.isDebt = true then ord.kv ELSE 0 END), 0)::NUMERIC(20, 2) as total_debt_kv`,
-        `COALESCE(SUM(CASE WHEN ord.isDebt = true then ord."netProfitSum" ELSE 0 END), 0)::NUMERIC(20, 2) as total_debt_profit_sum`,
-        `
-      SUM(CASE
-        WHEN ord.isDebt = true THEN CASE WHEN bar_code.isMetric = true THEN 1 ELSE ord.x END
-        ELSE 0
-      END)::NUMERIC(20, 2) as total_debt_count
-      `,
-      ])
-      .where('ord.status IN (:...status)', { status: [OrderEnum.Accept, OrderEnum.Return] });
-
-    const [accountant, manager] = await Promise.all([
-      this.userRepository.findOne({ where: { isActive: true, position: { role: UserRoleEnum.ACCOUNTANT } } }),
-      this.userRepository.findOne({ where: { isActive: true, position: { role: UserRoleEnum.M_MANAGER } } }),
-    ]);
-
-    const accountant_qb = this.cashflowRepository.createQueryBuilder('cash')
-      .select(`
-      SUM(CASE WHEN cash.type = 'Приход' THEN cash.price ELSE 0 END)::NUMERIC(20, 2) AS total_income,
-      SUM(CASE WHEN cash.type = 'Расход' THEN cash.price ELSE 0 END)::NUMERIC(20, 2) AS total_expense
-    `)
-      .where('cash.createdById = :accountant', { accountant: accountant.id });
-
-    const manager_qb = this.cashflowRepository.createQueryBuilder('cash')
-      .select(`
-      SUM(CASE WHEN cash.type = 'Приход' THEN cash.price ELSE 0 END)::NUMERIC(20, 2) AS total_income,
-      SUM(CASE WHEN cash.type = 'Расход' THEN cash.price ELSE 0 END)::NUMERIC(20, 2) AS total_expense
-    `)
-      .where('cash.createdById = :manager', { manager: manager.id });
-
-    const boss_qb = this.cashflowRepository.createQueryBuilder('cash')
-      .leftJoin('cash.cashflow_type', 'cash_type')
-      .select(`
-      SUM(COALESCE(cash.price, 0))::NUMERIC(20, 2) AS total_expense,
-      SUM(CASE WHEN cash_type.slug = 'boss' THEN COALESCE(cash.price, 0) ELSE 0 END)::NUMERIC(20, 2) AS boss_expense
-    `)
-      .where('cash_type.slug NOT IN (:...excluded)', { excluded: ['factory', 'customs', 'manager', 'accountant'] })
-      .andWhere('cash.type = :type', { type: 'Расход' });
-
-    if (filial_id) {
-      order_qb.andWhere('kassa.filialId = :filial_id', { filial_id });
-      boss_qb.andWhere('cash.filialId = :filial_id', { filial_id });
-    }
-
-    const currentYear = dayjs().year();
-    const y = year ? Number(year) : currentYear;
-
-    const monthStart = dayjs(`${y}-${month}-01`).startOf('month').toDate();
-    const monthEnd = dayjs(`${y}-${month}-01`).endOf('month').toDate();
-
-    let finalStart;
-    let finalEnd;
-
-    if (startDate && endDate) {
-      finalStart = new Date(startDate);
-      finalEnd = new Date(endDate);
-
-    } else if (startDate) {
-      finalStart = new Date(startDate);
-      finalEnd = monthEnd;
-
-    } else if (endDate) {
-      finalStart = monthStart;
-      finalEnd = new Date(endDate);
-
-    } else {
-      finalStart = monthStart;
-      finalEnd = monthEnd;
-    }
-
-    qb.andWhere('pt.updatedAt BETWEEN :finalStart AND :finalEnd', { finalStart, finalEnd });
-    order_qb.andWhere('ord.date BETWEEN :finalStart AND :finalEnd', { finalStart, finalEnd });
-    manager_qb.andWhere('cash.date BETWEEN :finalStart AND :finalEnd', { finalStart, finalEnd });
-    accountant_qb.andWhere('cash.date BETWEEN :finalStart AND :finalEnd', { finalStart, finalEnd });
-    boss_qb.andWhere('cash.date BETWEEN :finalStart AND :finalEnd', { finalStart, finalEnd });
-
-    let resultData;
-
-    if (filial_id === '#dealers') {
-      const [result, manager_result, accountant_result] = await Promise.all([
-        qb.getRawOne(),
-        manager_qb.getRawOne(),
-        accountant_qb.getRawOne(),
-      ]);
-
-      resultData = {
-        totals: {
-          total_sum: Number(result.total_sum),
-          total_profit_sum: Number(result.total_profit_sum),
-          total_kv: Number(result.total_kv),
-          total_count: Number(result.total_count),
-        },
-        manager: {
-          id: manager.id,
-          income: Number(manager_result.total_income),
-          expense: Number(manager_result.total_expense),
-        },
-        accountant: {
-          id: accountant.id,
-          income: Number(accountant_result.total_income),
-          expense: Number(accountant_result.total_expense),
-        },
-        order: { total_sum: 0, total_profit_sum: 0, total_kv: 0, total_count: 0 },
-        debt_order: {
-          total_kv: Number(result.total_kv),
-          total_sum: Number(result.total_sum),
-          total_count: Number(result.total_count),
-          total_profit_sum: Number(result.total_profit_sum),
-        },
-        boss: {
-          total_expense: 0,
-          boss_expense: 0,
-        },
-      };
-    } else {
-      const [result, order_result, manager_result, accountant_result, boss_result] = await Promise.all([
-        qb.getRawOne(),
-        order_qb.getRawOne(),
-        manager_qb.getRawOne(),
-        accountant_qb.getRawOne(),
-        boss_qb.getRawOne(),
-      ]);
-
-      resultData = {
-        totals: {
-          total_sum: +((Number(result.total_sum) + Number(order_result.total_sum)).toFixed(2)),
-          total_profit_sum: +((Number(result.total_profit_sum) + Number(order_result.total_profit_sum)).toFixed(2)),
-          total_kv: +((Number(result.total_kv) + Number(order_result.total_kv)).toFixed(2)),
-          total_count: +((Number(result.total_count) + Number(order_result.total_count)).toFixed(2)),
-        },
-        manager: {
-          id: manager.id,
-          income: Number(manager_result.total_income),
-          expense: Number(manager_result.total_expense),
-        },
-        accountant: {
-          id: accountant.id,
-          income: Number(accountant_result.total_income),
-          expense: Number(accountant_result.total_expense),
-        },
-        order: {
-          total_sum: Number(order_result.total_sum),
-          total_profit_sum: Number(order_result.total_profit_sum),
-          total_kv: Number(order_result.total_kv),
-          total_count: Number(order_result.total_count),
-          total_discount_sum: Number(order_result.total_discount_sum),
-          total_return: Number(order_result.total_return),
-          total_return_kv: Number(order_result.total_return_kv),
-        },
-        debt_order: {
-          total_kv: +((Number(result.total_kv) + Number(order_result.total_debt_kv)).toFixed(2)),
-          total_sum: +((Number(result.total_sum) + Number(order_result.total_debt_sum)).toFixed(2)),
-          total_count: +((Number(result.total_count) + Number(order_result.total_debt_count)).toFixed(2)),
-          total_profit_sum: +((Number(result.total_profit_sum) + Number(order_result.total_debt_profit_sum)).toFixed(2)),
-        },
-        boss: {
-          total_expense: Number(boss_result?.total_expense),
-          boss_expense: Number(boss_result?.boss_expense),
-        },
-      };
-    }
-
-    await this.redis.set(cacheKey, JSON.stringify(resultData), 'EX', cacheTTL);
-    return resultData;
-  }
 
   async bossCurrLeft({ filialId, month, year }) {
     const cacheKey = `bossCurrentLeft:${filialId || 'all'}:${month}:${year}`;
@@ -1781,14 +1458,14 @@ export class ReportService {
         ELSE ord.x
       END)::NUMERIC(20, 2) as total_count
       `,
-        `COALESCE(SUM(CASE WHEN ord.isDebt = true then ord.price ELSE 0 END), 0)::NUMERIC(20, 2) as total_debt_sum`,
-        `COALESCE(SUM(CASE WHEN ord.isDebt = true then ord.kv ELSE 0 END), 0)::NUMERIC(20, 2) as total_debt_kv`,
-        `COALESCE(SUM(CASE WHEN ord.isDebt = true then ord.netProfitSum ELSE 0 END), 0)::NUMERIC(20, 2) as total_debt_profit_sum`,
+        `COALESCE(SUM(CASE WHEN ord.isDebt = true then ord.price ELSE 0 END), 0)::NUMERIC(20, 2) as total_debtSum`,
+        `COALESCE(SUM(CASE WHEN ord.isDebt = true then ord.kv ELSE 0 END), 0)::NUMERIC(20, 2) as total_debtSize`,
+        `COALESCE(SUM(CASE WHEN ord.isDebt = true then ord.netProfitSum ELSE 0 END), 0)::NUMERIC(20, 2) as total_debtProfitSum`,
         `
       SUM(CASE
         WHEN ord.isDebt = true THEN CASE WHEN bar_code.isMetric = true THEN 1 ELSE ord.x END
         ELSE 0
-      END)::NUMERIC(20, 2) as total_debt_count
+      END)::NUMERIC(20, 2) as total_debtCount
       `,
       ])
       .where('ord.status = :status', { status: OrderEnum.Accept });
@@ -1833,516 +1510,6 @@ export class ReportService {
     return resultData;
   }
 
-  async expense_cashflow({ filial_id, year, month, cashflow_type, page = 1, limit = 10 }) {
-    const offset = (page - 1) * limit;
-
-    const cacheKey = `bossCurrentMontExpense:${filial_id || 'all'}:${month}:${year}:${cashflow_type}:${page}`;
-    const cacheTTL = 180; // 3 minutes in seconds
-
-    // 1. Try to get from cache first
-    const cached = await this.redis.get(cacheKey);
-    if (cached) {
-      return JSON.parse(cached);
-    }
-
-    if (filial_id === '#dealers') {
-      return {
-        items: [],
-        meta: {
-          total: 0,
-          page,
-          lastPage: Math.ceil(0 / limit),
-          limit,
-        },
-        totals: {
-          boss: 0,
-          kassa: 0,
-          business: 0,
-        },
-      };
-    }
-
-    const cashflow_qb = this.cashflowRepository.createQueryBuilder('cash')
-      .select([
-        'cash.id',
-        'cash.price',
-        'cash.type',
-        'cash.tip',
-        'cash.comment',
-        'cash.title',
-        'cash.date',
-        'cash.is_online',
-      ])
-      .addSelect([
-        'cashflow_type.id',
-        'cashflow_type.title',
-        'cashflow_type.slug',
-        'cashflow_type.type',
-      ])
-      .leftJoin('cash.cashflow_type', 'cashflow_type')
-      .addSelect([
-        'createdBy.id',
-        'createdBy.firstName',
-        'createdBy.lastName',
-      ])
-      .leftJoin('cash.createdBy', 'createdBy')
-      .addSelect([
-        'avatar.id',
-        'avatar.path',
-        'avatar.mimetype',
-        'avatar.name',
-      ])
-      .leftJoin('createdBy.avatar', 'avatar')
-      .where('cash.type = :type', { type: 'Расход' })
-      .andWhere('cash.tip != :tip', { tip: 'order' })
-      .offset(offset)
-      .limit(limit)
-      .orderBy('cash.date', 'DESC');
-
-    const total_qb = this.cashflowRepository.createQueryBuilder('cash')
-      .select(`
-      SUM(COALESCE(cash.price, 0)) FILTER (WHERE cash_type.slug NOT IN ('boss', 'manager', 'accountant'))::NUMERIC(20,2) AS business_expense,
-      SUM(COALESCE(cash.price, 0)) FILTER (WHERE cash_type.slug = 'boss')::NUMERIC(20,2) AS boss_expense,
-      SUM(COALESCE(cash.price, 0)) FILTER (WHERE cash_type.slug IN ('manager', 'accountant'))::NUMERIC(20,2) AS kassa_expense
-    `)
-      .leftJoin('cash.cashflow_type', 'cash_type')
-      .where('cash_type.slug NOT IN (:...excluded)', { excluded: ['factory', 'customs', 'markup'] })
-      .andWhere('cash.type = :type', { type: 'Расход' })
-      .andWhere('cash.tip != :tip', { tip: 'order' });
-
-    if (filial_id) {
-      cashflow_qb.andWhere('cash.filialId = :filial_id', { filial_id });
-      total_qb.andWhere('cash.filialId = :filial_id', { filial_id });
-    }
-
-    if (cashflow_type) {
-      cashflow_qb.andWhere('cashflow_type.id = :cashflow_type', { cashflow_type });
-      total_qb.andWhere('cash_type.id = :cashflow_type', { cashflow_type });
-    }
-
-    if (month) {
-      const currentYear = dayjs().year();
-      const y = year ? Number(year) : currentYear;
-
-      const startDate = dayjs(`${y}-${month}-01`).startOf('month').toDate();
-      const endDate = dayjs(`${y}-${month}-01`).endOf('month').toDate();
-
-      cashflow_qb.andWhere(`cash.date BETWEEN :startDate AND :endDate`, { startDate, endDate });
-      total_qb.andWhere(`cash.date BETWEEN :startDate AND :endDate`, { startDate, endDate });
-    }
-
-    const [[items, total], totals] = await Promise.all([
-      cashflow_qb.getManyAndCount(),
-      total_qb.getRawOne(),
-    ]);
-
-    const resultData = {
-      items,
-      meta: {
-        totalItems: total,
-        currentPage: page,
-        totalPages: Math.ceil(total / limit),
-        itemCount: limit,
-      },
-      totals: {
-        boss: Number(totals.boss_expense || 0),
-        kassa: Number(totals.kassa_expense || 0),
-        business: Number(totals.business_expense || 0),
-      },
-    };
-
-    await this.redis.set(cacheKey, JSON.stringify(resultData), 'EX', cacheTTL);
-
-    return resultData;
-  }
-
-  async expense_managers({ filial_id, user_id, type, cashflow_type, month, year, page, limit }) {
-    const cacheKey = `bossCurrentMonthManagers:${filial_id || 'all'}:${user_id}:${month}:${year}:${type}:${cashflow_type}:${page}`;
-    const cacheTTL = 180;
-
-    // 1. Try to get from cache first
-    const cached = await this.redis.get(cacheKey);
-    if (cached) {
-      return JSON.parse(cached);
-    }
-
-    const offset = (page - 1) * limit;
-
-    const cashflow_qb = this.cashflowRepository.createQueryBuilder('cash')
-      .select([
-        'cash.id',
-        'cash.price',
-        'cash.type',
-        'cash.tip',
-        'cash.comment',
-        'cash.title',
-        'cash.date',
-        'cash.is_online',
-      ])
-      .addSelect([
-        'cashflow_type.id',
-        'cashflow_type.title',
-        'cashflow_type.slug',
-        'cashflow_type.type',
-      ])
-      .leftJoin('cash.cashflow_type', 'cashflow_type')
-      .addSelect([
-        'createdBy.id',
-        'createdBy.firstName',
-        'createdBy.lastName',
-      ])
-      .leftJoin('cash.createdBy', 'createdBy')
-      .addSelect([
-        'avatar.id',
-        'avatar.path',
-        'avatar.mimetype',
-        'avatar.name',
-      ])
-      .leftJoin('createdBy.avatar', 'avatar')
-      .leftJoin('cash.filial', 'filial')
-      .where('createdBy.id = :user_id', { user_id })
-      .offset(offset)
-      .limit(limit)
-      .orderBy('cash.date', 'DESC');
-
-    const total_qb = this.cashflowRepository.createQueryBuilder('cash')
-      .select(`
-      SUM(CASE WHEN cash.type = 'Приход' THEN cash.price ELSE 0 END)::NUMERIC(20, 2) AS total_income,
-      SUM(CASE WHEN cash.type = 'Расход' THEN cash.price ELSE 0 END)::NUMERIC(20, 2) AS total_expense
-    `)
-      .leftJoin('cash.cashflow_type', 'cashflow_type')
-      .leftJoin('cash.filial', 'filial')
-      .where('cash.createdById = :user_id', { user_id });
-
-    if (type) {
-      cashflow_qb.andWhere('cash.type = :type', { type });
-      total_qb.andWhere('cash.type = :type', { type });
-    }
-
-    if (cashflow_type) {
-      cashflow_qb.andWhere('cashflow_type.id = :cashflow_type', { cashflow_type });
-      total_qb.andWhere('cashflow_type.id = :cashflow_type', { cashflow_type });
-    }
-
-    if (month) {
-      const currentYear = dayjs().year();
-      const y = year ? Number(year) : currentYear;
-
-      const startDate = dayjs(`${y}-${month}-01`).startOf('month').toDate();
-      const endDate = dayjs(`${y}-${month}-01`).endOf('month').toDate();
-
-      cashflow_qb.andWhere(`cash.date BETWEEN :startDate AND :endDate`, { startDate, endDate });
-      total_qb.andWhere(`cash.date BETWEEN :startDate AND :endDate`, { startDate, endDate });
-    }
-
-    if (filial_id === '#dealers') {
-      cashflow_qb.andWhere('filial.type = :type', { type: 'dealer' });
-      total_qb.andWhere('filial.type = :type', { type: 'dealer' });
-    } else if (filial_id) {
-      cashflow_qb.andWhere('cash.filialId = :filial_id', { filial_id });
-      total_qb.andWhere('cash.filialId = :filial_id', { filial_id });
-    }
-
-
-    const [[items, total], totals] = await Promise.all([
-      cashflow_qb.getManyAndCount(),
-      total_qb.getRawOne(),
-    ]);
-
-    const resultData = {
-      items,
-      meta: {
-        totalItems: total,
-        currentPage: page,
-        totalPages: Math.ceil(total / limit),
-        itemCount: limit,
-      },
-      totals: {
-        total_income: Number(totals.total_income || 0),
-        total_expense: Number(totals.total_expense || 0),
-      },
-    };
-
-    await this.redis.set(cacheKey, JSON.stringify(resultData), 'EX', cacheTTL);
-
-    return resultData;
-  }
-
-  async kents({ debt_id, type, month, year, page = 1, limit = 20 }) {
-    const cacheKey = `bossCurrentLeftKents:${debt_id || 'all'}:${month}:${year}:${type}:${page}`;
-    const cacheTTL = 180;
-
-    const cached = await this.redis.get(cacheKey);
-    if (cached) return JSON.parse(cached);
-
-    const offset = (page - 1) * limit;
-
-    // Year handling
-    const y = year ? Number(year) : dayjs().year();
-
-    let startDate: Date = null;
-    let endDate: Date = null;
-
-    if (month) {
-      startDate = dayjs(`${y}-${month}-01`).startOf('month').toDate();
-      endDate = dayjs(`${y}-${month}-01`).endOf('month').toDate();
-    }
-
-    const cashflow_qb = this.cashflowRepository
-      .createQueryBuilder('cash')
-      .select([
-        'cash.id',
-        'cash.price',
-        'cash.type',
-        'cash.tip',
-        'cash.comment',
-        'cash.title',
-        'cash.date',
-        'cash.is_online',
-      ])
-      .leftJoin('cash.cashflow_type', 'cashflow_type')
-      .addSelect(['cashflow_type.id', 'cashflow_type.title', 'cashflow_type.slug'])
-      .leftJoin('cash.debt', 'debt')
-      .addSelect(['createdBy.id', 'createdBy.firstName', 'createdBy.lastName'])
-      .leftJoin('cash.createdBy', 'createdBy')
-      .addSelect(['avatar.id', 'avatar.path', 'avatar.mimetype', 'avatar.name'])
-      .leftJoin('createdBy.avatar', 'avatar')
-      .addSelect(['debt.id', 'debt.fullName'])
-      .where('cashflow_type.slug = :slug', { slug: 'kent' })
-      .orderBy('cash.date', 'DESC')
-      .offset(offset)
-      .limit(limit);
-
-    if (debt_id) {
-      cashflow_qb.andWhere('debt.id = :debt_id', { debt_id });
-    } else {
-      cashflow_qb.andWhere('debt.id IS NOT NULL');
-    }
-
-    if (startDate && endDate) {
-      cashflow_qb.andWhere('cash.date BETWEEN :start AND :end', {
-        start: startDate,
-        end: endDate,
-      });
-    }
-
-    if (type) {
-      cashflow_qb.andWhere('cash.type = :type', { type });
-    }
-
-    const total_qb = this.cashflowRepository
-      .createQueryBuilder('cash')
-      .select(`
-        SUM(CASE WHEN cash.type = 'Приход' THEN cash.price ELSE 0 END)::NUMERIC(20,2) AS total_income,
-        SUM(CASE WHEN cash.type = 'Расход' THEN cash.price ELSE 0 END)::NUMERIC(20,2) AS total_expense
-    `)
-      .leftJoin('cash.cashflow_type', 'cashflow_type')
-      .leftJoin('cash.debt', 'debt')
-      .where('cashflow_type.slug = :slug', { slug: 'kent' });
-
-    if (debt_id) {
-      total_qb.andWhere('debt.id = :debt_id', { debt_id });
-    } else {
-      total_qb.andWhere('debt.id IS NOT NULL');
-    }
-
-    if (startDate && endDate) {
-      total_qb.andWhere('cash.date BETWEEN :start AND :end', {
-        start: startDate,
-        end: endDate,
-      });
-    }
-
-    if (type) {
-      total_qb.andWhere('cash.type = :type', { type });
-    }
-
-    const [[items, total], totals] = await Promise.all([
-      cashflow_qb.getManyAndCount(),
-      total_qb.getRawOne(),
-    ]);
-
-    const resultData = {
-      items,
-      meta: {
-        totalItems: total,
-        currentPage: page,
-        totalPages: Math.ceil(total / limit),
-        itemCount: limit,
-      },
-      totals: {
-        total_income: Number(totals.total_income || 0),
-        total_expense: Number(totals.total_expense || 0),
-        kents_balance: Number(
-          (Number(totals.total_income || 0) - Number(totals.total_expense || 0)).toFixed(2),
-        ),
-      },
-    };
-
-    await this.redis.set(cacheKey, JSON.stringify(resultData), 'EX', cacheTTL);
-
-    return resultData;
-  }
-
-  async prodaja({ filial, month, type, year, page, limit }) {
-    const cacheKey = `bossCurrentLeftProdaja:${filial || 'all'}:${month || 'auto'}:${year || 'auto'}:${type}:${page}`;
-    const cacheTTL = 180;
-    const offset = (page - 1) * limit;
-
-    const cached = await this.redis.get(cacheKey);
-    if (cached) return JSON.parse(cached);
-
-    // ---------------------------
-    //  Default month / year
-    // ---------------------------
-    const now = dayjs();
-    const y = year ? Number(year) : now.year();
-    const m = month ? Number(month) : now.month() + 1;
-
-    const startDate = dayjs(`${y}-${m}-01`).startOf('month').toDate();
-    const endDate = dayjs(`${y}-${m}-01`).endOf('month').toDate();
-
-    // ---------------------------
-    // Dealers special route
-    // ---------------------------
-    if (filial === '#dealers') {
-      const resultData = await this.getByPackage({
-        mode: 'list',
-        month: m,
-        year: y,
-        package_id: null,
-        page,
-        limit,
-        toId: null,
-        search: null,
-      });
-
-      // await this.redis.set(cacheKey, JSON.stringify(resultData), 'EX', cacheTTL);
-
-      return resultData;
-    }
-
-    // ---------------------------
-    //  MAIN LIST QUERY
-    // ---------------------------
-    const orders_qb = this.orderRepo.createQueryBuilder('o')
-      .select([
-        'o.id',
-        'o.date',
-        'o.x',
-        'o.price',
-        'o.plasticSum',
-        'o.isDebt',
-        'seller.id',
-        'seller.firstName',
-        'seller.lastName',
-        'createdBy.id',
-        'createdBy.firstName',
-        'createdBy.lastName',
-        's_avatar.id',
-        's_avatar.path',
-        's_avatar.mimetype',
-        's_avatar.name',
-        'c_avatar.id',
-        'c_avatar.path',
-        'c_avatar.mimetype',
-        'c_avatar.name',
-        'product.id',
-        'product.y',
-        'bar_code.id',
-        'bar_code.isMetric',
-        'bar_code.code',
-        'col.id',
-        'col.title',
-        'm.id',
-        'm.title',
-        'sz.id',
-        'sz.title',
-        'cl.id',
-        'cl.title',
-      ])
-      .leftJoin('o.seller', 'seller')
-      .leftJoin('seller.avatar', 's_avatar')
-      .leftJoin('o.createdBy', 'createdBy')
-      .leftJoin('createdBy.avatar', 'c_avatar')
-      .leftJoin('o.product', 'product')
-      .leftJoin('o.bar_code', 'bar_code')
-      .leftJoin('bar_code.collection', 'col')
-      .leftJoin('bar_code.model', 'm')
-      .leftJoin('bar_code.size', 'sz')
-      .leftJoin('bar_code.color', 'cl')
-      .leftJoin('o.kassa', 'k')
-      .where('o.status = :status', { status: 'accepted' })
-      .andWhere('o.date BETWEEN :startDate AND :endDate', { startDate, endDate })
-      .orderBy('o.date', 'DESC')
-      .offset(offset)
-      .limit(limit);
-
-    if (filial) {
-      orders_qb.andWhere('k.filialId = :filial', { filial });
-    }
-
-    if (type === 'debt') {
-      orders_qb.andWhere('o.isDebt = true');
-    } else if (type === 'order') {
-      orders_qb.andWhere('o.isDebt = false');
-    }
-
-    // ---------------------------
-    // TOTALS QUERY
-    // ---------------------------
-    const order_qb_totals = this.orderRepo.createQueryBuilder('o')
-      .select([
-        `COALESCE(SUM(o.price + o.plasticSum), 0)::NUMERIC(20,2) AS total_sum`,
-        `COALESCE(SUM(o.netProfitSum), 0)::NUMERIC(20,2) AS total_profit_sum`,
-        `COALESCE(SUM(o.kv), 0)::NUMERIC(20,2) AS total_kv`,
-        `COALESCE(SUM(o.additionalProfitSum), 0)::NUMERIC(20,2) AS total_additional_profit_sum`,
-        `COALESCE(SUM(CASE WHEN bar_code.isMetric = TRUE THEN 1 ELSE o.x END), 0)::NUMERIC(20, 2) AS total_count`,
-      ])
-      .leftJoin('o.bar_code', 'bar_code')
-      .leftJoin('o.kassa', 'k')
-      .where('o.status = :status', { status: 'accepted' })
-      .andWhere('o.date BETWEEN :startDate AND :endDate', { startDate, endDate });
-
-    if (filial) {
-      order_qb_totals.andWhere('k.filialId = :filial', { filial });
-    }
-
-    if (type === 'debt') {
-      order_qb_totals.andWhere('o.isDebt = true');
-    } else if (type === 'order') {
-      order_qb_totals.andWhere('o.isDebt = false');
-    }
-
-    // ---------------------------
-    // EXECUTE QUERIES
-    // ---------------------------
-    const [[items, total], totals] = await Promise.all([
-      orders_qb.getManyAndCount(),
-      order_qb_totals.getRawOne(),
-    ]);
-
-    const result = {
-      items,
-      meta: {
-        totalItems: total,
-        currentPage: page,
-        totalPages: Math.ceil(total / limit),
-        itemCount: limit,
-      },
-      totals: {
-        total_sum: Number(totals.total_sum || 0),
-        total_count: Number(totals.total_count || 0),
-        total_additional_profit_sum: Number(totals.total_additional_profit_sum || 0),
-        total_profit_sum: Number(totals.total_profit_sum || 0),
-        total_kv: Number(totals.total_kv || 0),
-      },
-    };
-
-    await this.redis.set(cacheKey, JSON.stringify(result), 'EX', cacheTTL);
-
-    return result;
-  }
 
   async getByPackage({
                        mode = 'list',
@@ -3148,170 +2315,6 @@ export class ReportService {
     }
   }
 
-  async prodajaVDolg({ filial, month, type, year, page, limit }) {
-    const cacheKey = `bossCurrentLeftSellDebt:${filial || 'all'}:${month || 'auto'}:${year || 'auto'}:${type}:${page}`;
-    const cacheTTL = 180;
-    const offset = (page - 1) * limit;
-
-    const cached = await this.redis.get(cacheKey);
-    if (cached) return JSON.parse(cached);
-
-    // ---------------------------
-    //  Default month / year
-    // ---------------------------
-    const now = dayjs();
-    const y = year ? Number(year) : now.year();
-    const m = month ? Number(month) : now.month() + 1;
-
-    const startDate = dayjs(`${y}-${m}-01`).startOf('month').toDate();
-    const endDate = dayjs(`${y}-${m}-01`).endOf('month').toDate();
-
-    // ---------------------------
-    // Dealers special route
-    // ---------------------------
-    if (filial === '#dealers') {
-      const resultData = await this.getByPackage({
-        mode: 'list',
-        month: m,
-        year: y,
-        package_id: null,
-        page,
-        limit,
-        toId: null,
-        search: null,
-      });
-
-      await this.redis.set(cacheKey, JSON.stringify(resultData), 'EX', cacheTTL);
-
-      return resultData;
-    }
-
-    // ---------------------------
-    //  MAIN LIST QUERY
-    // ---------------------------
-    const orders_qb = this.orderRepo.createQueryBuilder('o')
-      .select([
-        'o.id',
-        'o.date',
-        'o.x',
-        'o.price',
-        'o.plasticSum',
-        'seller.id',
-        'seller.firstName',
-        'seller.lastName',
-        'createdBy.id',
-        'createdBy.firstName',
-        'createdBy.lastName',
-        's_avatar.id',
-        's_avatar.path',
-        's_avatar.mimetype',
-        's_avatar.name',
-        'c_avatar.id',
-        'c_avatar.path',
-        'c_avatar.mimetype',
-        'c_avatar.name',
-        'product.id',
-        'product.y',
-        'bar_code.id',
-        'bar_code.isMetric',
-        'bar_code.code',
-        'col.id',
-        'col.title',
-        'm.id',
-        'm.title',
-        'sz.id',
-        'sz.title',
-        'cl.id',
-        'cl.title',
-      ])
-      .leftJoin('o.seller', 'seller')
-      .leftJoin('seller.avatar', 's_avatar')
-      .leftJoin('o.createdBy', 'createdBy')
-      .leftJoin('createdBy.avatar', 'c_avatar')
-      .leftJoin('o.product', 'product')
-      .leftJoin('o.bar_code', 'bar_code')
-      .leftJoin('bar_code.collection', 'col')
-      .leftJoin('bar_code.model', 'm')
-      .leftJoin('bar_code.size', 'sz')
-      .leftJoin('bar_code.color', 'cl')
-      .leftJoin('o.kassa', 'k')
-      .where('k.month = :month', { month })
-      .andWhere('k.year = :year', { year })
-      .orderBy('o.date', 'DESC')
-      .offset(offset)
-      .limit(limit);
-
-    if (filial) {
-      orders_qb.andWhere('k.filialId = :filial', { filial });
-    }
-
-
-    if (type === 'returned') {
-      orders_qb.andWhere('o.status = :status', { status: 'returned' });
-    } else if (type === 'debt') {
-      orders_qb.andWhere('o.isDebt = true');
-    } else {
-      orders_qb.andWhere('o.status = :status', { status: 'returned' });
-      orders_qb.andWhere('o.isDebt = true');
-    }
-
-    // ---------------------------
-    // TOTALS QUERY
-    // ---------------------------
-    const order_qb_totals = this.orderRepo.createQueryBuilder('o')
-      .select([
-        `COALESCE(SUM(o.price + o.plasticSum), 0)::NUMERIC(20,2) AS total_sum`,
-        `COALESCE(SUM(o.netProfitSum), 0)::NUMERIC(20,2) AS total_profit_sum`,
-        `COALESCE(SUM(o.additionalProfitSum), 0)::NUMERIC(20,2) AS total_additional_profit_sum`,
-        `COALESCE(SUM(CASE WHEN bar_code.isMetric = TRUE THEN 1 ELSE o.x END), 0)::NUMERIC(20, 2) AS total_count`,
-      ])
-      .leftJoin('o.bar_code', 'bar_code')
-      .leftJoin('o.kassa', 'k')
-      .where('k.month = :month', { month })
-      .andWhere('k.year = :year', { year })
-      .andWhere(type === 'debt' ? 'o.isDebt = true' : '1=1');
-
-    if (filial) {
-      order_qb_totals.andWhere('k.filialId = :filial', { filial });
-    }
-
-    if (type === 'returned') {
-      order_qb_totals.andWhere('o.status = :status', { status: 'returned' });
-    } else if (type === 'debt') {
-      order_qb_totals.andWhere('o.isDebt = true');
-    } else {
-      order_qb_totals.andWhere('o.status = :status', { status: 'returned' });
-      order_qb_totals.andWhere('o.isDebt = true');
-    }
-
-    // ---------------------------
-    // EXECUTE QUERIES
-    // ---------------------------
-    const [[items, total], totals] = await Promise.all([
-      orders_qb.getManyAndCount(),
-      order_qb_totals.getRawOne(),
-    ]);
-
-    const result = {
-      items,
-      meta: {
-        totalItems: total,
-        currentPage: page,
-        totalPages: Math.ceil(total / limit),
-        itemCount: limit,
-      },
-      totals: {
-        total_sum: Number(totals.total_sum || 0),
-        total_count: Number(totals.total_count || 0),
-        total_additional_profit_sum: Number(totals.total_additional_profit_sum || 0),
-        total_profit_sum: Number(totals.total_profit_sum || 0),
-      },
-    };
-
-    await this.redis.set(cacheKey, JSON.stringify(result), 'EX', cacheTTL);
-
-    return result;
-  }
 
 // service ichida
 
@@ -3333,10 +2336,10 @@ export class ReportService {
         'COALESCE(SUM(dr."totalSale"), 0)::NUMERIC(20, 2) AS total_sale',
         'COALESCE(SUM(dr."totalSize"), 0)::NUMERIC(20, 2) AS total_size',
         'COALESCE(SUM(dr."totalDiscount"), 0)::NUMERIC(20, 2) AS total_discount',
-        'COALESCE(SUM(dr."netProfitTotalSum"), 0)::NUMERIC(20, 2) AS net_profit',
-        'COALESCE(SUM(dr.debt_sum), 0)::NUMERIC(20, 2) AS debt_sum',
-        'COALESCE(SUM(dr.debt_kv), 0)::NUMERIC(20, 2) AS debt_kv',
-        'COALESCE(SUM(dr.debt_profit_sum), 0)::NUMERIC(20, 2) AS debt_profit_sum',
+        'COALESCE(SUM(dr."netProfitSum"), 0)::NUMERIC(20, 2) AS net_profit',
+        'COALESCE(SUM(dr.debtSum), 0)::NUMERIC(20, 2) AS debtSum',
+        'COALESCE(SUM(dr.debtSize), 0)::NUMERIC(20, 2) AS debtSize',
+        'COALESCE(SUM(dr.debtProfitSum), 0)::NUMERIC(20, 2) AS debtProfitSum',
       ])
       .where('dr."filialType" = :dealerType', { dealerType: 'dealer' });
 
@@ -3354,14 +2357,14 @@ export class ReportService {
         CASE WHEN bar_code.isMetric = true THEN 1 ELSE ord.x END
       )::NUMERIC(20, 2) as total_count
       `,
-        `COALESCE(SUM(CASE WHEN ord.isDebt = true then ord.price ELSE 0 END), 0)::NUMERIC(20, 2) as total_debt_sum`,
-        `COALESCE(SUM(CASE WHEN ord.isDebt = true then ord.kv ELSE 0 END), 0)::NUMERIC(20, 2) as total_debt_kv`,
-        `COALESCE(SUM(CASE WHEN ord.isDebt = true then ord.netProfitSum ELSE 0 END), 0)::NUMERIC(20, 2) as total_debt_profit_sum`,
+        `COALESCE(SUM(CASE WHEN ord.isDebt = true then ord.price ELSE 0 END), 0)::NUMERIC(20, 2) as total_debtSum`,
+        `COALESCE(SUM(CASE WHEN ord.isDebt = true then ord.kv ELSE 0 END), 0)::NUMERIC(20, 2) as total_debtSize`,
+        `COALESCE(SUM(CASE WHEN ord.isDebt = true then ord.netProfitSum ELSE 0 END), 0)::NUMERIC(20, 2) as total_debtProfitSum`,
         `
       SUM(
         CASE WHEN ord.isDebt = true THEN (CASE WHEN bar_code.isMetric = true THEN 1 ELSE ord.x END)
         ELSE 0 END
-      )::NUMERIC(20, 2) as total_debt_count
+      )::NUMERIC(20, 2) as total_debtCount
       `,
       ])
       .where('ord.status IN(:...status)', { status: [OrderEnum.Accept, OrderEnum.Return] });
@@ -3382,23 +2385,23 @@ export class ReportService {
       .leftJoin('cash.kassa', 'k')
       .where(`ct.slug IN ('manager', 'accountant') AND cash.type = 'Расход'`);
 
-    // Kassa (plastik, inkassa, opening, in_hand, qaytishlar, qo'shimcha foyda)
+    // Kassa (plastik, inkassa, opening, inHand, qaytishlar, qo'shimcha foyda)
     const plastic_cash_and_opening_qb = this.kassaRepo.createQueryBuilder('k')
       .select(`
       SUM("plasticSum") as price,
-      SUM("cash_collection") as cash_collection,
-      SUM("opening_balance") as opening_balance,
-      SUM(in_hand) as in_hand,
-      SUM("additionalProfitTotalSum") as add_profit,
-      SUM("totalSaleReturn") as return_sale,
-      SUM("totalSaleSizeReturn") as return_size,
-      SUM("netProfitTotalSum") as net_profit_kassa,
+      SUM("cashCollection") as cashCollection,
+      SUM("openingBalance") as openingBalance,
+      SUM(inHand) as inHand,
+      SUM("additionalProfitSum") as add_profit,
+      SUM("totalSaleReturn") as saleReturn,
+      SUM("totalSaleSizeReturn") as sizeReturn,
+      SUM("netProfitSum") as net_profit_kassa,
       SUM("discount") as discount_kassa
     `)
       .where(`k."filialType" = 'filial'`);
 
     // Opening balance (Balance turi)
-    const opening_balance_qb = this.cashflowRepository.createQueryBuilder('cash')
+    const openingBalance_qb = this.cashflowRepository.createQueryBuilder('cash')
       .select(`SUM(price) as cash`)
       .leftJoin('cash.cashflow_type', 'ct')
       .leftJoin('cash.kassa', 'k')
@@ -3476,7 +2479,7 @@ export class ReportService {
 
     this.applyDateRangeFilter(dealer_cash_qb, 'cash.date', startDate, endDate);
 
-    this.applyDateRangeFilter(kassa_cash_qb, 'k.startDate', startDate, endDate);
+    this.applyDateRangeFilter(kassa_cash_qb, 'k.createdAt', startDate, endDate);
 
     this.applyDateRangeFilter(kent_qb, 'cash.date', startDate, endDate);
     this.applyDateRangeFilter(factory_qb, 'cash.date', startDate, endDate);
@@ -3484,19 +2487,19 @@ export class ReportService {
     this.applyDateRangeFilter(logistics_qb, 'cash.date', startDate, endDate);
     this.applyDateRangeFilter(extra_income_qb, 'cash.date', startDate, endDate);
 
-    this.applyDateRangeFilter(add_profit_exp_qb, 'k.startDate', startDate, endDate);
+    this.applyDateRangeFilter(add_profit_exp_qb, 'k.createdAt', startDate, endDate);
 
     this.applyKassaMonthYearFilter(order_qb, 'kassa', month, normalizedYear);
     this.applyKassaMonthYearFilter(business_qb, 'k', month, normalizedYear);
     this.applyKassaMonthYearFilter(coming_debt_qb, 'k', month, normalizedYear);
-    this.applyKassaMonthYearFilter(opening_balance_qb, 'k', month, normalizedYear);
+    this.applyKassaMonthYearFilter(openingBalance_qb, 'k', month, normalizedYear);
     this.applyKassaMonthYearFilter(plastic_cash_and_opening_qb, 'k', month, normalizedYear);
 
     // Report summary — manager/bugalter balans va saldo (o'tgan oydan)
     const report_summary_qb = this.reportRepo.createQueryBuilder('rs')
       .select([
         'COALESCE(SUM(rs."managerSum"), 0)::NUMERIC(20, 2) AS manager_sum',
-        'COALESCE(SUM(rs."accauntantSum"), 0)::NUMERIC(20, 2) AS accountant_sum',
+        'COALESCE(SUM(rs."accountantSum"), 0)::NUMERIC(20, 2) AS accountant_sum',
         'COALESCE(SUM(rs."managerSaldo"), 0)::NUMERIC(20, 2) AS manager_saldo',
         'COALESCE(SUM(rs."accountantSaldo"), 0)::NUMERIC(20, 2) AS accountant_saldo',
       ])
@@ -3511,11 +2514,11 @@ export class ReportService {
       profit_remaining: PriceKv;    // foyda qoldig'i = foyda - biznes rasxod
       cash: PriceKv;
       terminal: PriceKv;
-      cash_collection: PriceKv;
+      cashCollection: PriceKv;
       dealer_cash: PriceKv;
       dealer_terminal: PriceKv;
       owed_debt: PriceKv;
-      opening_balance: PriceKv;
+      openingBalance: PriceKv;
       filial_balance: PriceKv;
       manager_balance: PriceKv;     // manager balansi
       accountant_balance: PriceKv;  // bugalter balansi
@@ -3542,27 +2545,27 @@ export class ReportService {
 
       resultData = {
         turnover: {
-          // FIX: dealer turnover = debt_sum (package qarz savdosi)
-          price: Number(dealer_report?.debt_sum ?? 0),
-          kv: Number(dealer_report?.debt_kv ?? 0),
+          // FIX: dealer turnover = debtSum (package qarz savdosi)
+          price: Number(dealer_report?.debtSum ?? 0),
+          kv: Number(dealer_report?.debtSize ?? 0),
         },
         debt_trading: {
-          price: Number(dealer_report?.debt_sum ?? 0),
-          kv: Number(dealer_report?.debt_kv ?? 0),
+          price: Number(dealer_report?.debtSum ?? 0),
+          kv: Number(dealer_report?.debtSize ?? 0),
         },
         discount: {
           price: Number(dealer_report?.total_discount ?? 0),
           kv: 0,
         },
         profit: {
-          // FIX: dealer profit = debt_profit_sum (package qarz savdosi foydasi)
-          price: Number(dealer_report?.debt_profit_sum ?? 0),
+          // FIX: dealer profit = debtProfitSum (package qarz savdosi foydasi)
+          price: Number(dealer_report?.debtProfitSum ?? 0),
           kv: 0,
         },
         profit_remaining: { price: 0, kv: 0 },              // dillerda yo'q
         cash: { price: 0, kv: 0 },
         terminal: { price: 0, kv: 0 },
-        cash_collection: { price: 0, kv: 0 },
+        cashCollection: { price: 0, kv: 0 },
         dealer_cash: {
           price: Number(dealer_cashs?.cash ?? 0),
           kv: 0,
@@ -3572,7 +2575,7 @@ export class ReportService {
           kv: 0,
         },
         owed_debt: { price: 0, kv: 0 },
-        opening_balance: { price: 0, kv: 0 },
+        openingBalance: { price: 0, kv: 0 },
         filial_balance: { price: 0, kv: 0 },
         manager_balance: { price: 0, kv: 0 },
         accountant_balance: { price: 0, kv: 0 },
@@ -3593,7 +2596,7 @@ export class ReportService {
 
     else if (filialId) {
       // Filial rejimi
-      this.applyDateRangeFilter(boss_qb, 'k.startDate', startDate, endDate);
+      this.applyDateRangeFilter(boss_qb, 'k.createdAt', startDate, endDate);
       boss_qb.andWhere('cash.filialId = :filialId', { filialId });
 
       // Filial kesimlari — faqat shu filialga tegishli
@@ -3601,7 +2604,7 @@ export class ReportService {
       order_qb.andWhere('kassa.filialId = :filialId', { filialId });
       kassa_cash_qb.andWhere('cash.filialId = :filialId', { filialId });
       coming_debt_qb.andWhere('k.filialId = :filialId', { filialId });
-      opening_balance_qb.andWhere('k.filialId = :filialId', { filialId });
+      openingBalance_qb.andWhere('k.filialId = :filialId', { filialId });
       add_profit_exp_qb.andWhere('cash.filialId = :filialId', { filialId });
       plastic_cash_and_opening_qb.andWhere('k.filialId = :filialId', { filialId });
       report_summary_qb.andWhere('rs."filialId" = :rsFilialId', { rsFilialId: filialId });
@@ -3614,7 +2617,7 @@ export class ReportService {
         boss,
         business,
         add_profit_exp,
-        opening_balance,
+        openingBalance,
         report_summary,
       ] = await Promise.all([
         order_qb.getRawOne(),
@@ -3624,12 +2627,12 @@ export class ReportService {
         boss_qb.getRawOne(),
         business_qb.getRawOne(),
         add_profit_exp_qb.getRawOne(),
-        opening_balance_qb.getRawOne(),
+        openingBalance_qb.getRawOne(),
         report_summary_qb.getRawOne(),
       ]);
 
       // FIX: O'tgan pul = faqat cashflow.slug='balance' AND type='Приход' yig'indisi
-      const openingTotal = Number(opening_balance?.cash ?? 0);
+      const openingTotal = Number(openingBalance?.cash ?? 0);
 
       resultData = {
         turnover: {
@@ -3637,8 +2640,8 @@ export class ReportService {
           kv: Number(order_totals?.total_kv ?? 0),
         }, // savdo aylanmasi
         debt_trading: {
-          price: Number(order_totals?.total_debt_sum ?? 0),
-          kv: Number(order_totals?.total_debt_kv ?? 0),
+          price: Number(order_totals?.total_debtSum ?? 0),
+          kv: Number(order_totals?.total_debtSize ?? 0),
         }, // qarz savdosi
         discount: {
           // FIX: Kassa.discount (filial uchun)
@@ -3646,7 +2649,7 @@ export class ReportService {
           kv: 0,
         }, // chegirma
         profit: {
-          // FIX: Kassa.netProfitTotalSum (filial uchun)
+          // FIX: Kassa.netProfitSum (filial uchun)
           price: Number(plastic_cash_and_opening?.net_profit_kassa ?? 0),
           kv: 0,
         }, // foyda hisobi
@@ -3659,8 +2662,8 @@ export class ReportService {
           price: Number(plastic_cash_and_opening?.price ?? 0),
           kv: 0,
         }, // terminal
-        cash_collection: {
-          price: Number(plastic_cash_and_opening?.cash_collection ?? 0),
+        cashCollection: {
+          price: Number(plastic_cash_and_opening?.cashCollection ?? 0),
           kv: 0,
         }, // inkassatsiya
         dealer_cash: { price: 0, kv: 0 },     // filialda yo'q
@@ -3669,12 +2672,12 @@ export class ReportService {
           price: Number(coming_debt?.cash ?? 0),
           kv: 0,
         }, // kelgan qarzlar
-        opening_balance: {
+        openingBalance: {
           price: openingTotal,
           kv: 0,
         }, // o'tgan pul = kassa opening + saldo
         filial_balance: {
-          price: Number(plastic_cash_and_opening?.in_hand ?? 0),
+          price: Number(plastic_cash_and_opening?.inHand ?? 0),
           kv: 0,
         }, // filial balansi
         manager_balance: {
@@ -3703,8 +2706,8 @@ export class ReportService {
         extra_income: { price: 0, kv: 0 },    // filialda yo'q
         factory: { price: 0, kv: 0 },         // filialda yo'q
         return_orders: {
-          price: Number(plastic_cash_and_opening?.return_sale ?? 0),
-          kv: Number(plastic_cash_and_opening?.return_size ?? 0),
+          price: Number(plastic_cash_and_opening?.totalSaleReturn ?? 0),
+          kv: Number(plastic_cash_and_opening?.sizeReturn ?? 0),
         }, // qaytgan tavarlar
         tamojniy: { price: 0, kv: 0 },        // filialda yo'q
         navar_expense: {
@@ -3739,7 +2742,7 @@ export class ReportService {
         extra_income,    // qo'shimcha prixodlar
         add_profit_exp,  // navar rasxod (edi umumiyda 0 edi — BUG FIX)
         report_summary,  // manager/bugalter balans + saldo
-        opening_balance, // saldo cashflowlari (slug='balance' AND type='Приход')
+        openingBalance, // saldo cashflowlari (slug='balance' AND type='Приход')
       ] = await Promise.all([
         dealer_report_qb.getRawOne(),
         dealer_cash_qb.getRawOne(),
@@ -3756,38 +2759,38 @@ export class ReportService {
         extra_income_qb.getRawOne(),
         add_profit_exp_qb.getRawOne(),
         report_summary_qb.getRawOne(),
-        opening_balance_qb.getRawOne(),
+        openingBalance_qb.getRawOne(),
       ]);
 
       // Biznes rasxod yig'indisi (foyda qoldig'i uchun)
       const businessTotal = Number(business?.cash ?? 0);
-      // Foyda hisobi: FIX — dealer.debt_profit_sum + SUM(Kassa.netProfitTotalSum)
+      // Foyda hisobi: FIX — dealer.debtProfitSum + SUM(Kassa.netProfitSum)
       const profitTotal =
-        Number(dealer_report?.debt_profit_sum ?? 0) +
+        Number(dealer_report?.debtProfitSum ?? 0) +
         Number(plastic_cash_and_opening?.net_profit_kassa ?? 0);
       // O'tgan pul: FIX — faqat cashflow.slug='balance' AND type='Приход' yig'indisi
-      const openingTotal = Number(opening_balance?.cash ?? 0);
+      const openingTotal = Number(openingBalance?.cash ?? 0);
 
       resultData = {
         turnover: {
-          // FIX: dealer.debt_sum (package qarz savdosi) + barcha kassa orderlari
+          // FIX: dealer.debtSum (package qarz savdosi) + barcha kassa orderlari
           price:
-            Number(dealer_report?.debt_sum ?? 0) +
+            Number(dealer_report?.debtSum ?? 0) +
             Number(order_totals?.total_sum ?? 0),
           kv:
-            Number(dealer_report?.debt_kv ?? 0) +
+            Number(dealer_report?.debtSize ?? 0) +
             Number(order_totals?.total_kv ?? 0),
         },
         debt_trading: {
           price:
-            Number(dealer_report?.debt_sum ?? 0) +
-            Number(order_totals?.total_debt_sum ?? 0),
+            Number(dealer_report?.debtSum ?? 0) +
+            Number(order_totals?.total_debtSum ?? 0),
           kv:
-            Number(dealer_report?.debt_kv ?? 0) +
-            Number(order_totals?.total_debt_kv ?? 0),
+            Number(dealer_report?.debtSize ?? 0) +
+            Number(order_totals?.total_debtSize ?? 0),
         },
         discount: {
-          // FIX: Kassa.discount + dealer.totalDiscount (order.discountSum o'rniga)
+          // FIX: Kassa.discount + dealer.totalDiscountSum (order.discountSum o'rniga)
           price:
             Number(dealer_report?.total_discount ?? 0) +
             Number(plastic_cash_and_opening?.discount_kassa ?? 0),
@@ -3809,8 +2812,8 @@ export class ReportService {
           price: Number(plastic_cash_and_opening?.price ?? 0),
           kv: 0,
         },
-        cash_collection: {
-          price: Number(plastic_cash_and_opening?.cash_collection ?? 0),
+        cashCollection: {
+          price: Number(plastic_cash_and_opening?.cashCollection ?? 0),
           kv: 0,
         },
         dealer_cash: {
@@ -3825,12 +2828,12 @@ export class ReportService {
           price: Number(coming_debt?.cash ?? 0),
           kv: 0,
         },
-        opening_balance: {
+        openingBalance: {
           price: openingTotal,
           kv: 0,
         },
         filial_balance: {
-          price: Number(plastic_cash_and_opening?.in_hand ?? 0),
+          price: Number(plastic_cash_and_opening?.inHand ?? 0),
           kv: 0,
         },
         manager_balance: {
@@ -3874,8 +2877,8 @@ export class ReportService {
           kv: 0,
         },
         return_orders: {
-          price: Number(plastic_cash_and_opening?.return_sale ?? 0),
-          kv: Number(plastic_cash_and_opening?.return_size ?? 0),
+          price: Number(plastic_cash_and_opening?.totalSaleReturn ?? 0),
+          kv: Number(plastic_cash_and_opening?.sizeReturn ?? 0),
         },
         tamojniy: {
           price: Number(customs?.cash ?? 0),
@@ -3931,7 +2934,7 @@ export class ReportService {
       return qb;
     };
 
-    // Kassa-ga bog'langan cashflow query (k.startDate filtri)
+    // Kassa-ga bog'langan cashflow query (k.createdAt filtri)
     const makeCashflowByKassa = (slugs: string[], cfType: 'Приход' | 'Расход') => {
       const qb = makeCashflowQuery(slugs, cfType);
       this.applyKassaMonthYearFilter(qb, 'k', month, normalizedYear);
@@ -3956,7 +2959,7 @@ export class ReportService {
         } else {
           // Filial rejim (chiqimlar): kassa ichidagi manager/accountant rasxod cashflowlar
           const qb = makeCashflowQuery(['manager', 'accountant'], 'Расход');
-          this.applyDateRangeFilter(qb, 'k.startDate', startDate, endDate);
+          this.applyDateRangeFilter(qb, 'k.createdAt', startDate, endDate);
           if (filialId) qb.andWhere('cash.filialId = :filialId', { filialId });
           items = await qb.getMany();
         }
@@ -3985,7 +2988,7 @@ export class ReportService {
       case 'inkassatsiya': {
         // Umumiy: Report ichidagi prixod inkassatsiya cashflowlar
         // Filial: shu filial kassasi rasxod inkassatsiya
-        // Inkassatsiya kassa ichida cash_collection sifatida saqlanadi
+        // Inkassatsiya kassa ichida cashCollection sifatida saqlanadi
         // Cashflow sifatida ham bo'lishi mumkin
         const qb = this.kassaRepo.createQueryBuilder('k')
           .leftJoinAndSelect('k.filial', 'f')
@@ -3993,11 +2996,11 @@ export class ReportService {
             'k.id AS id',
             'f.id AS "filialId"',
             'f.title AS "filialTitle"',
-            'k."cash_collection" AS price',
+            'k."cashCollection" AS price',
             'k."startDate" AS date',
           ])
           .where('k."filialType" = :ft', { ft: 'filial' })
-          .andWhere('k."cash_collection" > 0');
+          .andWhere('k."cashCollection" > 0');
         this.applyKassaMonthYearFilter(qb, 'k', month, normalizedYear);
         if (filialId) qb.andWhere('k.filialId = :filialId', { filialId });
         items = await qb.getRawMany();
@@ -4030,7 +3033,7 @@ export class ReportService {
         break;
       }
 
-      case 'opening_balance': {
+      case 'openingBalance': {
         // O'tgan pul: filial saldo + manager/accountant report saldo
         const qb = makeCashflowByKassa(['balance'], 'Приход');
         if (filialId) qb.andWhere('k.filialId = :filialId', { filialId });
@@ -4042,7 +3045,7 @@ export class ReportService {
         // Boss prixod: slug=Bos type=Приход
         if (filialId) {
           const qb = makeCashflowQuery(['boss'], 'Приход');
-          this.applyDateRangeFilter(qb, 'k.startDate', startDate, endDate);
+          this.applyDateRangeFilter(qb, 'k.createdAt', startDate, endDate);
           qb.andWhere('cash.filialId = :filialId', { filialId });
           items = await qb.getMany();
         } else {
@@ -4079,7 +3082,7 @@ export class ReportService {
         // Boss rasxod: slug=Bos type=Расход
         if (filialId) {
           const qb = makeCashflowQuery(['boss'], 'Расход');
-          this.applyDateRangeFilter(qb, 'k.startDate', startDate, endDate);
+          this.applyDateRangeFilter(qb, 'k.createdAt', startDate, endDate);
           qb.andWhere('cash.filialId = :filialId', { filialId });
           items = await qb.getMany();
         } else {
@@ -4127,7 +3130,7 @@ export class ReportService {
       case 'navar_expense': {
         // Navar rasxod: slug=navar type=Расход (faqat filial)
         const qb = makeCashflowQuery(['markup'], 'Расход');
-        this.applyDateRangeFilter(qb, 'k.startDate', startDate, endDate);
+        this.applyDateRangeFilter(qb, 'k.createdAt', startDate, endDate);
         if (filialId) qb.andWhere('cash.filialId = :filialId', { filialId });
         items = await qb.getMany();
         break;
@@ -4249,24 +3252,24 @@ export class ReportService {
       .andWhere('cash.reportId = :id', { id: report.id });
 
     const data = {
-      totalSellCount: 0,
-      additionalProfitTotalSum: 0,
-      netProfitTotalSum: 0,
-      totalSize: 0,
+      totalSaleCount: 0,
+      totalAdditionalProfitSum: 0,
+      totalNetProfitSum: 0,
+      totalSaleSize: 0,
       totalPlasticSum: 0,
       totalInternetShopSum: 0,
       totalSale: 0,
       totalSaleReturn: 0,
       totalCashCollection: 0,
-      totalDiscount: 0,
+      totalDiscountSum: 0,
       totalIncome: 0,
       totalExpense: 0,
       managerSum: 0,
       accountantSum: 0,
-      debt_count: 0,
-      debt_kv: 0,
-      debt_sum: 0,
-      debt_profit_sum: 0,
+      totalDebtCount: 0,
+      totalDebtSize: 0,
+      totalDebtSum: 0,
+      totalDebtProfitSum: 0,
     };
 
     const f_kassas = await this.kassaRepo.find({ where: { report: { id: report.id } } });
@@ -4291,36 +3294,36 @@ export class ReportService {
     data.managerSum = (Number(manager_result?.total_income) || 0) - (Number(manager_result?.total_expense) || 0);
 
     for (const k of f_kassas) {
-      data.totalSellCount += k.totalSellCount;
-      data.additionalProfitTotalSum += k.additionalProfitTotalSum;
-      data.netProfitTotalSum += k.netProfitTotalSum;
-      data.totalSize += k.totalSize;
+      data.totalSaleCount += k.saleCount;
+      data.totalAdditionalProfitSum += k.additionalProfitSum;
+      data.totalNetProfitSum += k.netProfitSum;
+      data.totalSaleSize += k.saleSize;
       data.totalPlasticSum += k.plasticSum;
       data.totalSale += k.sale;
-      data.totalSaleReturn += k.totalSaleReturn;
-      data.totalCashCollection += k.cash_collection;
-      data.totalDiscount += k.discount;
+      data.totalSaleReturn += k.saleReturn;
+      data.totalCashCollection += k.cashCollection;
+      data.totalDiscountSum += k.discountSum;
       data.accountantSum += k.plasticSum;
-      data.debt_count += k.debt_count || 0;
-      data.debt_kv += k.debt_kv || 0;
-      data.debt_sum += k.debt_sum || 0;
-      data.debt_profit_sum += k.debt_profit_sum || 0;
+      data.totalDebtCount += k.debtCount || 0;
+      data.totalDebtSize += k.debtSize || 0;
+      data.totalDebtSum += k.debtSum || 0;
+      data.totalDebtProfitSum += k.debtProfitSum || 0;
     }
 
     for (const k of d_kassas) {
-      data.totalSellCount += k.totalSellCount || 0;
-      data.netProfitTotalSum += k.debt_profit_sum || 0;
-      data.totalSize += k.debt_kv || 0;
+      data.totalSaleCount += k.saleCount || 0;
+      data.totalNetProfitSum += k.debtProfitSum || 0;
+      data.totalSaleSize += k.debtSize || 0;
       data.totalPlasticSum += k.plasticSum || 0;
       data.totalSale += k.sale || 0;
-      data.totalSaleReturn += k.totalSaleReturn || 0;
-      data.totalCashCollection += k.cash_collection || 0;
-      data.totalDiscount += k.discount || 0;
+      data.totalSaleReturn += k.saleReturn || 0;
+      data.totalCashCollection += k.cashCollection || 0;
+      data.totalDiscountSum += k.discountSum || 0;
       data.accountantSum += k.plasticSum || 0;
-      data.debt_count += k.debt_count || 0;
-      data.debt_kv += k.debt_kv || 0;
-      data.debt_sum += k.debt_sum || 0;
-      data.debt_profit_sum += k.debt_profit_sum || 0;
+      data.totalDebtCount += k.debtCount || 0;
+      data.totalDebtSize += k.debtSize || 0;
+      data.totalDebtSum += k.debtSum || 0;
+      data.totalDebtProfitSum += k.debtProfitSum || 0;
     }
 
     if (type === 'do') {
@@ -4347,21 +3350,20 @@ export class ReportService {
         totalIncome: +(acc.totalIncome + (r.totalIncome || 0)).toFixed(2),
         totalSale: +(acc.totalSale + (r.totalSale || 0)).toFixed(2),
         totalPlasticSum: +(acc.totalPlasticSum + (r.totalPlasticSum || 0)).toFixed(2),
-        additionalProfitTotalSum: +(acc.additionalProfitTotalSum + (r.additionalProfitTotalSum || 0)).toFixed(2),
+        totalAdditionalProfitSum: +(acc.totalAdditionalProfitSum + (r.totalAdditionalProfitSum || 0)).toFixed(2),
         totalExpense: +(acc.totalExpense + (r.totalExpense || 0)).toFixed(2),
         totalSaleReturn: +(acc.totalSaleReturn + (r.totalSaleReturn || 0)).toFixed(2),
         totalCashCollection: +(acc.totalCashCollection + (r.totalCashCollection || 0)).toFixed(2),
-        totalDiscount: +(acc.totalDiscount + (r.totalDiscount || 0)).toFixed(2),
-        in_hand: +(acc.in_hand + (r.in_hand || 0)).toFixed(2),
-        totalSize: +(acc.totalSize + (r.totalSize || 0)).toFixed(2),
-        debt_sum: +(acc.debt_sum + (r.debt_sum || 0)).toFixed(2),
-        netProfitTotalSum: +(acc.netProfitTotalSum + (r.netProfitTotalSum || 0)).toFixed(2),
+        totalDiscountSum: +(acc.totalDiscountSum + (r.totalDiscountSum || 0)).toFixed(2),
+        totalSaleSize: +(acc.totalSaleSize + (r.totalSaleSize || 0)).toFixed(2),
+        totalDebtSum: +(acc.totalDebtSum + (r.totalDebtSum || 0)).toFixed(2),
+        totalNetProfitSum: +(acc.totalNetProfitSum + (r.totalNetProfitSum || 0)).toFixed(2),
       }),
       {
         totalIncome: 0, totalSale: 0, totalPlasticSum: 0,
-        additionalProfitTotalSum: 0, totalExpense: 0, totalSaleReturn: 0,
-        totalCashCollection: 0, totalDiscount: 0, in_hand: 0,
-        totalSize: 0, debt_sum: 0, netProfitTotalSum: 0,
+        totalAdditionalProfitSum: 0, totalExpense: 0, totalSaleReturn: 0,
+        totalCashCollection: 0, totalDiscountSum: 0,
+        totalSaleSize: 0, totalDebtSum: 0, totalNetProfitSum: 0,
       },
     );
   }
@@ -4465,7 +3467,7 @@ export class ReportService {
       JOIN kassa k ON c."kassaId" = k.id
       WHERE k."filialId" = $1
         AND c.type = 'Приход'
-        AND c.is_cancelled = false
+        AND c.isCancelled = false
         AND c.date BETWEEN $2 AND $3
       ORDER BY c.date ASC
     `, [dealerId, startDate, endDate]);
@@ -4571,7 +3573,7 @@ export class ReportService {
         JOIN kassa k ON c."kassaId" = k.id
         WHERE k."filialId" = ANY($1)
           AND c.type = 'Приход'
-          AND c.is_cancelled = false
+          AND c.isCancelled = false
           AND c.date BETWEEN $2 AND $3
         GROUP BY k."filialId"
       `, [dealerIds, startDate, endDate]);
@@ -4612,7 +3614,7 @@ export class ReportService {
         JOIN kassa k ON c."kassaId" = k.id
         WHERE k."filialId" = ANY($1)
           AND c.type = 'Приход'
-          AND c.is_cancelled = false
+          AND c.isCancelled = false
           AND c.date BETWEEN $2 AND $3
       `, [allIds, startDate, endDate]);
 

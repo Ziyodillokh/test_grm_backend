@@ -13,25 +13,22 @@ import { IReportAggregates } from '../../common/interfaces/report-aggregates.int
 @Entity('kassa')
 export class Kassa extends BaseEntity implements IReportAggregates {
   // ─── Vaqt va holat ──────────────────────────────────────────
-  @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
-  startDate: Date;
-
   @Column({ type: 'timestamp', nullable: true })
-  endDate: Date;
+  finishedAt: Date;
 
   @Column({ type: 'boolean', default: true })
   isActive: boolean;
 
-  // ─── Oy va yil (KassaReport dan ko'chirildi) ───────────────
+  // ─── Oy va yil ─────────────────────────────────────────────
   @Column({ type: 'int', default: 0 })
   year: number;
 
   @Column({ type: 'int', default: 0 })
   month: number;
 
-  // ─── Sotuv aggregatlari ─────────────────────────────────────
+  // ─── Sotuv aggregatlari (kassa darajasi: NO total prefix, Sum suffix mavjud joyda) ──
   @Column({ type: 'int', default: 0 })
-  totalSellCount: number;
+  saleCount: number;
 
   @Column('numeric', {
     precision: 20,
@@ -39,7 +36,7 @@ export class Kassa extends BaseEntity implements IReportAggregates {
     transformer: new ColumnNumericTransformer(),
     default: 0,
   })
-  additionalProfitTotalSum: number;
+  saleSize: number;
 
   @Column('numeric', {
     precision: 20,
@@ -47,7 +44,7 @@ export class Kassa extends BaseEntity implements IReportAggregates {
     transformer: new ColumnNumericTransformer(),
     default: 0,
   })
-  netProfitTotalSum: number;
+  sale: number;
 
   @Column('numeric', {
     precision: 20,
@@ -55,7 +52,7 @@ export class Kassa extends BaseEntity implements IReportAggregates {
     transformer: new ColumnNumericTransformer(),
     default: 0,
   })
-  totalSize: number;
+  saleReturn: number;
 
   @Column('numeric', {
     precision: 20,
@@ -63,7 +60,31 @@ export class Kassa extends BaseEntity implements IReportAggregates {
     transformer: new ColumnNumericTransformer(),
     default: 0,
   })
-  return_size: number;
+  sizeReturn: number;
+
+  @Column('numeric', {
+    precision: 20,
+    scale: 2,
+    transformer: new ColumnNumericTransformer(),
+    default: 0,
+  })
+  additionalProfitSum: number;
+
+  @Column('numeric', {
+    precision: 20,
+    scale: 2,
+    transformer: new ColumnNumericTransformer(),
+    default: 0,
+  })
+  netProfitSum: number;
+
+  @Column('numeric', {
+    precision: 20,
+    scale: 2,
+    transformer: new ColumnNumericTransformer(),
+    default: 0,
+  })
+  discountSum: number;
 
   @Column('numeric', {
     precision: 20,
@@ -81,54 +102,7 @@ export class Kassa extends BaseEntity implements IReportAggregates {
   })
   internetShopSum: number;
 
-  @Column('numeric', {
-    precision: 20,
-    scale: 2,
-    transformer: new ColumnNumericTransformer(),
-    default: 0,
-  })
-  sale: number;
-
-  @Column('numeric', {
-    precision: 20,
-    scale: 2,
-    transformer: new ColumnNumericTransformer(),
-    default: 0,
-  })
-  return_sale: number;
-
-  @Column('numeric', {
-    precision: 20,
-    scale: 2,
-    transformer: new ColumnNumericTransformer(),
-    default: 0,
-  })
-  totalSaleReturn: number;
-
-  @Column('numeric', {
-    precision: 20,
-    scale: 2,
-    transformer: new ColumnNumericTransformer(),
-    default: 0,
-  })
-  totalSaleSizeReturn: number;
-
-  @Column('numeric', {
-    precision: 20,
-    scale: 2,
-    transformer: new ColumnNumericTransformer(),
-    default: 0,
-  })
-  cash_collection: number;
-
-  @Column('numeric', {
-    precision: 20,
-    scale: 2,
-    transformer: new ColumnNumericTransformer(),
-    default: 0,
-  })
-  discount: number;
-
+  // ─── Pul oqimi (income/expense — Sum qo'shilmaydi) ────────
   @Column('numeric', {
     precision: 20,
     scale: 2,
@@ -151,7 +125,7 @@ export class Kassa extends BaseEntity implements IReportAggregates {
     transformer: new ColumnNumericTransformer(),
     default: 0,
   })
-  in_hand: number;
+  cashCollection: number;
 
   @Column('numeric', {
     precision: 20,
@@ -159,11 +133,27 @@ export class Kassa extends BaseEntity implements IReportAggregates {
     transformer: new ColumnNumericTransformer(),
     default: 0,
   })
-  opening_balance: number;
+  inHand: number;
+
+  @Column('numeric', {
+    precision: 20,
+    scale: 2,
+    transformer: new ColumnNumericTransformer(),
+    default: 0,
+  })
+  openingBalance: number;
+
+  @Column('numeric', {
+    precision: 20,
+    scale: 2,
+    transformer: new ColumnNumericTransformer(),
+    default: 0,
+  })
+  planPrice: number;
 
   // ─── Qarz ma'lumotlari ─────────────────────────────────────
   @Column('int', { default: 0 })
-  debt_count: number;
+  debtCount: number;
 
   @Column('numeric', {
     precision: 20,
@@ -171,7 +161,7 @@ export class Kassa extends BaseEntity implements IReportAggregates {
     transformer: new ColumnNumericTransformer(),
     default: 0,
   })
-  debt_kv: number;
+  debtSize: number;
 
   @Column('numeric', {
     precision: 20,
@@ -179,7 +169,7 @@ export class Kassa extends BaseEntity implements IReportAggregates {
     transformer: new ColumnNumericTransformer(),
     default: 0,
   })
-  debt_sum: number;
+  debtSum: number;
 
   @Column('numeric', {
     precision: 20,
@@ -187,27 +177,16 @@ export class Kassa extends BaseEntity implements IReportAggregates {
     transformer: new ColumnNumericTransformer(),
     default: 0,
   })
-  debt_profit_sum: number;
+  debtProfitSum: number;
 
-  // ─── Dealer ma'lumotlari ───────────────────────────────────
+  // ─── Dealer-only ──────────────────────────────────────────
   @Column('numeric', {
     precision: 20,
     scale: 2,
     transformer: new ColumnNumericTransformer(),
     default: 0,
   })
-  dealer_frozen_owed: number;
-
-  @Column('jsonb', { default: null, nullable: true })
-  old_debt_info: Object;
-
-  @Column('numeric', {
-    precision: 20,
-    scale: 2,
-    transformer: new ColumnNumericTransformer(),
-    default: 0,
-  })
-  plan_price: number;
+  frozenOwed: number;
 
   // ─── Status va tasdiqlash ──────────────────────────────────
   @Column({ type: 'varchar', default: KassaProgresEnum.OPEN })
@@ -229,7 +208,7 @@ export class Kassa extends BaseEntity implements IReportAggregates {
   isAccountantRejected: boolean;
 
   @Column({ default: false })
-  is_cancelled: boolean;
+  isCancelled: boolean;
 
   @Column('varchar', { default: FilialTypeEnum.FILIAL })
   filialType: FilialTypeEnum;
@@ -255,8 +234,4 @@ export class Kassa extends BaseEntity implements IReportAggregates {
   @ManyToOne(() => User, (user) => user.id, { onDelete: 'SET NULL' })
   @JoinColumn()
   closer: User;
-
-  @ManyToOne(() => User, (user) => user.id, { onDelete: 'SET NULL' })
-  @JoinColumn()
-  closer_m: User;
 }

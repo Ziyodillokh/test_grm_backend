@@ -1004,7 +1004,7 @@ export class ExcelService {
           'cashflow.id AS id',
           'cashflow.date as date',
           'cashflow.price::numeric AS price',
-          'COALESCE(order.plasticSum, 0)::numeric AS plastic',
+          'COALESCE(order.plastic, 0)::numeric AS plastic',
           'cashflow.type AS type',
           'cashflow_type.title AS tip',
           'collection.title AS collection',
@@ -1012,8 +1012,8 @@ export class ExcelService {
           'size.title AS size',
           'color.title AS color',
           'COALESCE(order.x, 0)::numeric AS count',
-          'COALESCE(order.discountSum, 0)::numeric AS discount',
-          'COALESCE(order.additionalProfitSum, 0)::numeric AS profit',
+          'COALESCE(order.discount, 0)::numeric AS discount',
+          'COALESCE(order.additionalProfit, 0)::numeric AS profit',
           'factory.title AS factory',
           'country.title AS country',
           `COALESCE(order.comment, cashflow.comment) as comment`,
@@ -1097,7 +1097,7 @@ export class ExcelService {
           where: { id: kassaId },
           relations: { filial: true },
         });
-        fileName += `${dayjs(kassa.startDate)
+        fileName += `${dayjs(kassa.createdAt)
           .tz(this.systemTz)
           .format('MMMM-YYYY')}-${kassa?.filial?.title || 'filial'}`;
       } else if (reportId) {

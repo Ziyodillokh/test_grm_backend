@@ -16,7 +16,6 @@ import { AwardModule } from './modules/award/award.module';
 import { BannerModule } from './modules/banner/banner.module';
 import { BonusModule } from './modules/bonus/bonus.module';
 import { BookingModule } from './modules/booking/booking.module';
-import { BossReportModule } from './modules/boss-report/boss-report.module';
 import { CashflowModule } from './modules/cashflow/cashflow.module';
 import { CashflowTypeModule } from './modules/cashflow-type/cashflow-type.module';
 import { ChatModule } from './modules/chatgpt/chatgpt.module';
@@ -178,7 +177,6 @@ import { VideoMessageModule } from './modules/video-message/video-message.module
     ReportsModule,
     SellerReportModule,
     SellerReportItemModule,
-    BossReportModule,
     FilialReportModule,
     CollectionReportItemModule,
     FactoryReportItemModule,

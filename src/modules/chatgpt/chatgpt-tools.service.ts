@@ -441,8 +441,8 @@ Har bir savolga mos ravishda dona, KV, narx qaytaradi.`,
         'COUNT(o.id) as cnt',
         'COALESCE(SUM(o.price), 0) as total_sum',
         'COALESCE(SUM(o.kv), 0) as total_kv',
-        'COALESCE(SUM(o.netProfitSum), 0) as total_profit',
-        'COALESCE(SUM(o.discountSum), 0) as total_discount',
+        'COALESCE(SUM(o.netProfit), 0) as total_profit',
+        'COALESCE(SUM(o.discount), 0) as total_discount',
       ])
       .where('o.date BETWEEN :start AND :end', { start, end });
 
@@ -718,7 +718,7 @@ Har bir savolga mos ravishda dona, KV, narx qaytaradi.`,
         "COALESCE(SUM(CASE WHEN cf.type = 'OutCome' THEN cf.price ELSE 0 END), 0) as outcome",
       ])
       .where('cf.date BETWEEN :start AND :end', { start, end })
-      .andWhere('cf.is_cancelled = false');
+      .andWhere('cf.isCancelled = false');
 
     if (filialId) {
       qb.andWhere('filial.id = :fid', { fid: filialId });
@@ -798,14 +798,14 @@ Har bir savolga mos ravishda dona, KV, narx qaytaradi.`,
       .select([
         'filial.title as filial_name',
         'k.status as status',
-        'k.totalSellCount as sell_count',
-        '(k.in_hand + k."plasticSum") as total_sum',
-        'k.in_hand as in_hand',
-        'k.debt_count as debt_count',
-        'k.debt_sum as debt_sum',
-        'k.startDate as start_date',
+        'k.saleCount as sell_count',
+        '(k.inHand + k."plasticSum") as total_sum',
+        'k.inHand as inHand',
+        'k.debtCount as debtCount',
+        'k.debtSum as debtSum',
+        'k.createdAt as start_date',
       ])
-      .orderBy('k.startDate', 'DESC');
+      .orderBy('k.createdAt', 'DESC');
 
     if (filialId) {
       qb.andWhere('filial.id = :fid', { fid: filialId }).limit(1);
@@ -823,9 +823,9 @@ Har bir savolga mos ravishda dona, KV, narx qaytaradi.`,
       status: r.status === 'open' ? 'Ochiq' : 'Yopiq',
       sell_count: parseInt(r.sell_count) || 0,
       total_sum: this.fmt(r.total_sum),
-      in_hand: this.fmt(r.in_hand),
-      debt_count: parseInt(r.debt_count) || 0,
-      debt_sum: this.fmt(r.debt_sum),
+      inHand: this.fmt(r.inHand),
+      debtCount: parseInt(r.totalDebtCount) || 0,
+      debtSum: this.fmt(r.totalDebtSum),
     });
 
     return rows.length === 1 ? map(rows[0]) : { kassas: rows.map(map) };
@@ -848,7 +848,7 @@ Har bir savolga mos ravishda dona, KV, narx qaytaradi.`,
         'COUNT(o.id) as cnt',
         'COALESCE(SUM(o.price), 0) as total_sum',
         'COALESCE(SUM(o.kv), 0) as total_kv',
-        'COALESCE(SUM(o.netProfitSum), 0) as total_profit',
+        'COALESCE(SUM(o.netProfit), 0) as total_profit',
       ])
       .where('o.date BETWEEN :start AND :end', { start, end })
       .groupBy('filial.id, filial.title')
@@ -878,7 +878,7 @@ Har bir savolga mos ravishda dona, KV, narx qaytaradi.`,
         'COUNT(o.id) as cnt',
         'COALESCE(SUM(o.price), 0) as total_sum',
         'COALESCE(SUM(o.kv), 0) as total_kv',
-        'COALESCE(SUM(o.netProfitSum), 0) as total_profit',
+        'COALESCE(SUM(o.netProfit), 0) as total_profit',
       ])
       .where('o.date BETWEEN :start AND :end', { start, end })
       .andWhere('seller.id = :uid', { uid: user.id })

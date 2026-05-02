@@ -247,7 +247,7 @@ export class FactoryService {
           COALESCE(SUM(c.price), 0)::NUMERIC(20,2) AS period_given
         FROM cashflow c
         WHERE c."factoryId" = ANY($1)
-          AND c.is_cancelled = false
+          AND c.isCancelled = false
           AND c.date BETWEEN $2 AND $3
         GROUP BY c."factoryId"
       `, [factoryIds, startDate, endDate]);
@@ -374,7 +374,7 @@ export class FactoryService {
       FROM cashflow c
       LEFT JOIN users u ON c."createdById" = u.id
       WHERE c."factoryId" = $1
-        AND c.is_cancelled = false
+        AND c.isCancelled = false
         AND c.date BETWEEN $2 AND $3
       ORDER BY c.date ASC
     `, [factoryId, startDate, endDate]);

@@ -52,7 +52,7 @@ export class SellerReportItemService {
       totalSellCount: 0,
       totalSellKv: 0,
       totalSellPrice: 0,
-      additionalProfitTotalSum: 0,
+      additionalProfitSum: 0,
       totalPlasticSum: 0,
       totalDiscount: 0,
       totalSaleReturnCount: 0,
@@ -93,7 +93,7 @@ export class SellerReportItemService {
     totalSellCount: number;
     totalSellKv: number;
     totalSellPrice: number;
-    additionalProfitTotalSum: number;
+    additionalProfitSum: number;
     totalPlasticSum: number;
     totalDiscount: number;
     totalSaleReturnCount: number;
@@ -110,7 +110,7 @@ export class SellerReportItemService {
       .select('SUM(report.totalSellCount)', 'totalSellCount')
       .addSelect('SUM(report.totalSellKv)', 'totalSellKv')
       .addSelect('SUM(report.totalSellPrice)', 'totalSellPrice')
-      .addSelect('SUM(report.additionalProfitTotalSum)', 'additionalProfitTotalSum')
+      .addSelect('SUM(report.additionalProfitSum)', 'additionalProfitSum')
       .addSelect('SUM(report.totalPlasticSum)', 'totalPlasticSum')
       .addSelect('SUM(report.totalDiscount)', 'totalDiscount')
       .addSelect('SUM(report.totalSaleReturnCount)', 'totalSaleReturnCount')
@@ -122,7 +122,7 @@ export class SellerReportItemService {
       totalSellCount: parseInt(result?.totalSellCount || '0', 10),
       totalSellKv: parseInt(result?.totalSellKv || '0'),
       totalSellPrice: parseInt(result?.totalSellPrice || '0'),
-      additionalProfitTotalSum: parseFloat(result?.additionalProfitTotalSum || '0'),
+      additionalProfitSum: parseFloat(result?.additionalProfitSum || '0'),
       totalPlasticSum: parseFloat(result?.totalPlasticSum || '0'),
       totalDiscount: parseFloat(result?.totalDiscount || '0'),
       totalSaleReturnCount: parseFloat(result?.totalSaleReturnCount || '0'),
@@ -138,8 +138,8 @@ export class SellerReportItemService {
       .select('COUNT(order.id)', 'orderCount')
       .addSelect('SUM(order.kv)', 'totalKv')
       .addSelect('SUM(order.price)', 'totalPrice')
-      .addSelect('SUM(order.discountSum)', 'totalDiscount')
-      .addSelect('SUM(order.netProfitSum)', 'totalProfit')
+      .addSelect('SUM(order.discount)', 'totalDiscount')
+      .addSelect('SUM(order.netProfit)', 'totalProfit')
       .addSelect('report_item.workTime', 'workTime')
       .where('order.sellerId = :sellerId', { sellerId })
       .andWhere('order.date BETWEEN :start AND :end', {
@@ -301,7 +301,7 @@ export class SellerReportItemService {
           totalSellPrice: 0,
           totalDiscount: 0,
           totalPlasticSum: 0,
-          additionalProfitTotalSum: 0,
+          additionalProfitSum: 0,
           totalSaleReturnPrice: 0,
         });
         report = await this.sellerRepository.save(report);
@@ -329,7 +329,7 @@ export class SellerReportItemService {
         totalSellCount: 0,
         totalSellKv: 0,
         totalSellPrice: 0,
-        additionalProfitTotalSum: 0,
+        additionalProfitSum: 0,
         totalPlasticSum: 0,
         totalDiscount: 0,
         totalSaleReturnCount: 0,
@@ -372,7 +372,7 @@ export class SellerReportItemService {
             totalSellCount: 0,
             totalSellKv: 0,
             totalSellPrice: 0,
-            additionalProfitTotalSum: 0,
+            additionalProfitSum: 0,
             totalPlasticSum: 0,
             totalDiscount: 0,
             totalSaleReturnCount: 0,
@@ -397,9 +397,9 @@ export class SellerReportItemService {
         reportItem.totalSellCount += countToAdd;
         reportItem.totalSellKv += order.kv || 0;
         reportItem.totalSellPrice += order.price || 0;
-        reportItem.additionalProfitTotalSum += order.netProfitSum || 0;
-        reportItem.totalPlasticSum += order.plasticSum || 0;
-        reportItem.totalDiscount += order.discountSum || 0;
+        reportItem.additionalProfitSum += order.netProfit || 0;
+        reportItem.totalPlasticSum += order.plastic || 0;
+        reportItem.totalDiscount += order.discount || 0;
       } else if (order.status === OrderEnum.Reject || order.status === OrderEnum.Return) {
         let returnCountToAdd = 0;
         if (!order.bar_code && !order.product) {

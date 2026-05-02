@@ -123,7 +123,7 @@ export class ClientOrderService {
           },
         },
       },
-      order: { startDate: 'DESC' },
+      order: { createdAt: 'DESC' },
     });
   }
 
@@ -178,7 +178,7 @@ export class ClientOrderService {
         isActive: true,
         ...(filialId && { filial: { id: filialId } }),
       },
-      order: { startDate: 'DESC' },
+      order: { createdAt: 'DESC' },
     });
     if (!kassa) return;
 
@@ -200,7 +200,7 @@ export class ClientOrderService {
     kassa.income = (kassa.income || 0) + price;
     kassa.sale = (kassa.sale || 0) + price;
     if (isOnline) kassa.plasticSum = (kassa.plasticSum || 0) + price;
-    else kassa.in_hand = (kassa.in_hand || 0) + price;
+    else kassa.inHand = (kassa.inHand || 0) + price;
     await em.save(Kassa, kassa);
 
     // ClientOrder ga cashflow bog'lash
@@ -223,7 +223,7 @@ export class ClientOrderService {
       kassa.income = (kassa.income || 0) - cashflow.price;
       kassa.sale = (kassa.sale || 0) - cashflow.price;
       if (cashflow.is_online) kassa.plasticSum = (kassa.plasticSum || 0) - cashflow.price;
-      else kassa.in_hand = (kassa.in_hand || 0) - cashflow.price;
+      else kassa.inHand = (kassa.inHand || 0) - cashflow.price;
       await em.save(Kassa, kassa);
     }
 

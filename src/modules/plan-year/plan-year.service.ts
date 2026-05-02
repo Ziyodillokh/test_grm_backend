@@ -407,10 +407,10 @@ export class PlanYearService {
     const year = dayjs().year();
     const currentDay = dayjs().dayOfYear();
 
-    const { totals: { plan_price, earn } } = await this.filialPlanService.getByYear(year, 1, 1);
+    const { totals: { planPrice, earn } } = await this.filialPlanService.getByYear(year, 1, 1);
 
     const totalDays = dayjs(`${year}-12-31`).dayOfYear();
-    const dailyPlan = plan_price / totalDays;
+    const dailyPlan = planPrice / totalDays;
     const dailyCollected = earn / currentDay;
     const performancePercent = (dailyCollected / dailyPlan) * 100;
     const gapPercent = 100 - performancePercent;

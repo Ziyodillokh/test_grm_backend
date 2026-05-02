@@ -144,13 +144,13 @@ export class KassaCashflowController {
         const price = Number(cashflow.price) || 0;
 
         if (cashflow.type === CashFlowEnum.InCome) {
-          kassa.in_hand += price;
+          kassa.inHand += price;
           const isBalance = cashflow.cashflow_type?.slug === 'balance';
           if (!isBalance) {
             kassa.income += price;
           }
         } else if (cashflow.type === CashFlowEnum.Consumption) {
-          kassa.in_hand -= price;
+          kassa.inHand -= price;
           kassa.expense += price;
         }
 

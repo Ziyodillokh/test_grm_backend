@@ -44,7 +44,7 @@ export class PayrollService {
       }
 
       const plastic = dto.plastic ?? 0;
-      const in_hand = dto.in_hand ?? 0;
+      const inHand = dto.inHand ?? 0;
       const bonus = dto.bonus ?? 0;
       const premium = dto.premium ?? 0;
       const year = new Date().getFullYear();
@@ -52,10 +52,10 @@ export class PayrollService {
       const payroll = queryRunner.manager.create(Payroll, {
         ...dto,
         plastic,
-        in_hand,
+        inHand,
         bonus,
         premium,
-        total: plastic + in_hand + premium + bonus, // vaqtincha
+        total: plastic + inHand + premium + bonus, // vaqtincha
         award: 0,
         prepayment: 0,
         year,
@@ -121,10 +121,10 @@ export class PayrollService {
     if (!payroll) {
       throw new NotFoundException('Payroll not found');
     }
-    const calculatedSum = (payroll.in_hand ?? 0) + (payroll.plastic ?? 0);
+    const calculatedSum = (payroll.inHand ?? 0) + (payroll.plastic ?? 0);
     if (payroll.total > calculatedSum + 0.01) {
       throw new BadRequestException(
-        `Total in_hand va plastic yig'indisidan katta! Total: ${payroll.total}, In hand: ${payroll.in_hand}, Plastic: ${payroll.plastic}, Yig'indi: ${calculatedSum}`,
+        `Total inHand va plastic yig'indisidan katta! Total: ${payroll.total}, In hand: ${payroll.inHand}, Plastic: ${payroll.plastic}, Yig'indi: ${calculatedSum}`,
       );
     }
     payroll.status = PayrollStatus.IN_PROGRESS;
@@ -176,7 +176,7 @@ export class PayrollService {
     }
 
     if (userRole === UserRoleEnum.M_MANAGER) {
-      if ((filialReport.managerSum ?? 0) < (payroll.in_hand ?? 0)) {
+      if ((filialReport.managerSum ?? 0) < (payroll.inHand ?? 0)) {
         throw new BadRequestException("Hisobinggizda yetarli mablag' yo'q");
       }
       payroll.isMManagerConfirmed = true;
@@ -219,10 +219,10 @@ export class PayrollService {
         );
       }
 
-      if (payroll.in_hand && mManagerUser) {
+      if (payroll.inHand && mManagerUser) {
         await this.cashflowRepo.save(
           this.cashflowRepo.create({
-            price: payroll.in_hand,
+            price: payroll.inHand,
             type: CashFlowEnum.Consumption,
             tip: CashflowTipEnum.CASHFLOW,
             comment: `Oylik ish haqqi: ${this.getMonthName(payroll.month)} oyi uchun ${payroll.year}`,
@@ -272,7 +272,7 @@ export class PayrollService {
       console.log('Filial report not found for', payroll.year, payroll.month);
       return;
     }
-    filialReport.managerSum -= payroll.in_hand ?? 0;
+    filialReport.managerSum -= payroll.inHand ?? 0;
     filialReport.accountantSum -= payroll.plastic ?? 0;
 
     await this.reportRepo.save(filialReport);

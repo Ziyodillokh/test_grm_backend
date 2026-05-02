@@ -40,7 +40,7 @@ export class AccountingService {
       .leftJoin('order.product', 'product')
       .leftJoin('order.kassa', 'kassa')
       .leftJoin('kassa.filial', 'filial')
-      .select('COALESCE(SUM(order.price + order.plasticSum), 0)', 'internetShopSum')
+      .select('COALESCE(SUM(order.price + order.plastic), 0)', 'internetShopSum')
       .where('product.isInternetShop = :isInternetShop', { isInternetShop: true })
       .andWhere('order.status IN (:...statuses)', { statuses: ['accepted', 'returned'] });
 
@@ -105,7 +105,7 @@ export class AccountingService {
     const order = this.entityManager
       .getRepository('order')
       .createQueryBuilder('order')
-      .leftJoinAndSelect('order.createdBy', 'createdBy')
+      .leftJoinAndSelect('order.seller', 'createdBy')
       .leftJoinAndSelect('order.seller', 'seller')
       .leftJoinAndSelect('order.kassa', 'kassa')
       .leftJoinAndSelect('order.product', 'product')

@@ -21,7 +21,7 @@ export class FactoryReportItem extends BaseEntity {
   date: Date;
 
   @Column({ type: 'int', default: 0 })
-  totalSellCount: number;
+  totalSaleCount: number;
 
   @Column('numeric', {
     default: 0,
@@ -29,7 +29,7 @@ export class FactoryReportItem extends BaseEntity {
     scale: 2,
     transformer: new ColumnNumericTransformer(),
   })
-  totalSellKv: number;
+  totalSaleSize: number;
 
   @Column('numeric', {
     default: 0,
@@ -37,7 +37,7 @@ export class FactoryReportItem extends BaseEntity {
     scale: 2,
     transformer: new ColumnNumericTransformer(),
   })
-  totalSellPrice: number;
+  totalSalePrice: number;
 
   @Column({ type: 'int', default: 0 })
   totalCount: number;

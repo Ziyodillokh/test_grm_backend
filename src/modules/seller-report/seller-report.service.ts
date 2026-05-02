@@ -49,7 +49,7 @@ export class SellerReportService {
       totalSellPrice: 0,
       totalDiscount: 0,
       totalPlasticSum: 0,
-      additionalProfitTotalSum: 0,
+      additionalProfitSum: 0,
       totalSaleReturnCount: 0,
       totalSaleReturnKv: 0,
       totalSaleReturnPrice: 0,
@@ -146,7 +146,7 @@ export class SellerReportService {
     totalSellPrice: number;
     totalDiscount: number;
     totalPlasticSum: number;
-    additionalProfitTotalSum: number;
+    additionalProfitSum: number;
     totalSaleReturnCount: number;
     totalSaleReturnKv: number;
     totalSaleReturnPrice: number;
@@ -158,7 +158,7 @@ export class SellerReportService {
       .addSelect('SUM(report.totalSellPrice)', 'totalSellPrice')
       .addSelect('SUM(report.totalDiscount)', 'totalDiscount')
       .addSelect('SUM(report.totalPlasticSum)', 'totalPlasticSum')
-      .addSelect('SUM(report.additionalProfitTotalSum)', 'additionalProfitTotalSum')
+      .addSelect('SUM(report.additionalProfitSum)', 'additionalProfitSum')
       .addSelect('SUM(report.totalSaleReturnCount)', 'totalSaleReturnCount')
       .addSelect('SUM(report.totalSaleReturnKv)', 'totalSaleReturnKv')
       .addSelect('SUM(report.totalSaleReturnPrice)', 'totalSaleReturnPrice')
@@ -184,7 +184,7 @@ export class SellerReportService {
       totalSellPrice: parseFloat(result.totalSellPrice || '0'),
       totalDiscount: parseFloat(result.totalDiscount || '0'),
       totalPlasticSum: parseFloat(result.totalPlasticSum || '0'),
-      additionalProfitTotalSum: parseFloat(result.additionalProfitTotalSum || '0'),
+      additionalProfitSum: parseFloat(result.additionalProfitSum || '0'),
       totalSaleReturnCount: parseFloat(result.totalSaleReturnCount || '0'),
       totalSaleReturnKv: parseFloat(result.totalSaleReturnKv || '0'),
       totalSaleReturnPrice: parseFloat(result.totalSaleReturnPrice || '0'),
@@ -199,7 +199,7 @@ export class SellerReportService {
       totalSellPrice: number;
       totalDiscount: number;
       totalPlasticSum: number;
-      additionalProfitTotalSum: number;
+      additionalProfitSum: number;
       totalSaleReturnCount: number;
       totalSaleReturnKv: number;
       totalSaleReturnPrice: number;
@@ -213,7 +213,7 @@ export class SellerReportService {
       currentReport.totalSellPrice += body.totalSellPrice;
       currentReport.totalDiscount += body.totalDiscount;
       currentReport.totalPlasticSum += body.totalPlasticSum;
-      currentReport.additionalProfitTotalSum += body.additionalProfitTotalSum;
+      currentReport.additionalProfitSum += body.additionalProfitSum;
       currentReport.totalSaleReturnCount += body.totalSaleReturnCount;
       currentReport.totalSaleReturnKv += body.totalSaleReturnKv;
       currentReport.totalSaleReturnPrice += body.totalSaleReturnPrice;
@@ -223,7 +223,7 @@ export class SellerReportService {
       currentReport.totalSellPrice -= body.totalSellPrice;
       currentReport.totalDiscount -= body.totalDiscount;
       currentReport.totalPlasticSum -= body.totalPlasticSum;
-      currentReport.additionalProfitTotalSum -= body.additionalProfitTotalSum;
+      currentReport.additionalProfitSum -= body.additionalProfitSum;
       currentReport.totalSaleReturnCount -= body.totalSaleReturnCount;
       currentReport.totalSaleReturnKv -= body.totalSaleReturnKv;
       currentReport.totalSaleReturnPrice -= body.totalSaleReturnPrice;
@@ -257,7 +257,7 @@ export class SellerReportService {
         totalSellPrice: 0,
         totalDiscount: 0,
         totalPlasticSum: 0,
-        additionalProfitTotalSum: 0,
+        additionalProfitSum: 0,
         totalSaleReturnKv: 0,
         totalSaleReturnCount: 0,
         totalSaleReturnPrice: 0,
@@ -283,7 +283,7 @@ export class SellerReportService {
       report.totalSellPrice = 0;
       report.totalDiscount = 0;
       report.totalPlasticSum = 0;
-      report.additionalProfitTotalSum = 0;
+      report.additionalProfitSum = 0;
       report.totalSaleReturnCount = 0;
       report.totalSaleReturnKv = 0;
       report.totalSaleReturnPrice = 0;
@@ -294,7 +294,7 @@ export class SellerReportService {
         report.totalSellPrice += item.totalSellPrice || 0;
         report.totalDiscount += item.totalDiscount || 0;
         report.totalPlasticSum += item.totalPlasticSum || 0;
-        report.additionalProfitTotalSum += item.additionalProfitTotalSum || 0;
+        report.additionalProfitSum += item.additionalProfitSum || 0;
         report.totalSaleReturnCount += item.totalSaleReturnCount || 0;
         report.totalSaleReturnKv += item.totalSaleReturnKv || 0;
         report.totalSaleReturnPrice += item.totalSaleReturnPrice || 0;
@@ -320,8 +320,8 @@ export class SellerReportService {
     totalCount: number;
     totalKv: number;
     totalPrice: number;
-    totalDiscountSum: number;
-    additionalProfitTotalSum: number;
+    totalDiscount: number;
+    additionalProfitSum: number;
   }> {
     const report = await this.sellerReportRepository.findOne({
       where: { id: reportId },
@@ -403,8 +403,8 @@ export class SellerReportService {
         acc.totalCount += item.totalSellCount || 0;
         acc.totalKv += item.totalSellKv || 0;
         acc.totalPrice += item.totalSellPrice || 0;
-        acc.totalDiscountSum += item.totalDiscount || 0;
-        acc.additionalProfitTotalSum += item.additionalProfitTotalSum || 0;
+        acc.totalDiscount += item.totalDiscount || 0;
+        acc.additionalProfitSum += item.additionalProfitSum || 0;
         return acc;
       },
       {
@@ -412,8 +412,8 @@ export class SellerReportService {
         totalCount: 0,
         totalKv: 0,
         totalPrice: 0,
-        totalDiscountSum: 0,
-        additionalProfitTotalSum: 0,
+        totalDiscount: 0,
+        additionalProfitSum: 0,
       },
     );
 

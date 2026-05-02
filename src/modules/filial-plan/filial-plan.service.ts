@@ -28,7 +28,7 @@ export class FilialPlanService {
       .createQueryBuilder('kr')
       .select('kr.year', 'year')
       .addSelect('SUM(kr.sale)', 'earn')
-      .addSelect('SUM(kr.plan_price)', 'plan_price')
+      .addSelect('SUM(kr.planPrice)', 'planPrice')
       .groupBy('kr.year')
       .orderBy('kr.year', 'DESC')
       .where(`kr.filialType = :filialType`, { filialType: FilialTypeEnum.FILIAL })
@@ -63,7 +63,7 @@ export class FilialPlanService {
     filialId?: string,
     month?: number,
   ) {
-    let dealer_plan = 0, dealer_earn = 0;
+    let dealerPlan = 0, dealer_earn = 0;
     const baseQb = this.kassaRepo
       .createQueryBuilder('kr')
       .leftJoin('kr.filial', 'f')
@@ -95,7 +95,7 @@ export class FilialPlanService {
       'f.title AS "filialTitle"',
       'kr.year AS "year"',
       ...(month ? ['kr.month AS "month"'] : []),
-      'SUM(kr.plan_price) AS "plan_price"',
+      'SUM(kr.planPrice) AS "planPrice"',
       'SUM(kr.sale) AS "earn"',
     ]);
 
@@ -104,7 +104,7 @@ export class FilialPlanService {
       `'Dealers' AS "filialTitle"`,
       'kr.year AS "year"',
       ...(month ? ['kr.month AS "month"'] : []),
-      'kr.plan_price AS "plan_price"',
+      'kr.planPrice AS "planPrice"',
       'SUM(kr.income) AS "earn"',
     ]);
 
@@ -116,7 +116,7 @@ export class FilialPlanService {
     baseDealerQb
       .addGroupBy('kr.year')
       .addGroupBy('kr.month')
-      .addGroupBy('kr.plan_price');
+      .addGroupBy('kr.planPrice');
 
     if (month) {
       dataQb.addGroupBy('kr.month');
@@ -133,13 +133,13 @@ export class FilialPlanService {
     if (dealerItems.length && page === 1) {
       const dealerItem = dealerItems.reduce((data, curr) => {
         data.earn += Number(curr.earn);
-        data.plan_price += Number(curr.plan_price);
+        data.planPrice += Number(curr.planPrice);
         return data;
-      }, { filialId: '#dealer', filialTitle: 'Dealers', plan_price: 0, earn: 0 });
-      dealerItem.plan_price = +(Number(dealerItem.plan_price).toFixed(2));
+      }, { filialId: '#dealer', filialTitle: 'Dealers', planPrice: 0, earn: 0 });
+      dealerItem.planPrice = +(Number(dealerItem.planPrice).toFixed(2));
       dealerItem.earn = +(Number(dealerItem.earn).toFixed(2));
       items.unshift(dealerItem);
-      dealer_plan = dealerItem.plan_price;
+      dealerPlan = dealerItem.planPrice;
       dealer_earn = dealerItem.earn;
     }
 
@@ -165,7 +165,7 @@ export class FilialPlanService {
     const totalsQb = baseQb.clone();
 
     totalsQb.select([
-      'COALESCE(SUM(kr.plan_price), 0) AS "plan_price"',
+      'COALESCE(SUM(kr.planPrice), 0) AS "planPrice"',
       'COALESCE(SUM(kr.sale), 0) AS "earn"',
     ]);
 
@@ -178,7 +178,7 @@ export class FilialPlanService {
     return {
       items,
       totals: {
-        plan_price: Number(totalsRaw.plan_price) + dealer_plan,
+        planPrice: Number(totalsRaw.planPrice) + dealerPlan,
         earn: Number(totalsRaw.earn) + dealer_earn,
         year,
         ...(month && { month }),
@@ -202,7 +202,7 @@ export class FilialPlanService {
         .createQueryBuilder()
         .update()
         .set({
-          plan_price: () => `
+          planPrice: () => `
         CASE
           WHEN month = 12 THEN ${base + remainder}
           ELSE ${base}
@@ -217,7 +217,7 @@ export class FilialPlanService {
         .createQueryBuilder()
         .update()
         .set({
-          plan_price: () => `
+          planPrice: () => `
         CASE
           WHEN month = 12 THEN ${base + remainder}
           ELSE ${base}
@@ -334,14 +334,14 @@ export class FilialPlanService {
         's.lastName AS "lastName"',
         `json_build_object('id', avatar.id, 'path', avatar.path) AS avatar`,
 
-        'COALESCE(SUM(o.price + o.plasticSum), 0) AS "earn"',
+        'COALESCE(SUM(o.price + o.plastic), 0) AS "earn"',
         'COALESCE(COUNT(o.id), 0) AS "count"',
-        'COALESCE(SUM(o.discountSum), 0)::numeric(20,2) AS "discount"',
+        'COALESCE(SUM(o.discount), 0)::numeric(20,2) AS "discount"',
         'COALESCE(SUM(o.kv), 0)::numeric(20,2) AS "kv"',
 
         `
         COALESCE(
-          SUM(COALESCE(k.plan_price::numeric, 0)) / :sellerCount,
+          SUM(COALESCE(k.planPrice::numeric, 0)) / :sellerCount,
           0
         ) AS "planPrice"
       `,
@@ -362,9 +362,9 @@ export class FilialPlanService {
     const totalsRaw = await baseQb
       .clone()
       .select([
-        'COALESCE(SUM(o.price + o.plasticSum), 0) AS "earn"',
-        'COALESCE(SUM(k.plan_price), 0) AS "plan_price"',
-        'COALESCE(SUM(o.discountSum), 0) AS "discount"',
+        'COALESCE(SUM(o.price + o.plastic), 0) AS "earn"',
+        'COALESCE(SUM(k.planPrice), 0) AS "planPrice"',
+        'COALESCE(SUM(o.discount), 0) AS "discount"',
         'COALESCE(COUNT(o.id), 0) AS "count"',
         'COALESCE(SUM(o.kv), 0) AS "kv"',
       ])
@@ -403,7 +403,7 @@ export class FilialPlanService {
 
       totals: {
         earn: Number(totalsRaw?.earn ?? 0),
-        plan_price: Number(totalsRaw?.plan_price ?? 0),
+        planPrice: Number(totalsRaw?.planPrice ?? 0),
         discount: Number(totalsRaw?.discount ?? 0),
         count: Number(totalsRaw?.count ?? 0),
         kv: Number(totalsRaw?.kv ?? 0),
@@ -435,9 +435,9 @@ export class FilialPlanService {
         "DATE(o.date) AS date",
         "COALESCE(COUNT(o.id), 0) AS count",
         "COALESCE(SUM(o.kv), 0) AS kv",
-        "COALESCE(SUM(o.price + o.plasticSum), 0) AS earn",
-        "COALESCE(SUM(o.discountSum), 0) AS discount",
-        "COALESCE(SUM(o.plasticSum), 0) AS plastic",
+        "COALESCE(SUM(o.price + o.plastic), 0) AS earn",
+        "COALESCE(SUM(o.discount), 0) AS discount",
+        "COALESCE(SUM(o.plastic), 0) AS plastic",
       ])
       .where('o.sellerId = :sellerId', { sellerId })
       .andWhere('o.status = :status', { status: 'accepted' })
@@ -467,10 +467,10 @@ export class FilialPlanService {
 
     let planPrice = 0;
     if (seller?.filial?.id) {
-      // Filialning shu oydagi plan_price yig'indisi
+      // Filialning shu oydagi planPrice yig'indisi
       const planRaw = await this.kassaRepo
         .createQueryBuilder('k')
-        .select('COALESCE(SUM(k.plan_price), 0)', 'filialPlan')
+        .select('COALESCE(SUM(k.planPrice), 0)', 'filialPlan')
         .leftJoin('k.filial', 'f')
         .where('f.id = :filialId', { filialId: seller.filial.id })
         .andWhere('k.year = :year', { year: safeYear })
@@ -541,8 +541,8 @@ export class FilialPlanService {
             price: o.price,
             kv: o.kv,
             x: o.x,
-            plasticSum: o.plasticSum,
-            discountSum: o.discountSum,
+            plasticSum: o.plastic,
+            discountSum: o.discount,
             collection: o.bar_code?.collection?.title || null,
             size: o.bar_code?.size?.title || null,
             color: o.bar_code?.color?.title || null,

@@ -81,7 +81,7 @@ export class CustomsService {
       .leftJoin(
         'cashflow',
         'c',
-        `c."customsId" = l.id AND c.is_cancelled = false AND c.date BETWEEN :startDate AND :endDate`,
+        `c."customsId" = l.id AND c.isCancelled = false AND c.date BETWEEN :startDate AND :endDate`,
         { startDate, endDate },
       )
       .where('l."deletedDate" IS NULL')
@@ -121,7 +121,7 @@ export class CustomsService {
             .select('c."customsId"', 'customsId')
             .addSelect(`SUM(CASE WHEN c.type = 'Приход' THEN c.price ELSE 0 END)`, 'period_income')
             .from('cashflow', 'c')
-            .where('c.is_cancelled = false AND c.date BETWEEN :s AND :e', { s: startDate, e: endDate })
+            .where('c.isCancelled = false AND c.date BETWEEN :s AND :e', { s: startDate, e: endDate })
             .groupBy('c."customsId"'),
         'pi',
         'pi."customsId" = l.id',
@@ -132,7 +132,7 @@ export class CustomsService {
             .select('c2."customsId"', 'customsId')
             .addSelect(`SUM(CASE WHEN c2.type = 'Расход' THEN c2.price ELSE 0 END)`, 'period_expense')
             .from('cashflow', 'c2')
-            .where('c2.is_cancelled = false AND c2.date BETWEEN :s2 AND :e2', { s2: startDate, e2: endDate })
+            .where('c2.isCancelled = false AND c2.date BETWEEN :s2 AND :e2', { s2: startDate, e2: endDate })
             .groupBy('c2."customsId"'),
         'pe',
         'pe."customsId" = l.id',
@@ -199,7 +199,7 @@ export class CustomsService {
       .leftJoin('createdBy.avatar', 'avatar')
       .addSelect(['avatar.id', 'avatar.path', 'avatar.mimetype', 'avatar.name'])
       .where('customs.id = :customsId', { customsId })
-      .andWhere('cash.is_cancelled = false')
+      .andWhere('cash.isCancelled = false')
       .andWhere('cash.date BETWEEN :start AND :end', { start: startDate, end: endDate })
       .orderBy('cash.date', 'DESC')
       .offset(offset)
@@ -217,7 +217,7 @@ export class CustomsService {
       `)
       .leftJoin('cash.customs', 'customs')
       .where('customs.id = :customsId', { customsId })
-      .andWhere('cash.is_cancelled = false')
+      .andWhere('cash.isCancelled = false')
       .andWhere('cash.date BETWEEN :start AND :end', { start: startDate, end: endDate });
 
     if (dto.type) {
@@ -297,7 +297,7 @@ export class CustomsService {
         .leftJoin('cash.createdBy', 'createdBy')
         .select(['cash.id', 'cash.price', 'cash.type', 'cash.comment', 'cash.date', 'createdBy.firstName', 'createdBy.lastName'])
         .where('customs.id = :customsId', { customsId: dto.customsId })
-        .andWhere('cash.is_cancelled = false')
+        .andWhere('cash.isCancelled = false')
         .andWhere('cash.date BETWEEN :start AND :end', { start: startDate, end: endDate })
         .orderBy('cash.date', 'DESC')
         .getMany();

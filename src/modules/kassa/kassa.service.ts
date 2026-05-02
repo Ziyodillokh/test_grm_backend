@@ -69,13 +69,10 @@ export class KassaService {
         closer: {
           avatar: true,
         },
-        closer_m: {
-          avatar: true,
-        },
       },
       order: {
         month: 'DESC',
-        endDate: 'DESC',
+        finishedAt: 'DESC',
       },
     });
   }
@@ -118,25 +115,25 @@ export class KassaService {
         sale: acc.sale + (k.sale || 0),
         totalPlasticSum: acc.totalPlasticSum + (k.plasticSum || 0),
         plasticSum: acc.plasticSum + (k.plasticSum || 0),
-        additionalProfitTotalSum: acc.additionalProfitTotalSum + (k.additionalProfitTotalSum || 0),
+        additionalProfitSum: acc.additionalProfitSum + (k.additionalProfitSum || 0),
         totalExpense: acc.totalExpense + (k.expense || 0),
         expense: acc.expense + (k.expense || 0),
-        totalSaleReturn: acc.totalSaleReturn + (k.return_sale || 0),
-        return_sale: acc.return_sale + (k.return_sale || 0),
-        totalCashCollection: acc.totalCashCollection + (k.cash_collection || 0),
-        cash_collection: acc.cash_collection + (k.cash_collection || 0),
-        totalDiscount: acc.totalDiscount + (k.discount || 0),
-        discount: acc.discount + (k.discount || 0),
-        in_hand: acc.in_hand + (k.in_hand || 0),
-        debt_sum: acc.debt_sum + (k.debt_sum || 0),
-        totalSize: acc.totalSize + (k.totalSize || 0),
+        totalSaleReturn: acc.totalSaleReturn + (k.saleReturn || 0),
+        saleReturn: acc.totalSaleReturn + (k.saleReturn || 0),
+        totalCashCollection: acc.totalCashCollection + (k.cashCollection || 0),
+        cashCollection: acc.cashCollection + (k.cashCollection || 0),
+        totalDiscount: acc.totalDiscount + (k.discountSum || 0),
+        discount: acc.discount + (k.discountSum || 0),
+        inHand: acc.inHand + (k.inHand || 0),
+        debtSum: acc.debtSum + (k.debtSum || 0),
+        totalSize: acc.totalSize + (k.saleSize || 0),
       }),
       {
         totalIncome: 0, income: 0, totalSale: 0, sale: 0,
-        totalPlasticSum: 0, plasticSum: 0, additionalProfitTotalSum: 0,
-        totalExpense: 0, expense: 0, totalSaleReturn: 0, return_sale: 0,
-        totalCashCollection: 0, cash_collection: 0, totalDiscount: 0,
-        discount: 0, in_hand: 0, debt_sum: 0, totalSize: 0,
+        totalPlasticSum: 0, plasticSum: 0, additionalProfitSum: 0,
+        totalExpense: 0, expense: 0, totalSaleReturn: 0, saleReturn: 0,
+        totalCashCollection: 0, cashCollection: 0, totalDiscount: 0,
+        discount: 0, inHand: 0, debtSum: 0, totalSize: 0,
       },
     );
   }
@@ -192,7 +189,6 @@ export class KassaService {
       relations: {
         orders: {
           seller: true,
-          createdBy: true,
           product: {
             bar_code: {
               model: true,
@@ -236,8 +232,7 @@ export class KassaService {
         await this.kassaRepository.update({ id: kassa.id }, {
           isActive: false,
           status: KassaProgresEnum.ACCEPTED,
-          endDate,
-          closer_m: user.id,
+          finishedAt: endDate,
           closer: user.id,
         });
       }
@@ -251,7 +246,7 @@ export class KassaService {
     const updatePromises = ids.map((id) =>
       this.kassaRepository.update(id, {
         status: KassaProgresEnum.WARNING,
-        closer_m: user.id,
+        closer: user.id,
       }),
     );
     return Promise.allSettled(updatePromises);
@@ -323,7 +318,7 @@ export class KassaService {
         filial: true,
       },
       order: {
-        endDate: 'DESC',
+        finishedAt: 'DESC',
       },
     });
   }
@@ -337,8 +332,8 @@ export class KassaService {
       relations: ['cashflow', 'filial'],
     });
     for (const kassa of kassas) {
-      const kassaMonth = dayjs(kassa.startDate).month() + 1;
-      const kassaYear = dayjs(kassa.startDate).year();
+      const kassaMonth = dayjs(kassa.createdAt).month() + 1;
+      const kassaYear = dayjs(kassa.createdAt).year();
 
       // Faqat avvalgi oylar kassasini ko'rib chiqamiz
       if (kassaYear === currentYear && kassaMonth === currentMonth) continue;
@@ -358,7 +353,7 @@ export class KassaService {
       kassas.map((kassa) =>
         this.kassaRepository.update(kassa.id, {
           isActive: false,
-          endDate,
+          finishedAt: endDate,
         }),
       ),
     );
@@ -378,7 +373,6 @@ export class KassaService {
         month,
         report: report || undefined,
         isActive: true,
-        startDate: startDateStr,
       });
       await this.kassaRepository.save(newKassa);
     }
@@ -404,10 +398,10 @@ export class KassaService {
     });
 
     for (const kassa of kassas) {
-      if (!kassa.filial || !kassa.startDate) continue;
+      if (!kassa.filial || !kassa.createdAt) continue;
 
-      const year = kassa.startDate.getFullYear();
-      const month = kassa.startDate.getMonth() + 1;
+      const year = kassa.createdAt.getFullYear();
+      const month = kassa.createdAt.getMonth() + 1;
 
       const report = await this.reportRepo.findOne({
         where: {
@@ -441,7 +435,7 @@ export class KassaService {
     const kassas = await this.kassaRepository.find({
       where: {
         status: KassaProgresEnum.OPEN,
-        startDate: Between(previousMonthStart, previousMonthEnd),
+        createdAt: Between(previousMonthStart, previousMonthEnd),
       },
     });
 
@@ -487,9 +481,9 @@ export class KassaService {
       where: {
         filial: { id: filialId },
         status: KassaProgresEnum.OPEN,
-        startDate: Between(startOfMonth, endOfMonth),
+        createdAt: Between(startOfMonth, endOfMonth),
       },
-      order: { startDate: 'DESC' },
+      order: { createdAt: 'DESC' },
     });
   }
 
@@ -522,7 +516,7 @@ export class KassaService {
         filial: { id },
       },
       order: {
-        startDate: 'DESC',
+        createdAt: 'DESC',
       },
     });
     const have_warning_kassa = kassas.items.find(el => el.status === KassaProgresEnum.WARNING);
@@ -558,8 +552,8 @@ export class KassaService {
           continue;
         }
 
-        const kassaDate = dayjs(kassa.startDate);
-        const kassaEndDate = dayjs(kassa.startDate).endOf('month').hour(23).minute(0).second(0).millisecond(0);
+        const kassaDate = dayjs(kassa.createdAt);
+        const kassaEndDate = dayjs(kassa.createdAt).endOf('month').hour(23).minute(0).second(0).millisecond(0);
         const nextMonthStart = kassaDate.add(1, 'month').startOf('month').toDate();
 
         // Only skip if kassa is from a FUTURE month (shouldn't happen, but safety check)
@@ -583,7 +577,7 @@ export class KassaService {
 
         if (cashflowCount > 0 || existingNextMonthKassas.length < 2) {
           // Close current kassa with WARNING status
-          kassa.endDate = kassaEndDate.toDate();
+          kassa.finishedAt = kassaEndDate.toDate();
           kassa.isActive = false;
           kassa.status = KassaProgresEnum.WARNING;
           await kassaRepo.save(kassa);
@@ -599,7 +593,7 @@ export class KassaService {
 
           const newKassa = kassaRepo.create({
             filial: kassa.filial,
-            startDate: nextMonthStart,
+            createdAt: nextMonthStart,
             isActive: true,
             status: KassaProgresEnum.OPEN,
             year: nextYear,
@@ -620,7 +614,7 @@ export class KassaService {
 
         } else {
           // No cashflows -> just shift startDate to next month
-          kassa.startDate = nextMonthStart;
+          kassa.createdAt = nextMonthStart;
           kassa.year = nextYear;
           kassa.month = nextMonth;
 
@@ -771,15 +765,15 @@ export class KassaService {
   /** Kassaning barcha totallarini cashflowlardan qayta hisoblash */
   async recalculateKassa(kassaId: string): Promise<void> {
     const cashflows = await this.cashflowRepository.find({
-      where: { kassa: { id: kassaId }, is_cancelled: false },
+      where: { kassa: { id: kassaId }, isCancelled: false },
       relations: { order: { product: { bar_code: { size: true } } }, cashflow_type: true },
     });
 
-    let income = 0, expense = 0, sale = 0, plasticSum = 0, in_hand = 0;
-    let discount = 0, return_sale = 0, return_size = 0, cash_collection = 0;
+    let income = 0, expense = 0, sale = 0, plasticSum = 0, inHand = 0;
+    let discount = 0, saleReturn = 0, sizeReturn = 0, cashCollection = 0;
     let totalSize = 0, totalSellCount = 0;
-    let netProfitTotalSum = 0, additionalProfitTotalSum = 0;
-    let debt_sum = 0, debt_kv = 0, debt_count = 0;
+    let netProfitSum = 0, additionalProfitSum = 0;
+    let debtSum = 0, debtSize = 0, debtCount = 0;
     let internetShopSum = 0;
 
     for (const cf of cashflows) {
@@ -790,16 +784,16 @@ export class KassaService {
       if (cf.type === CashFlowEnum.InCome) {
         if (isOrder && order) {
           sale += price;
-          plasticSum += order.plasticSum || 0;
-          discount += (order.discountSum || 0) + (order.managerDiscountSum || 0);
-          netProfitTotalSum += order.netProfitSum || 0;
-          additionalProfitTotalSum += order.additionalProfitSum || 0;
+          plasticSum += order.plastic || 0;
+          discount += (order.discount || 0) + (order.managerDiscount || 0);
+          netProfitSum += order.netProfit || 0;
+          additionalProfitSum += order.additionalProfit || 0;
           if (order.isDebt) {
-            debt_sum += price;
-            debt_kv += order.kv || 0;
-            debt_count += order.product?.bar_code?.isMetric ? 1 : (order.x || 0);
+            debtSum += price;
+            debtSize += order.kv || 0;
+            debtCount += order.product?.bar_code?.isMetric ? 1 : (order.x || 0);
           } else {
-            in_hand += order.price || 0;
+            inHand += order.price || 0;
           }
           const barCode = order?.product?.bar_code;
           const size = barCode?.size;
@@ -817,10 +811,10 @@ export class KassaService {
         }
       } else if (cf.type === CashFlowEnum.Consumption) {
         expense += price;
-        in_hand -= price;
-        if (cf.cashflow_type?.slug === 'cash_collection') cash_collection += price;
+        inHand -= price;
+        if (cf.cashflow_type?.slug === 'cashCollection') cashCollection += price;
         if (cf.cashflow_type?.slug === 'return') {
-          return_sale += price;
+          saleReturn += price;
         }
       }
     }
@@ -829,24 +823,24 @@ export class KassaService {
     const kassa = await this.kassaRepository.findOne({ where: { id: kassaId } });
     if (!kassa) return;
 
-    const openingBalance = kassa.opening_balance || 0;
+    const openingBalance = kassa.openingBalance || 0;
 
     kassa.income = income;
     kassa.expense = expense;
     kassa.sale = sale;
     kassa.plasticSum = plasticSum;
-    kassa.in_hand = openingBalance + in_hand + income - expense;
-    kassa.discount = discount;
-    kassa.return_sale = return_sale;
-    kassa.return_size = return_size;
-    kassa.cash_collection = cash_collection;
-    kassa.totalSize = totalSize;
-    kassa.totalSellCount = totalSellCount;
-    kassa.netProfitTotalSum = netProfitTotalSum;
-    kassa.additionalProfitTotalSum = additionalProfitTotalSum;
-    kassa.debt_sum = debt_sum;
-    kassa.debt_kv = debt_kv;
-    kassa.debt_count = debt_count;
+    kassa.inHand = openingBalance + inHand + income - expense;
+    kassa.discountSum = discount;
+    kassa.saleReturn = saleReturn;
+    kassa.sizeReturn = sizeReturn;
+    kassa.cashCollection = cashCollection;
+    kassa.saleSize = totalSize;
+    kassa.saleCount = totalSellCount;
+    kassa.netProfitSum = netProfitSum;
+    kassa.additionalProfitSum = additionalProfitSum;
+    kassa.debtSum = debtSum;
+    kassa.debtSize = debtSize;
+    kassa.debtCount = debtCount;
     kassa.internetShopSum = internetShopSum;
 
     await this.kassaRepository.save(kassa);
@@ -969,7 +963,7 @@ export class KassaService {
           relations: { filial: true },
         });
 
-        const price = kassa.in_hand;
+        const price = kassa.inHand;
 
         if (Number(price) > 0 && nextKassa) {
           const slugSaldo = await this.getOneBySlug('balance');
@@ -988,19 +982,19 @@ export class KassaService {
             }),
           );
 
-          nextKassa.opening_balance = (nextKassa.opening_balance || 0) + price;
-          nextKassa.in_hand = (nextKassa.in_hand || 0) + price;
+          nextKassa.openingBalance = (nextKassa.openingBalance || 0) + price;
+          nextKassa.inHand = (nextKassa.inHand || 0) + price;
           await this.kassaRepository.save(nextKassa);
         } else if (nextKassa) {
-          // Nol yoki manfiy balance — cashflow yaratmasdan faqat opening_balance yozish
-          nextKassa.opening_balance = (nextKassa.opening_balance || 0) + Number(price);
-          nextKassa.in_hand = (nextKassa.in_hand || 0) + Number(price);
+          // Nol yoki manfiy balance — cashflow yaratmasdan faqat openingBalance yozish
+          nextKassa.openingBalance = (nextKassa.openingBalance || 0) + Number(price);
+          nextKassa.inHand = (nextKassa.inHand || 0) + Number(price);
           await this.kassaRepository.save(nextKassa);
         }
       }
     }
 
-    kassa.dealer_frozen_owed = kassa.filial?.owed || 0;
+    kassa.frozenOwed = kassa.filial?.owed || 0;
 
     return await this.kassaRepository.save(kassa);
   }
@@ -1107,22 +1101,21 @@ export class KassaService {
 
   /**
    * Adds kassa values to a report aggregate (helper).
+   * Eslatma: report.inHand DROP qilingan — managerSum + accountantSum orqali ko'rinadi.
    */
   public addKassaToReport(report: Report, kassa: Kassa): void {
-    report.in_hand = (report.in_hand || 0) + (kassa.in_hand || 0) + (kassa.plasticSum || 0);
     report.totalExpense = (report.totalExpense || 0) + (kassa.expense || 0);
     report.totalIncome = (report.totalIncome || 0) + (kassa.income || 0);
   }
 
   public subtractKassaFromReport(report: Report, kassa: Kassa): void {
-    report.in_hand = Math.max(0, (report.in_hand || 0) - ((kassa.in_hand || 0) + (kassa.plasticSum || 0)));
     report.totalExpense = Math.max(0, (report.totalExpense || 0) - (kassa.expense || 0));
     report.totalIncome = Math.max(0, (report.totalIncome || 0) - (kassa.income || 0));
   }
 
   async changeValueReport(kassa: Kassa): Promise<Report> {
-    const year = kassa.startDate.getFullYear();
-    const month = kassa.startDate.getMonth() + 1;
+    const year = kassa.createdAt.getFullYear();
+    const month = kassa.createdAt.getMonth() + 1;
 
     const fullKassa = await this.kassaRepository.findOne({
       where: { id: kassa.id },
@@ -1145,7 +1138,7 @@ export class KassaService {
       throw new BadRequestException('Report not found');
     }
 
-    if (report.is_cancelled) {
+    if (report.isCancelled) {
       throw new BadRequestException('This report is cancelled and cannot be modified');
     }
 

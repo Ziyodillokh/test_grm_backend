@@ -385,21 +385,21 @@ export class PackageTransferService {
 
       // 12) Update dealer kassa: debt stats + discount
       await kassaRepo.update(dealerKassa.id, {
-        debt_count: Number(dealerKassa.debt_count || 0) + total_count,
-        debt_kv: Number(dealerKassa.debt_kv || 0) + total_kv,
-        debt_sum: Number(dealerKassa.debt_sum || 0) + total_sum,
-        debt_profit_sum: Number(dealerKassa.debt_profit_sum || 0) + total_profit,
-        discount: Number(dealerKassa.discount || 0) + total_discount,
+        debtCount: Number(dealerKassa.debtCount || 0) + total_count,
+        debtSize: Number(dealerKassa.debtSize || 0) + total_kv,
+        debtSum: Number(dealerKassa.debtSum || 0) + total_sum,
+        debtProfitSum: Number(dealerKassa.debtProfitSum || 0) + total_profit,
+        discountSum: Number(dealerKassa.discountSum || 0) + total_discount,
       });
 
       // 13) Update D-Manager report: debt stats
       if (dealerReport) {
         await reportRepo.update(dealerReport.id, {
-          debt_count: Number(dealerReport.debt_count || 0) + total_count,
-          debt_kv: Number(dealerReport.debt_kv || 0) + total_kv,
-          debt_sum: Number(dealerReport.debt_sum || 0) + total_sum,
-          debt_profit_sum: Number(dealerReport.debt_profit_sum || 0) + total_profit,
-          totalDiscount: Number(dealerReport.totalDiscount || 0) + total_discount,
+          totalDebtCount: Number(dealerReport.totalDebtCount || 0) + total_count,
+          totalDebtSize: Number(dealerReport.totalDebtSize || 0) + total_kv,
+          totalDebtSum: Number(dealerReport.totalDebtSum || 0) + total_sum,
+          totalDebtProfitSum: Number(dealerReport.totalDebtProfitSum || 0) + total_profit,
+          totalDiscountSum: Number(dealerReport.totalDiscountSum || 0) + total_discount,
         });
       }
 
@@ -410,11 +410,11 @@ export class PackageTransferService {
 
       if (filialReport) {
         await reportRepo.update(filialReport.id, {
-          debt_count: Number(filialReport.debt_count || 0) + total_count,
-          debt_kv: Number(filialReport.debt_kv || 0) + total_kv,
-          debt_sum: Number(filialReport.debt_sum || 0) + total_sum,
-          debt_profit_sum: Number(filialReport.debt_profit_sum || 0) + total_profit,
-          totalDiscount: Number(filialReport.totalDiscount || 0) + total_discount,
+          totalDebtCount: Number(filialReport.totalDebtCount || 0) + total_count,
+          totalDebtSize: Number(filialReport.totalDebtSize || 0) + total_kv,
+          totalDebtSum: Number(filialReport.totalDebtSum || 0) + total_sum,
+          totalDebtProfitSum: Number(filialReport.totalDebtProfitSum || 0) + total_profit,
+          totalDiscountSum: Number(filialReport.totalDiscountSum || 0) + total_discount,
         });
       }
     });
@@ -827,11 +827,11 @@ export class PackageTransferService {
 
       if (dealerKassa) {
         await kassaRepo.update(dealerKassa.id, {
-          debt_count: Math.max(Number(dealerKassa.debt_count || 0) - count, 0),
-          debt_kv: Math.max(Number(dealerKassa.debt_kv || 0) - kv, 0),
-          debt_sum: Math.max(Number(dealerKassa.debt_sum || 0) - rowSum, 0),
-          debt_profit_sum: Math.max(Number(dealerKassa.debt_profit_sum || 0) - rowProfit, 0),
-          discount: Math.max(Number(dealerKassa.discount || 0) - rowDiscount, 0),
+          debtCount: Math.max(Number(dealerKassa.debtCount || 0) - count, 0),
+          debtSize: Math.max(Number(dealerKassa.debtSize || 0) - kv, 0),
+          debtSum: Math.max(Number(dealerKassa.debtSum || 0) - rowSum, 0),
+          debtProfitSum: Math.max(Number(dealerKassa.debtProfitSum || 0) - rowProfit, 0),
+          discountSum: Math.max(Number(dealerKassa.discountSum || 0) - rowDiscount, 0),
         });
       }
 
@@ -841,11 +841,11 @@ export class PackageTransferService {
 
       if (dealerReport) {
         await reportRepo.update(dealerReport.id, {
-          debt_count: Math.max(Number(dealerReport.debt_count || 0) - count, 0),
-          debt_kv: Math.max(Number(dealerReport.debt_kv || 0) - kv, 0),
-          debt_sum: Math.max(Number(dealerReport.debt_sum || 0) - rowSum, 0),
-          debt_profit_sum: Math.max(Number(dealerReport.debt_profit_sum || 0) - rowProfit, 0),
-          totalDiscount: Math.max(Number(dealerReport.totalDiscount || 0) - rowDiscount, 0),
+          totalDebtCount: Math.max(Number(dealerReport.totalDebtCount || 0) - count, 0),
+          totalDebtSize: Math.max(Number(dealerReport.totalDebtSize || 0) - kv, 0),
+          totalDebtSum: Math.max(Number(dealerReport.totalDebtSum || 0) - rowSum, 0),
+          totalDebtProfitSum: Math.max(Number(dealerReport.totalDebtProfitSum || 0) - rowProfit, 0),
+          totalDiscountSum: Math.max(Number(dealerReport.totalDiscountSum || 0) - rowDiscount, 0),
         });
       }
 
@@ -856,11 +856,11 @@ export class PackageTransferService {
 
       if (filialReport) {
         await reportRepo.update(filialReport.id, {
-          debt_count: Math.max(Number(filialReport.debt_count || 0) - count, 0),
-          debt_kv: Math.max(Number(filialReport.debt_kv || 0) - kv, 0),
-          debt_sum: Math.max(Number(filialReport.debt_sum || 0) - rowSum, 0),
-          debt_profit_sum: Math.max(Number(filialReport.debt_profit_sum || 0) - rowProfit, 0),
-          totalDiscount: Math.max(Number(filialReport.totalDiscount || 0) - rowDiscount, 0),
+          totalDebtCount: Math.max(Number(filialReport.totalDebtCount || 0) - count, 0),
+          totalDebtSize: Math.max(Number(filialReport.totalDebtSize || 0) - kv, 0),
+          totalDebtSum: Math.max(Number(filialReport.totalDebtSum || 0) - rowSum, 0),
+          totalDebtProfitSum: Math.max(Number(filialReport.totalDebtProfitSum || 0) - rowProfit, 0),
+          totalDiscountSum: Math.max(Number(filialReport.totalDiscountSum || 0) - rowDiscount, 0),
         });
       }
 

@@ -12,9 +12,9 @@ import { ReportService } from '@modules/report/report.service';
 
 export interface FactoryGroup {
   factory: any;
-  totalSellCount: number;
-  totalSellKv: number;
-  totalSellPrice: number;
+  totalSaleCount: number;
+  totalSaleSize: number;
+  totalSalePrice: number;
   items?: FactoryReportItem[];
 }
 
@@ -30,18 +30,18 @@ export interface FactoryCombinedResult {
   totalCount: number;
   totalKv: number;
   totalPrice: number;
-  totalSellCount: number;
-  totalSellKv: number;
-  totalSellPrice: number;
+  totalSaleCount: number;
+  totalSaleSize: number;
+  totalSalePrice: number;
 }
 
 export interface FactoryOverallTotals {
   totalCount: number;
   totalKv: number;
   totalPrice: number;
-  totalSellCount: number;
-  totalSellKv: number;
-  totalSellPrice: number;
+  totalSaleCount: number;
+  totalSaleSize: number;
+  totalSalePrice: number;
 }
 
 @Injectable()
@@ -292,17 +292,17 @@ export class FactoryReportService {
       if (!grouped.has(factoryKey)) {
         grouped.set(factoryKey, {
           factory: item.factory,
-          totalSellCount: 0,
-          totalSellKv: 0,
-          totalSellPrice: 0,
+          totalSaleCount: 0,
+          totalSaleSize: 0,
+          totalSalePrice: 0,
           items: [],
         });
       }
 
       const group = grouped.get(factoryKey)!;
-      group.totalSellCount += Number(item.totalSellCount || 0);
-      group.totalSellKv += Number(item.totalSellKv || 0);
-      group.totalSellPrice += Number(item.totalSellPrice || 0);
+      group.totalSaleCount += Number(item.totalSaleCount || 0);
+      group.totalSaleSize += Number(item.totalSaleSize || 0);
+      group.totalSalePrice += Number(item.totalSalePrice || 0);
       group.items!.push(item);
     }
 
@@ -349,9 +349,9 @@ export class FactoryReportService {
         totalCount: stockGroup?.totalCount || 0,
         totalKv: stockGroup?.totalKv || 0,
         totalPrice: stockGroup?.totalPrice || 0,
-        totalSellCount: sellGroup?.totalSellCount || 0,
-        totalSellKv: sellGroup?.totalSellKv || 0,
-        totalSellPrice: sellGroup?.totalSellPrice || 0,
+        totalSaleCount: sellGroup?.totalSaleCount || 0,
+        totalSaleSize: sellGroup?.totalSaleSize || 0,
+        totalSalePrice: sellGroup?.totalSalePrice || 0,
       });
     }
 
@@ -370,18 +370,18 @@ export class FactoryReportService {
         acc.totalCount += Number(item.totalCount || 0);
         acc.totalKv += Number(item.totalKv || 0);
         acc.totalPrice += Number(item.totalPrice || 0);
-        acc.totalSellCount += Number(item.totalSellCount || 0);
-        acc.totalSellKv += Number(item.totalSellKv || 0);
-        acc.totalSellPrice += Number(item.totalSellPrice || 0);
+        acc.totalSaleCount += Number(item.totalSaleCount || 0);
+        acc.totalSaleSize += Number(item.totalSaleSize || 0);
+        acc.totalSalePrice += Number(item.totalSalePrice || 0);
         return acc;
       },
       {
         totalCount: 0,
         totalKv: 0,
         totalPrice: 0,
-        totalSellCount: 0,
-        totalSellKv: 0,
-        totalSellPrice: 0,
+        totalSaleCount: 0,
+        totalSaleSize: 0,
+        totalSalePrice: 0,
       },
     );
   }
@@ -392,13 +392,13 @@ export class FactoryReportService {
     overallTotals: FactoryOverallTotals,
   ) {
     for (const [key, value] of groupedSales.entries()) {
-      console.log(`🏭 ${key}: count=${value.totalSellCount}, kv=${value.totalSellKv}, price=${value.totalSellPrice}`);
+      console.log(`🏭 ${key}: count=${value.totalSaleCount}, kv=${value.totalSaleSize}, price=${value.totalSalePrice}`);
     }
 
     console.log('📊 Yakuniy factory natijalari:');
     combinedResult.forEach((r) => {
       console.log(
-        `🏭 ${r.factory?.title}: sotuv ${r.totalSellPrice}, qoldiq ${r.totalPrice}, count ${r.totalSellCount}/${r.totalCount}`,
+        `🏭 ${r.factory?.title}: sotuv ${r.totalSalePrice}, qoldiq ${r.totalPrice}, count ${r.totalSaleCount}/${r.totalCount}`,
       );
     });
 
@@ -533,13 +533,13 @@ export class FactoryReportService {
     const { orders, products } = group;
 
     // Sotuv hisoblamalari
-    const totalSellCount = orders.reduce((sum, o) => {
+    const totalSaleCount = orders.reduce((sum, o) => {
       const count = o.bar_code?.isMetric ? 1 : Number(o.x ?? 0);
       return sum + count;
     }, 0);
 
-    const totalSellKv = orders.reduce((sum, o) => sum + Number(o.kv ?? 0), 0);
-    const totalSellPrice = orders.reduce((sum, o) => sum + Number(o.price ?? 0), 0);
+    const totalSaleSize = orders.reduce((sum, o) => sum + Number(o.kv ?? 0), 0);
+    const totalSalePrice = orders.reduce((sum, o) => sum + Number(o.price ?? 0), 0);
 
     // Ombor hisoblamalari
     const totalCount = products.reduce((sum, p) => {
@@ -560,9 +560,9 @@ export class FactoryReportService {
       year: targetDate.year(),
       month: targetDate.month() + 1,
       day: targetDate.date(),
-      totalSellCount,
-      totalSellKv,
-      totalSellPrice,
+      totalSaleCount,
+      totalSaleSize,
+      totalSalePrice,
       totalCount,
       totalKv,
       totalPrice,
@@ -727,9 +727,9 @@ export class FactoryReportService {
         totalCount: +(Number(r.totalCount || 0).toFixed(2)),
         totalKv: +(Number(r.totalKv || 0).toFixed(2)),
         totalPrice: +(Number(r.totalPrice || 0).toFixed(2)),
-        totalSellCount: 0,
-        totalSellKv: 0,
-        totalSellPrice: 0,
+        totalSaleCount: 0,
+        totalSaleSize: 0,
+        totalSalePrice: 0,
         totalNetProfitSum: 0,
       })),
       meta: {
@@ -745,9 +745,9 @@ export class FactoryReportService {
           totalCount: +(Number(totalsRow.totalCount || 0).toFixed(2)),
           totalKv: +(Number(totalsRow.totalKv || 0).toFixed(2)),
           totalPrice: +(Number(totalsRow.totalPrice || 0).toFixed(2)),
-          totalSellCount: 0,
-          totalSellKv: 0,
-          totalSellPrice: 0,
+          totalSaleCount: 0,
+          totalSaleSize: 0,
+          totalSalePrice: 0,
           totalNetProfitSum: 0,
         },
       },
@@ -887,9 +887,9 @@ export class FactoryReportService {
         totalCount: +(Number(r.totalCount).toFixed(2)),
         totalPrice: +(Number(r.totalPrice).toFixed(2)),
         totalNetProfitPrice: +(Number(r.totalNetProfitPrice).toFixed(2)),
-        totalSellCount: 0,
-        totalSellKv: 0,
-        totalSellPrice: 0,
+        totalSaleCount: 0,
+        totalSaleSize: 0,
+        totalSalePrice: 0,
         totalNetProfitSum: 0,
       })),
       meta: {
@@ -906,9 +906,9 @@ export class FactoryReportService {
           totalCount: +(Number(totals?.totalCount || 0).toFixed(2)),
           totalPrice: +(Number(totals?.totalPrice || 0).toFixed(2)),
           totalNetProfitPrice: +(Number(totals?.totalNetProfitPrice || 0).toFixed(2)),
-          totalSellCount: 0,
-          totalSellKv: 0,
-          totalSellPrice: 0,
+          totalSaleCount: 0,
+          totalSaleSize: 0,
+          totalSalePrice: 0,
           totalNetProfitSum: 0,
         },
       },

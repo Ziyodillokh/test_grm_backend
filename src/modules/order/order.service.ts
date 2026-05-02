@@ -112,7 +112,6 @@ export class OrderService {
       .findOne({
         where: { id },
         relations: {
-          createdBy: true,
           seller: true,
           product: {
             bar_code: {
@@ -200,7 +199,7 @@ export class OrderService {
   async getByKassaWithCach(id: string) {
     const data = await this.orderRepository
       .find({
-        relations: { kassa: true, createdBy: true, seller: true, product: true },
+        relations: { kassa: true, seller: true, product: true },
         where: { kassa: { id } },
         order: { date: 'desc' },
       })
@@ -227,14 +226,14 @@ export class OrderService {
         const kassa = await this.kassaService.getById(order.kassa.id);
 
         if (order.x) {
-          kassa.totalSize = kassa.totalSize - order.x * order.product.y;
+          kassa.saleSize = kassa.saleSize - order.x * order.product.y;
         } else {
-          kassa.totalSize = kassa.totalSize - order.product.x * order.product.y;
+          kassa.saleSize = kassa.saleSize - order.product.x * order.product.y;
         }
 
-        kassa.plasticSum = kassa.plasticSum - order.plasticSum;
-        kassa.additionalProfitTotalSum = kassa.additionalProfitTotalSum - order.additionalProfitSum;
-        kassa.netProfitTotalSum = kassa.netProfitTotalSum - order.netProfitSum;
+        kassa.plasticSum = kassa.plasticSum - order.plastic;
+        kassa.additionalProfitSum = kassa.additionalProfitSum - order.additionalProfit;
+        kassa.netProfitSum = kassa.netProfitSum - order.netProfit;
 
         await manager.save(kassa);
       }
@@ -294,14 +293,14 @@ export class OrderService {
         const kassa = await this.kassaService.getById(order.kassa.id);
 
         if (order.x) {
-          kassa.totalSize = kassa.totalSize + order.x * order.product.y;
+          kassa.saleSize = kassa.saleSize + order.x * order.product.y;
         } else {
-          kassa.totalSize = kassa.totalSize + order.product.x * order.product.y;
+          kassa.saleSize = kassa.saleSize + order.product.x * order.product.y;
         }
 
-        kassa.plasticSum = kassa.plasticSum + order.plasticSum;
-        kassa.additionalProfitTotalSum = kassa.additionalProfitTotalSum + order.additionalProfitSum;
-        kassa.netProfitTotalSum = kassa.netProfitTotalSum + order.netProfitSum;
+        kassa.plasticSum = kassa.plasticSum + order.plastic;
+        kassa.additionalProfitSum = kassa.additionalProfitSum + order.additionalProfit;
+        kassa.netProfitSum = kassa.netProfitSum + order.netProfit;
 
         await manager.save(kassa);
       }
@@ -344,7 +343,7 @@ export class OrderService {
 
       const newX = value.x ?? order.x;
       const newPrice = value.price ?? order.price;
-      const newPlastic = value.plasticSum ?? order.plasticSum ?? 0;
+      const newPlastic = value.plasticSum ?? order.plastic ?? 0;
 
       const kv = isMetric
         ? (newX / 100) * size.x
@@ -361,11 +360,11 @@ export class OrderService {
 
       if (order.status === OrderEnum.Accept) {
         const kassa = await this.kassaService.getById(order.kassa.id);
-        kassa.additionalProfitTotalSum =
-          kassa.additionalProfitTotalSum - order.additionalProfitSum + value.additionalProfitSum;
+        kassa.additionalProfitSum =
+          kassa.additionalProfitSum - order.additionalProfit + value.additionalProfitSum;
 
         if (value.plasticSum !== undefined) {
-          kassa.plasticSum = kassa.plasticSum - order.plasticSum + value.plasticSum;
+          kassa.plasticSum = kassa.plasticSum - order.plastic + value.plasticSum;
         }
 
         await this.saveRepo(kassa);
@@ -556,7 +555,6 @@ export class OrderService {
           filial: true,
         },
         seller: true,
-        createdBy: true,
         bar_code: true,
         client: true,
       },
@@ -579,11 +577,11 @@ export class OrderService {
 
     const kassa = await this.kassaService.getById(kassa_id || order.kassa.id);
     if (kassa_id) {
-      order.date = kassa.endDate as unknown as string || order.date;
+      order.date = kassa.finishedAt as unknown as string || order.date;
     }
 
     if (order.isDebt) {
-      await this.clientRepository.update({ id: order.client.id }, { owed: order.client.owed + (order.price + order.plasticSum) });
+      await this.clientRepository.update({ id: order.client.id }, { owed: order.client.owed + (order.price + order.plastic) });
     }
 
     const response = await this.orderRepository
@@ -612,7 +610,7 @@ export class OrderService {
           type: CashFlowEnum.InCome,
           title: '',
           comment: '',
-          price: order.price + order.plasticSum,
+          price: order.price + order.plastic,
           report: null,
         },
         createdBy,
@@ -765,13 +763,13 @@ export class OrderService {
       : '';
 
     await this.cashFlowService.createReturnCashflow({
-      price: order.price + order.plasticSum,
+      price: order.price + order.plastic,
       kassa: kassa.id,
       order: order.id,
       cashflow_type: returnCashflowType?.id,
       comment: `Qaytarildi: ${collectionName} | ${modelName} | ${sizeName} | ${colorName} | x${order.x} | ${acceptedDate}`,
       title: `${collectionName} | ${modelName} | ${sizeName} | x${order.x}`,
-      in_hand_amount: order.price,
+      inHand_amount: order.price,
       kv: order.kv,
     }, userId);
 
@@ -906,19 +904,19 @@ export class OrderService {
       },
     });
 
-    return orders.reduce((acc, curr) => acc + curr.additionalProfitSum, 0);
+    return orders.reduce((acc, curr) => acc + curr.additionalProfit, 0);
   }
 
   async getAdditionalTotalProfitSumm(where) {
     const orders = await this.orderRepository.find({
       where: {
         ...where,
-        additionalProfitSum: MoreThan(0),
+        additionalProfit: MoreThan(0),
         status: Equal(OrderEnum.Accept),
       },
     });
 
-    return orders.reduce((acc, curr) => acc + curr.additionalProfitSum, 0);
+    return orders.reduce((acc, curr) => acc + curr.additionalProfit, 0);
   }
 
   async getProfitSums(where) {
@@ -940,10 +938,10 @@ export class OrderService {
       .leftJoin('order.product', 'product')
       .leftJoin('order.kassa', 'kassa')
       .leftJoin('product.filial', 'filial')
-      .select('SUM(CASE WHEN order.additionalProfitSum < 0 THEN order.additionalProfitSum ELSE 0 END)', 'discountSum')
+      .select('SUM(CASE WHEN order.additionalProfit < 0 THEN order.additionalProfit ELSE 0 END)', 'discountSum')
       .addSelect(
-        'SUM(CASE WHEN order.additionalProfitSum > 0 THEN order.additionalProfitSum ELSE 0 END)',
-        'additionalProfitTotalSum',
+        'SUM(CASE WHEN order.additionalProfit > 0 THEN order.additionalProfit ELSE 0 END)',
+        'additionalProfitSum',
       )
       .addSelect('SUM(product.comingPrice * order.kv)', 'comingSum')
       .addSelect('SUM(product.priceMeter * order.kv)', 'additionalSum')
@@ -966,7 +964,7 @@ export class OrderService {
 
     return {
       discountSum: parseFloat(result.discountSum) || 0,
-      additionalProfitTotalSum: parseFloat(result.additionalProfitTotalSum) || 0,
+      additionalProfitSum: parseFloat(result.additionalProfitSum) || 0,
       comingSumBase: parseFloat(result.comingSum) || 0,
       additionalSum: parseFloat(result['additionalSum']) || 0,
     };

@@ -16,11 +16,6 @@ import {
 import { ApiBearerAuth, ApiProperty, ApiQuery, ApiTags } from '@nestjs/swagger';
 import {
   HomePageCurrLeft,
-  HomePageCurrLeftKents,
-  HomePageCurrMonth,
-  HomePageCurrMonthExpense,
-  HomePageCurrMonthManagers,
-  HomePageCurrMonthProdaja,
   reportCorrect,
   ReportMonthlyV2,
   ReportMonthlyV2Detail,
@@ -113,39 +108,9 @@ export class ReportReportController {
     return { message: 'Report moved to next month successfully' };
   }
 
-  @Get('home-page/current-month')
-  async currentBossReport(@Query() query: HomePageCurrMonth) {
-    return await this.reportService.bossCurrentMonth(query);
-  }
-
-  @Get('home-page/current-month/prodaja')
-  async currentBossReportProdaja(@Query() query: HomePageCurrMonthProdaja) {
-    return await this.reportService.prodaja(query);
-  }
-
-  @Get('home-page/current-month/sell/debt')
-  async currentBossReportSellDebt(@Query() query: HomePageCurrMonthProdaja) {
-    return await this.reportService.prodajaVDolg(query);
-  }
-
   @Get('home-page/current-left')
   async currentBossReportLeft(@Query() query: HomePageCurrLeft) {
     return await this.reportService.bossCurrLeft({ year: query.year, month: query.month, filialId: query.filial_id });
-  }
-
-  @Get('home-page/current-lef/kents')
-  async currentBossReportLeftKents(@Query() query: HomePageCurrLeftKents) {
-    return await this.reportService.kents(query);
-  }
-
-  @Get('home-page/current-month/expense')
-  async currentBossReportExpense(@Query() query: HomePageCurrMonthExpense) {
-    return await this.reportService.expense_cashflow(query);
-  }
-
-  @Get('home-page/current-month/managers')
-  async currentBossReportManagers(@Query() query: HomePageCurrMonthManagers) {
-    return await this.reportService.expense_managers(query);
   }
 
   @Get('/monthly/v2')

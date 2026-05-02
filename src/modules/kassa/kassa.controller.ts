@@ -48,7 +48,7 @@ export class KassaController {
       const startDate = new Date(year, startMonth, 1);
       const endDate = new Date(year, endMonth + 1, 0, 23, 59, 59);
 
-      req.where = { ...req.where, startDate: Between(startDate, endDate) };
+      req.where = { ...req.where, createdAt: Between(startDate, endDate) };
     }
     return await this.kassaService.getAll({ ...query, route }, req.where);
   }

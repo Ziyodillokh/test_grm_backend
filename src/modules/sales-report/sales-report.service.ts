@@ -576,7 +576,7 @@ export class SalesReportService {
           totalKv: +totals.totalKv,
           totalSum: +totals.totalSum,
           totalProfit: +totals.totalProfit,
-          totalDiscount: +totals.totalDiscount,
+          totalDiscount: +totals.totalDiscountSum,
           totalComingSum: +totals.totalComingSum,
           totalOverheadSum: +totals.totalOverheadSum,
         },
@@ -792,7 +792,7 @@ export class SalesReportService {
           totalKv: +totals.totalKv,
           totalSum: +totals.totalSum,
           totalProfit: +totals.totalProfit,
-          totalDiscount: +totals.totalDiscount,
+          totalDiscount: +totals.totalDiscountSum,
         },
         pagination: {
           page,
