@@ -20,7 +20,7 @@ class UpdateCashflowDto {
 
   @ApiProperty({
     description: `type`,
-    example: 'Приход',
+    example: 'income',
   })
   @IsOptional()
   @IsString()
@@ -44,7 +44,7 @@ class UpdateCashflowDto {
 
   @ApiProperty({
     description: `title`,
-    example: 'Босс Расход',
+    example: 'boss_expense',
   })
   @IsOptional()
   @IsString()

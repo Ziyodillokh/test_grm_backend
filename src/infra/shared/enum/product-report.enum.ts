@@ -1,7 +1,7 @@
 enum ProductReportEnum {
-  SURPLUS = 'излишки',
-  DEFICIT = 'дефицит',
-  INVENTORY = 'переучет',
+  SURPLUS = 'surplus',
+  DEFICIT = 'deficit',
+  INVENTORY = 'recount',
 }
 
 export default ProductReportEnum;

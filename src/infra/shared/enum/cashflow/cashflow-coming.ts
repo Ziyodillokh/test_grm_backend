@@ -1,6 +1,6 @@
 enum CashflowComingEnum {
-  BOSS = 'Босс Приход',
-  SHOP = 'Магазин Приход',
+  BOSS = 'boss_income',
+  SHOP = 'shop_income',
 }
 
 export default CashflowComingEnum;

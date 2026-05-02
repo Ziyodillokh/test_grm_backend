@@ -309,8 +309,8 @@ export class CashflowService {
         'COALESCE(SUM(cashflow.price), 0) AS "totalSum"',
         'COALESCE(SUM(ord.plastic), 0) AS "plasticSum"',
         'COALESCE(SUM(ord.price), 0) AS "totalOrderPrice"',
-        `COALESCE(SUM(CASE WHEN cashflow.type = 'Приход' THEN cashflow.price ELSE 0 END), 0) AS "totalIncome"`,
-        `COALESCE(SUM(CASE WHEN cashflow.type = 'Расход' THEN cashflow.price ELSE 0 END), 0) AS "totalExpense"`,
+        `COALESCE(SUM(CASE WHEN cashflow.type = 'income' THEN cashflow.price ELSE 0 END), 0) AS "totalIncome"`,
+        `COALESCE(SUM(CASE WHEN cashflow.type = 'expense' THEN cashflow.price ELSE 0 END), 0) AS "totalExpense"`,
         `COALESCE(SUM(CASE WHEN ord.status = 'returned' THEN ord.plastic + ord.price ELSE 0 END), 0) AS "totalReturnSale"`,
         'COALESCE(SUM(ord.discount), 0) AS "totalDiscount"',
         'COALESCE(SUM(ord.additionalProfit), 0) AS "totalAdditionalProfit"',
@@ -720,7 +720,7 @@ export class CashflowService {
       if (report) {
         const isDebtFlow = cashflow.cashflow_type.slug === 'kent' && value.debtId;
 
-        if (value.type === 'Приход') {
+        if (value.type === 'income') {
           if (isDebtFlow) {
             const debt = await this.debtService.findOne(value.debtId);
             if (!debt) throw new BadRequestException('Debt not found');
@@ -737,7 +737,7 @@ export class CashflowService {
             }
             report.totalIncome += price;
           }
-        } else if (value.type === 'Расход') {
+        } else if (value.type === 'expense') {
           if (isDebtFlow) {
             const debt = await this.debtService.findOne(value.debtId);
             if (!debt) throw new BadRequestException('Debt not found');
@@ -770,7 +770,7 @@ export class CashflowService {
           where: { id: value.factoryId },
         });
         if (!factory) throw new BadRequestException('Factory not found');
-        if (value.type === 'Расход') {
+        if (value.type === 'expense') {
           factory.given = Number(factory.given) + price;
           factory.totalDebt = Number(factory.owed) - Number(factory.given);
           await queryRunner.manager.save(factory);
@@ -783,9 +783,9 @@ export class CashflowService {
           where: { id: value.logisticsId },
         });
         if (!logistics) throw new BadRequestException('Logistics not found');
-        if (value.type === 'Приход') {
+        if (value.type === 'income') {
           logistics.owed = Number(logistics.owed) + price;
-        } else if (value.type === 'Расход') {
+        } else if (value.type === 'expense') {
           logistics.given = Number(logistics.given) + price;
         }
         logistics.totalDebt = Number(logistics.owed) - Number(logistics.given);
@@ -798,9 +798,9 @@ export class CashflowService {
           where: { id: value.customsId },
         });
         if (!customs) throw new BadRequestException('Customs not found');
-        if (value.type === 'Приход') {
+        if (value.type === 'income') {
           customs.owed = Number(customs.owed) + price;
-        } else if (value.type === 'Расход') {
+        } else if (value.type === 'expense') {
           customs.given = Number(customs.given) + price;
         }
         customs.totalDebt = Number(customs.owed) - Number(customs.given);
@@ -809,7 +809,7 @@ export class CashflowService {
 
       const today = dayjs().format('YYYY-MM-DD');
 
-      if (value.type === 'Приход' && kassa?.id && !isLogisticsFlow && !isCustomsFlow) {
+      if (value.type === 'income' && kassa?.id && !isLogisticsFlow && !isCustomsFlow) {
         if (!isOrder && cashflow.cashflow_type.slug !== 'transfer') {
           kassa.income += price;
           if (value?.is_online) {
@@ -840,7 +840,7 @@ export class CashflowService {
           // Kassa totallari approveCashflow() da yangilanadi
         }
       }
-      else if (value.type === 'Расход' && kassa?.id && !isLogisticsFlow && !isCustomsFlow) {
+      else if (value.type === 'expense' && kassa?.id && !isLogisticsFlow && !isCustomsFlow) {
         kassa.inHand -= price;
 
         // Find the report associated with this kassa
@@ -1174,7 +1174,7 @@ export class CashflowService {
         },
       });
 
-      if (cashflow.tip === 'order' && cashflow.type === 'Расход') {
+      if (cashflow.tip === 'order' && cashflow.type === 'expense') {
         throw new BadRequestException('Cashflow already cancelled');
       }
 
@@ -1219,7 +1219,7 @@ export class CashflowService {
       const isLogisticsFlow = cashflow.cashflow_type?.slug === 'logistics' && cashflow.logistics?.id;
       const isCustomsFlow = cashflow.cashflow_type?.slug === 'customs' && cashflow.customs?.id;
 
-      if (cashflow.type === 'Приход') {
+      if (cashflow.type === 'income') {
         if (isOrder) {
           await this.orderService.returnOrder(cashflow.order.id, userId);
         }
@@ -1276,7 +1276,7 @@ export class CashflowService {
             await queryRunner.manager.save(customs);
           }
         }
-      } else if (cashflow.type === 'Расход') {
+      } else if (cashflow.type === 'expense') {
         // Oddiy rasxod cashflow reverse — logistics/customs uchun skip (kassaga dahli yo'q)
         if (!isOrder && !isLogisticsFlow && !isCustomsFlow) {
           kassa.inHand += price;
@@ -1384,7 +1384,7 @@ export class CashflowService {
         }
       }
 
-      if (isOrder && order && order.seller?.id && cashflow.type === 'Приход') {
+      if (isOrder && order && order.seller?.id && cashflow.type === 'income') {
         const today = dayjs(cashflow.date).format('YYYY-MM-DD');
         const reportItem = await queryRunner.manager.findOne(SellerReportItem, {
           where: {
@@ -1630,9 +1630,9 @@ export class CashflowService {
 
       const summary = filialMap.get(filialId)!;
 
-      if (cashflow.type === 'Приход') {
+      if (cashflow.type === 'income') {
         summary.given += price;
-      } else if (cashflow.type === 'Расход') {
+      } else if (cashflow.type === 'expense') {
         summary.owed += price;
       }
     }
@@ -1754,7 +1754,7 @@ export class CashflowService {
 
         const isDManager = user?.position?.role === UserRoleEnum.D_MANAGER;
 
-        if (cashflow.type === 'Приход') {
+        if (cashflow.type === 'income') {
           if (cashflow.cashflow_type.slug === 'transfer') {
             kassa.plasticSum -= price;
             kassa.income -= price;
@@ -1789,7 +1789,7 @@ export class CashflowService {
               kassa.cashCollection = Math.max(0, kassa.cashCollection - price);
             }
           }
-        } else if (cashflow.type === 'Расход') {
+        } else if (cashflow.type === 'expense') {
           kassa.expense -= price;
 
           if (cashflow?.is_online) {
@@ -1824,7 +1824,7 @@ export class CashflowService {
 
         const isDebtFlow = cashflow.cashflow_type.slug === 'kent' && cashflow.debt;
 
-        if (cashflow.type === 'Приход') {
+        if (cashflow.type === 'income') {
           // Logistics/Customs Приход da report ta'sirlanmagan → reverse ham kerak emas
           if (!isLogisticsFlow && !isCustomsFlow) {
             report.totalIncome -= price;
@@ -1848,7 +1848,7 @@ export class CashflowService {
               await queryRunner.manager.save(debt);
             }
           }
-        } else if (cashflow.type === 'Расход') {
+        } else if (cashflow.type === 'expense') {
           report.totalExpense -= price;
 
           if (user?.position?.role === UserRoleEnum.ACCOUNTANT) {
@@ -1876,7 +1876,7 @@ export class CashflowService {
       }
 
       // Child cashflowlarning report effectlarini reverse
-      if (kassa && cashflow.type === 'Расход' && cashflow.child.length) {
+      if (kassa && cashflow.type === 'expense' && cashflow.child.length) {
         const childReport = cashflow.child[0].report;
         if (childReport) {
           childReport.totalIncome -= price;
@@ -1895,7 +1895,7 @@ export class CashflowService {
       }
 
       // Factory to'lov reverse
-      if (cashflow.factory?.id && cashflow.type === 'Расход') {
+      if (cashflow.factory?.id && cashflow.type === 'expense') {
         const factory = await queryRunner.manager.findOne(Factory, { where: { id: cashflow.factory.id } });
         if (factory) {
           factory.given = Number(factory.given) - price;
@@ -1908,9 +1908,9 @@ export class CashflowService {
       if (cashflow.logistics?.id) {
         const logistics = await queryRunner.manager.findOne(Logistics, { where: { id: cashflow.logistics.id } });
         if (logistics) {
-          if (cashflow.type === 'Приход') {
+          if (cashflow.type === 'income') {
             logistics.owed = Number(logistics.owed) - price;
-          } else if (cashflow.type === 'Расход') {
+          } else if (cashflow.type === 'expense') {
             logistics.given = Number(logistics.given) - price;
           }
           logistics.totalDebt = Math.max(0, Number(logistics.owed) - Number(logistics.given));
@@ -1922,9 +1922,9 @@ export class CashflowService {
       if (cashflow.customs?.id) {
         const customs = await queryRunner.manager.findOne(Customs, { where: { id: cashflow.customs.id } });
         if (customs) {
-          if (cashflow.type === 'Приход') {
+          if (cashflow.type === 'income') {
             customs.owed = Number(customs.owed) - price;
-          } else if (cashflow.type === 'Расход') {
+          } else if (cashflow.type === 'expense') {
             customs.given = Number(customs.given) - price;
           }
           customs.totalDebt = Math.max(0, Number(customs.owed) - Number(customs.given));
@@ -2339,8 +2339,8 @@ WITH orderSums AS (
 ),
 cashflowSums AS (
   SELECT
-    COALESCE(SUM(CASE WHEN c.type = 'Приход' and c.tip = 'cashflow' and ct.slug != 'transfer' THEN c.price ELSE 0 END), 0) AS "totalIncome",
-    COALESCE(SUM(CASE WHEN c.type = 'Расход' and c.tip = 'cashflow' THEN c.price ELSE 0 END), 0) AS "totalExpence",
+    COALESCE(SUM(CASE WHEN c.type = 'income' and c.tip = 'cashflow' and ct.slug != 'transfer' THEN c.price ELSE 0 END), 0) AS "totalIncome",
+    COALESCE(SUM(CASE WHEN c.type = 'expense' and c.tip = 'cashflow' THEN c.price ELSE 0 END), 0) AS "totalExpence",
     COALESCE(SUM(CASE WHEN ct.slug = 'cashCollection' THEN c.price ELSE 0 END), 0) AS "cashCollection",
     COALESCE(SUM(CASE WHEN ct.slug = 'return' THEN c.price ELSE 0 END), 0) AS "returnSale",
     COALESCE(SUM(CASE WHEN ct.slug = 'transfer' THEN c.price ELSE 0 END), 0) AS "perechesleniya"

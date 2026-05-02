@@ -30,7 +30,7 @@ class CreateCashflowDto {
 
   @ApiProperty({
     description: `title`,
-    example: 'Магазин Расход',
+    example: 'shop_expense',
     required: false,
   })
   @IsOptional()

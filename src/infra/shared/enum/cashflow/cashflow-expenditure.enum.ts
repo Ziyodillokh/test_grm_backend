@@ -1,6 +1,6 @@
 enum CashflowExpenditureEnum {
-  BOSS = 'Босс Расход',
-  SHOP = 'Магазин Расход',
+  BOSS = 'boss_expense',
+  SHOP = 'shop_expense',
 }
 
 export default CashflowExpenditureEnum;

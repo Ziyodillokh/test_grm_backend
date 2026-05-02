@@ -1,6 +1,6 @@
 export enum ConditionUnit {
-  PIECE = 'шт',
-  SQUARE_METER = 'м²',
+  PIECE = 'pcs',
+  SQUARE_METER = 'sqm',
 }
 
 export enum BonusType {

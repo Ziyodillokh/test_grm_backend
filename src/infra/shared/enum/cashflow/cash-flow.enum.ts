@@ -1,6 +1,6 @@
 enum CashFlowEnum {
-  Consumption = 'Расход',
-  InCome = 'Приход',
+  Consumption = 'expense',
+  InCome = 'income',
 }
 
 export default CashFlowEnum;

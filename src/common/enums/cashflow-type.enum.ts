@@ -11,6 +11,6 @@ export enum CashflowTip {
 }
 
 export enum CashflowDirection {
-  INCOME = 'Приход',
-  EXPENSE = 'Расход',
+  INCOME = 'income',
+  EXPENSE = 'expense',
 }

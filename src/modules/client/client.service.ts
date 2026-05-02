@@ -296,7 +296,7 @@ export class ClientService {
   /**
    * Boss Dashboard "Qarz" cardi uchun: yillik qaytarilgan + qoldiq qarz.
    * - totalDebt: hozirgi yig'ilgan client qarzi (sum of client.owed)
-   * - totalReturned: yil davomida qaytarilgan qarz cashflow (slug='debt_repayment' AND type='Приход')
+   * - totalReturned: yil davomida qaytarilgan qarz cashflow (slug='debt_repayment' AND type='income')
    */
   async getDebtSummary(year?: number): Promise<{ totalDebt: number; totalReturned: number }> {
     try {
@@ -310,7 +310,7 @@ export class ClientService {
         .leftJoin('cashflow.cashflow_type', 'cashflow_type')
         .select('COALESCE(SUM(cashflow.price), 0)', 'totalReturned')
         .where('cashflow_type.slug = :slug', { slug: 'debt_repayment' })
-        .andWhere('cashflow.type = :type', { type: 'Приход' });
+        .andWhere('cashflow.type = :type', { type: 'income' });
 
       if (year) {
         const start = new Date(year, 0, 1);

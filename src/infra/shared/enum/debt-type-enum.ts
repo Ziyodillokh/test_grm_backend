@@ -1,6 +1,6 @@
 enum DebtTransactionTypeEnum {
-  TAKE = 'Взято',
-  RETURN = 'Дано',
+  TAKE = 'taken',
+  RETURN = 'given',
 }
 
 export default DebtTransactionTypeEnum;

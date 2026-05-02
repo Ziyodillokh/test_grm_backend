@@ -185,7 +185,7 @@ export class ClientOrderService {
     // Cashflow yaratish
     const cashflow = em.create(Cashflow, {
       price,
-      type: 'Приход' as any,
+      type: 'income' as any,
       tip: 'cashflow' as any,
       title: `Интернет заказ #${order.sequence}`,
       comment: `Client order #${order.sequence}`,

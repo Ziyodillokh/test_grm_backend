@@ -147,8 +147,8 @@ export class DebtService {
         'd.owed AS owed',
         'd."totalDebt" AS "totalDebt"',
         'd.number_debt AS number_debt',
-        `COALESCE(SUM(CASE WHEN c.type = 'Приход' THEN c.price ELSE 0 END), 0)::NUMERIC(20,2) AS period_income`,
-        `COALESCE(SUM(CASE WHEN c.type = 'Расход' THEN c.price ELSE 0 END), 0)::NUMERIC(20,2) AS period_expense`,
+        `COALESCE(SUM(CASE WHEN c.type = 'income' THEN c.price ELSE 0 END), 0)::NUMERIC(20,2) AS period_income`,
+        `COALESCE(SUM(CASE WHEN c.type = 'expense' THEN c.price ELSE 0 END), 0)::NUMERIC(20,2) AS period_expense`,
       ])
       .leftJoin(
         'cashflow',
@@ -191,7 +191,7 @@ export class DebtService {
         (sub) =>
           sub
             .select('c."debtId"', 'debtId')
-            .addSelect(`SUM(CASE WHEN c.type = 'Приход' THEN c.price ELSE 0 END)`, 'period_income')
+            .addSelect(`SUM(CASE WHEN c.type = 'income' THEN c.price ELSE 0 END)`, 'period_income')
             .from('cashflow', 'c')
             .where('c.isCancelled = false AND c.date BETWEEN :s AND :e', { s: startDate, e: endDate })
             .groupBy('c."debtId"'),
@@ -202,7 +202,7 @@ export class DebtService {
         (sub) =>
           sub
             .select('c2."debtId"', 'debtId')
-            .addSelect(`SUM(CASE WHEN c2.type = 'Расход' THEN c2.price ELSE 0 END)`, 'period_expense')
+            .addSelect(`SUM(CASE WHEN c2.type = 'expense' THEN c2.price ELSE 0 END)`, 'period_expense')
             .from('cashflow', 'c2')
             .where('c2.isCancelled = false AND c2.date BETWEEN :s2 AND :e2', { s2: startDate, e2: endDate })
             .groupBy('c2."debtId"'),
@@ -284,8 +284,8 @@ export class DebtService {
     const total_qb = this.cashflowRepository
       .createQueryBuilder('cash')
       .select(`
-        SUM(CASE WHEN cash.type = 'Приход' THEN cash.price ELSE 0 END)::NUMERIC(20,2) AS total_income,
-        SUM(CASE WHEN cash.type = 'Расход' THEN cash.price ELSE 0 END)::NUMERIC(20,2) AS total_expense
+        SUM(CASE WHEN cash.type = 'income' THEN cash.price ELSE 0 END)::NUMERIC(20,2) AS total_income,
+        SUM(CASE WHEN cash.type = 'expense' THEN cash.price ELSE 0 END)::NUMERIC(20,2) AS total_expense
       `)
       .leftJoin('cash.debt', 'debt')
       .where('debt.id = :debtId', { debtId })
