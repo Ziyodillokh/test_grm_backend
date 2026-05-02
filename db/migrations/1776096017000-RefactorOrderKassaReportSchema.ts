@@ -135,9 +135,10 @@ export class RefactorOrderKassaReportSchema1776096017000
     await queryRunner.query(
       `ALTER TABLE report RENAME COLUMN "netProfitTotalSum" TO "totalNetProfitSum"`,
     );
-    // totalSaleReturn KEEP
+    // totalSaleReturn KEEP (allaqachon to'g'ri)
+    // totalSizeReturn ADD (avval bu nomda Report'da yo'q edi — Kassa'dan farqli)
     await queryRunner.query(
-      `ALTER TABLE report RENAME COLUMN "totalSaleSizeReturn" TO "totalSizeReturn"`,
+      `ALTER TABLE report ADD COLUMN IF NOT EXISTS "totalSizeReturn" numeric(20,2) NOT NULL DEFAULT 0`,
     );
     await queryRunner.query(
       `ALTER TABLE report RENAME COLUMN "totalDiscount" TO "totalDiscountSum"`,
@@ -189,7 +190,7 @@ export class RefactorOrderKassaReportSchema1776096017000
     await queryRunner.query(`ALTER TABLE report RENAME COLUMN "totalDebtSize" TO "debt_kv"`);
     await queryRunner.query(`ALTER TABLE report RENAME COLUMN "totalDebtCount" TO "debt_count"`);
     await queryRunner.query(`ALTER TABLE report RENAME COLUMN "totalDiscountSum" TO "totalDiscount"`);
-    await queryRunner.query(`ALTER TABLE report RENAME COLUMN "totalSizeReturn" TO "totalSaleSizeReturn"`);
+    await queryRunner.query(`ALTER TABLE report DROP COLUMN IF EXISTS "totalSizeReturn"`);
     await queryRunner.query(`ALTER TABLE report RENAME COLUMN "totalNetProfitSum" TO "netProfitTotalSum"`);
     await queryRunner.query(`ALTER TABLE report RENAME COLUMN "totalAdditionalProfitSum" TO "additionalProfitTotalSum"`);
     await queryRunner.query(`ALTER TABLE report RENAME COLUMN "totalSaleCount" TO "totalSellCount"`);
