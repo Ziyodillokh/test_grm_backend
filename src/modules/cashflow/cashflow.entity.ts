@@ -43,7 +43,7 @@ export class Cashflow extends BaseEntity {
   @Column('boolean', { default: false })
   is_online: boolean;
 
-  @Column({ default: false })
+  @Column({ default: false, name: 'is_cancelled' })
   isCancelled: boolean;
 
   @Column({ default: false })
