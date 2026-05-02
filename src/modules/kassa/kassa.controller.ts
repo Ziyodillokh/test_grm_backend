@@ -106,6 +106,7 @@ export class KassaController {
     return await this.kassaService.getReport({ limit: query.limit || 50, page: query.page || 1 }, req.user, {
       startDate: query.startDate,
       endDate: query?.endDate,
+      ...(query.year && { year: Number(query.year) }),
       ...(query.filial && { filial: { id: query.filial } }),
     });
   }
