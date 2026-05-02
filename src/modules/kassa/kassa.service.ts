@@ -80,15 +80,6 @@ export class KassaService {
   async getReport(options: IPaginationOptions, user, where) {
     const filialId = where.filial?.id || (!where.report?.id ? user?.filial?.id : undefined);
 
-    const queryWhere: any = {
-      // F-manager faqat kassaStatus 1 (warning) va 2 (open) ko'radi; 3 (closed) yashiriladi
-      kassaStatus: In([1, 2]),
-      ...(where.year && { year: where.year }),
-      ...(filialId && { filial: { id: filialId } }),
-      ...(where.report?.id && { report: { id: where.report.id } }),
-    };
-
-    // Tartib: joriy oy 1-chi, keyin yaqin o'tgan oylar (year DESC, month DESC)
     const now = new Date();
     const currentYear = now.getFullYear();
     const currentMonth = now.getMonth() + 1;
@@ -100,23 +91,25 @@ export class KassaService {
       .leftJoinAndSelect('users.position', 'users_position')
       .leftJoinAndSelect('filial.manager', 'manager')
       .leftJoinAndSelect('manager.position', 'manager_position')
-      .leftJoinAndSelect('kassa.report', 'report')
-      .where('kassa.kassaStatus IN (:...statuses)', { statuses: [1, 2] })
-      // Kelajak oylar yashiriladi: faqat <= joriy oy
-      .andWhere(
-        '(kassa.year < :curY OR (kassa.year = :curY AND kassa.month <= :curM))',
-      )
-      .addOrderBy(
-        `CASE WHEN kassa.year = :curY AND kassa.month = :curM THEN 0 ELSE 1 END`,
-        'ASC',
-      )
-      .addOrderBy('kassa.year', 'DESC')
-      .addOrderBy('kassa.month', 'DESC')
-      .setParameters({ curY: currentYear, curM: currentMonth });
+      .leftJoinAndSelect('kassa.report', 'report');
 
-    if (where.year) qb.andWhere('kassa.year = :year', { year: where.year });
+    // Filterlar
+    qb.andWhere('kassa.kassaStatus IN (:...statuses)', { statuses: [1, 2] });
+    qb.andWhere(
+      '(kassa.year < :curY OR (kassa.year = :curY AND kassa.month <= :curM))',
+      { curY: currentYear, curM: currentMonth },
+    );
+    if (where?.year) qb.andWhere('kassa.year = :selYear', { selYear: where.year });
     if (filialId) qb.andWhere('filial.id = :filialId', { filialId });
-    if (where.report?.id) qb.andWhere('report.id = :reportId', { reportId: where.report.id });
+    if (where?.report?.id) qb.andWhere('report.id = :reportId', { reportId: where.report.id });
+
+    // Tartib: joriy oy 1-chi
+    qb.addOrderBy(
+      `CASE WHEN kassa.year = ${currentYear} AND kassa.month = ${currentMonth} THEN 0 ELSE 1 END`,
+      'ASC',
+    );
+    qb.addOrderBy('kassa.year', 'DESC');
+    qb.addOrderBy('kassa.month', 'DESC');
 
     return paginate<Kassa>(qb, options);
   }
