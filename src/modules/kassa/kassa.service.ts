@@ -102,6 +102,10 @@ export class KassaService {
       .leftJoinAndSelect('manager.position', 'manager_position')
       .leftJoinAndSelect('kassa.report', 'report')
       .where('kassa.kassaStatus IN (:...statuses)', { statuses: [1, 2] })
+      // Kelajak oylar yashiriladi: faqat <= joriy oy
+      .andWhere(
+        '(kassa.year < :curY OR (kassa.year = :curY AND kassa.month <= :curM))',
+      )
       .addOrderBy(
         `CASE WHEN kassa.year = :curY AND kassa.month = :curM THEN 0 ELSE 1 END`,
         'ASC',
