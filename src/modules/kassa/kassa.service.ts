@@ -84,16 +84,15 @@ export class KassaService {
     const currentYear = now.getFullYear();
     const currentMonth = now.getMonth() + 1;
 
+    // Faqat tegishli relation'lar (filial.users yo'q — JOIN multiplication oldini olish uchun)
     const qb = this.kassaRepository
       .createQueryBuilder('kassa')
       .leftJoinAndSelect('kassa.filial', 'filial')
-      .leftJoinAndSelect('filial.users', 'users')
-      .leftJoinAndSelect('users.position', 'users_position')
       .leftJoinAndSelect('filial.manager', 'manager')
       .leftJoinAndSelect('manager.position', 'manager_position')
+      .leftJoinAndSelect('manager.avatar', 'manager_avatar')
       .leftJoinAndSelect('kassa.report', 'report');
 
-    // Filterlar
     qb.andWhere('kassa.kassaStatus IN (:...statuses)', { statuses: [1, 2] });
     qb.andWhere(
       '(kassa.year < :curY OR (kassa.year = :curY AND kassa.month <= :curM))',
@@ -111,7 +110,8 @@ export class KassaService {
     qb.addOrderBy('kassa.year', 'DESC');
     qb.addOrderBy('kassa.month', 'DESC');
 
-    return paginate<Kassa>(qb, options);
+    // Single-page response (max 200 — bir filial bir yilda max 12 oy, paginatsiya kerak emas)
+    return paginate<Kassa>(qb, { ...options, limit: 200 });
   }
 
   async getReportTotals(filialId: string, year?: number) {
