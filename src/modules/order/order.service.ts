@@ -769,7 +769,8 @@ export class OrderService {
       cashflow_type: returnCashflowType?.id,
       comment: `Qaytarildi: ${collectionName} | ${modelName} | ${sizeName} | ${colorName} | x${order.x} | ${acceptedDate}`,
       title: `${collectionName} | ${modelName} | ${sizeName} | x${order.x}`,
-      inHand_amount: order.price,
+      // Tasdiqlangan sotuvning to'liq qiymati (price + plastic) inHand'dan ayriladi
+      inHand_amount: order.price + order.plastic,
       kv: order.kv,
     }, userId);
 
