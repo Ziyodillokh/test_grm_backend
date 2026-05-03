@@ -1,3 +1,7 @@
+// Force Node.js to interpret all date strings as UTC
+// (DB stores literal timestamps; UI must show literal date without TZ shift)
+process.env.TZ = 'UTC';
+
 import { NestFactory, Reflector } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
