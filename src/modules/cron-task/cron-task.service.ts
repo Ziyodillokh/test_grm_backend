@@ -48,6 +48,7 @@ export class CronTaskService {
    */
   @Cron('0 0 * * *', {
     name: 'kassa-cron',
+    timeZone: 'Asia/Tashkent',
   })
   async handleDailyCron() {
     try {
@@ -73,6 +74,7 @@ export class CronTaskService {
    */
   @Cron('0 23 * * *', {
     name: 'monthly-cron',
+    timeZone: 'Asia/Tashkent',
   })
   async handleMonthlyCron2() {
     try {

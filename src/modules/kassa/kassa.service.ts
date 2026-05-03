@@ -595,6 +595,7 @@ export class KassaService {
           kassa.finishedAt = kassaEndDate.toDate();
           kassa.isActive = false;
           kassa.status = KassaProgresEnum.WARNING;
+          kassa.kassaStatus = 1; // closed/warning
           await kassaRepo.save(kassa);
 
           // Create new kassa for next month
@@ -611,6 +612,7 @@ export class KassaService {
             createdAt: nextMonthStart,
             isActive: true,
             status: KassaProgresEnum.OPEN,
+            kassaStatus: 2, // open (current month)
             year: nextYear,
             month: nextMonth,
             filialType: kassa.filialType,
