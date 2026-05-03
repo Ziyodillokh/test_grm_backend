@@ -1,7 +1,3 @@
-// Force Node.js to interpret all date strings as UTC
-// (DB stores literal timestamps; UI must show literal date without TZ shift)
-process.env.TZ = 'UTC';
-
 import { NestFactory, Reflector } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
@@ -21,6 +17,9 @@ import * as timezone from 'dayjs/plugin/timezone';
 dayjs.extend(utc);
 dayjs.extend(timezone);
 dayjs.tz.setDefault('Asia/Tashkent');
+
+// Node interpret DB timestamps (without TZ) as UTC, not as Tashkent local
+process.env.TZ = 'UTC';
 
 const logging = new Logger('Request Middleware', { timestamp: true });
 
