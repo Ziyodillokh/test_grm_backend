@@ -797,11 +797,10 @@ export class ReportService {
             continue;
           }
 
-          // Logistics/Customs cashflowlari report kassasiga ta'sir qilmaydi —
-          // ular shunchaki provider qarzini qayd qilish uchun.
+          // Logistics Приход — provider qarzigina, kassaga qo'shilmaydi.
           const cfSlug = cashflow.cashflow_type?.slug;
-          if (cfSlug === 'logistics' || cfSlug === 'customs') {
-            console.log(`    SKIP (${cfSlug}): Cashflow ID ${cashflow.id}`);
+          if (cfSlug === 'logistics') {
+            console.log(`    SKIP (logistics): Cashflow ID ${cashflow.id}`);
             continue;
           }
 
@@ -862,13 +861,6 @@ export class ReportService {
           const user = cashflow.createdBy;
           if (!user || !user.position) {
             console.log(`    SKIP: Cashflow ID ${cashflow.id} - user yoki position yo'q`);
-            continue;
-          }
-
-          // Logistics/Customs cashflowlari report kassasiga ta'sir qilmaydi.
-          const cfSlug = cashflow.cashflow_type?.slug;
-          if (cfSlug === 'logistics' || cfSlug === 'customs') {
-            console.log(`    SKIP (${cfSlug}): Cashflow ID ${cashflow.id}`);
             continue;
           }
 

@@ -309,9 +309,10 @@ export class CashflowService {
         'COALESCE(SUM(cashflow.price), 0) AS "totalSum"',
         'COALESCE(SUM(ord.plastic), 0) AS "plasticSum"',
         'COALESCE(SUM(ord.price), 0) AS "totalOrderPrice"',
-        // Logistics/Customs cashflowlari kassa balansiga ta'sir qilmaydi — provider qarzigina
-        `COALESCE(SUM(CASE WHEN cashflow.type = 'income' AND cashflow_type.slug NOT IN ('logistics','customs') THEN cashflow.price ELSE 0 END), 0) AS "totalIncome"`,
-        `COALESCE(SUM(CASE WHEN cashflow.type = 'expense' AND cashflow_type.slug NOT IN ('logistics','customs') THEN cashflow.price ELSE 0 END), 0) AS "totalExpense"`,
+        // Logistics Приход — provider qarzigina, kassaga qo'shilmaydi.
+        // Logistics Расход va boshqa cashflowlar hisobga olinadi.
+        `COALESCE(SUM(CASE WHEN cashflow.type = 'income' AND cashflow_type.slug <> 'logistics' THEN cashflow.price ELSE 0 END), 0) AS "totalIncome"`,
+        `COALESCE(SUM(CASE WHEN cashflow.type = 'expense' THEN cashflow.price ELSE 0 END), 0) AS "totalExpense"`,
         `COALESCE(SUM(CASE WHEN ord.status = 'returned' THEN ord.plastic + ord.price ELSE 0 END), 0) AS "totalReturnSale"`,
         'COALESCE(SUM(ord.discount), 0) AS "totalDiscount"',
         'COALESCE(SUM(ord.additionalProfit), 0) AS "totalAdditionalProfit"',
@@ -732,8 +733,9 @@ export class CashflowService {
             debt.totalDebt = debt.owed - debt.given;
             await queryRunner.manager.save(debt);
           }
-          // Logistics/Customs Приход da report ta'sirlanMAYDI
-          if (!isLogisticsFlow && !isCustomsFlow) {
+          // Logistics Приход — provider qarzigina (logistics.owed bilan kuzatiladi).
+          // Customs va boshqa cashflowlar hisobga olinadi.
+          if (!isLogisticsFlow) {
             if (user?.position?.role === UserRoleEnum.ACCOUNTANT) {
               report.accountantSum += price;
             } else {
@@ -1145,14 +1147,14 @@ export class CashflowService {
 
     const totals = cashflow.reduce(
       (acc, curr) => {
-        // Logistics/Customs cashflowlari kassa balansiga ta'sir qilmaydi
         const slug = curr.cashflow_type?.slug;
-        if (slug === 'logistics' || slug === 'customs') return acc;
+        // Logistics Приход — provider qarzigina, kassaga qo'shilmaydi.
+        // Логistics Расход (to'lov) va boshqa cashflowlar hisobga olinadi.
         if (curr.type === CashFlowEnum.InCome) {
+          if (slug === 'logistics') return acc;
           return { ...acc, income: acc.income + curr.price };
-        } else {
-          return { ...acc, expense: acc.expense + curr.price };
         }
+        return { ...acc, expense: acc.expense + curr.price };
       },
       { income: 0, expense: 0 },
     );
