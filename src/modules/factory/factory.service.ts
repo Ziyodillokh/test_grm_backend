@@ -292,9 +292,17 @@ export class FactoryService {
     });
     if (!factory) throw new NotFoundException('Factory not found');
 
+    // Filter ustuvorligi: fromDate/toDate (date range) → month → faqat year.
     let startDate: Date;
     let endDate: Date;
-    if (month) {
+    if (dto.fromDate || dto.toDate) {
+      startDate = dto.fromDate
+        ? dayjs(dto.fromDate).startOf('day').toDate()
+        : dayjs(`${year}-01-01`).startOf('year').toDate();
+      endDate = dto.toDate
+        ? dayjs(dto.toDate).endOf('day').toDate()
+        : dayjs(`${year}-12-31`).endOf('year').toDate();
+    } else if (month) {
       startDate = dayjs(`${year}-${month}-01`).startOf('month').toDate();
       endDate = dayjs(`${year}-${month}-01`).endOf('month').toDate();
     } else {

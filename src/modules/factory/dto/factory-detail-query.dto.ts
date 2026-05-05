@@ -11,6 +11,12 @@ export class FactoryDetailQueryDto {
   month?: number;
 
   @IsOptional()
+  fromDate?: string;
+
+  @IsOptional()
+  toDate?: string;
+
+  @IsOptional()
   @Transform(({ value }) => parseInt(value))
   page?: number;
 
