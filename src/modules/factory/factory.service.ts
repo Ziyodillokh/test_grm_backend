@@ -248,6 +248,7 @@ export class FactoryService {
         FROM cashflow c
         WHERE c."factoryId" = ANY($1)
           AND c.is_cancelled = false
+          AND c.type = 'expense'
           AND c.date BETWEEN $2 AND $3
         GROUP BY c."factoryId"
       `, [factoryIds, startDate, endDate]);
@@ -362,7 +363,9 @@ export class FactoryService {
       total_cost: Number(e.total_cost.toFixed(2)),
     }));
 
-    // Source B: Payment entries (cashflows)
+    // Source B: Payment entries — faqat haqiqiy to'lovlar (expense). Income cashflowlari
+    // (masalan, slug='partiya' — partiya qo'shilishini factory.owed'ga qaytaradi) Source A
+    // orqali "Partiya" deb ko'rsatiladi, shuning uchun bu yerda dublikat bo'lmasligi kerak.
     const paymentEntries = await this.entityManager.query(`
       SELECT
         c.id,
@@ -375,6 +378,7 @@ export class FactoryService {
       LEFT JOIN users u ON c."createdById" = u.id
       WHERE c."factoryId" = $1
         AND c.is_cancelled = false
+        AND c.type = 'expense'
         AND c.date BETWEEN $2 AND $3
       ORDER BY c.date ASC
     `, [factoryId, startDate, endDate]);
