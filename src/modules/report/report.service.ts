@@ -3469,7 +3469,7 @@ export class ReportService {
       JOIN kassa k ON c."kassaId" = k.id
       WHERE k."filialId" = $1
         AND c.type = 'income'
-        AND c.isCancelled = false
+        AND c.is_cancelled = false
         AND c.date BETWEEN $2 AND $3
       ORDER BY c.date ASC
     `, [dealerId, startDate, endDate]);
@@ -3575,7 +3575,7 @@ export class ReportService {
         JOIN kassa k ON c."kassaId" = k.id
         WHERE k."filialId" = ANY($1)
           AND c.type = 'income'
-          AND c.isCancelled = false
+          AND c.is_cancelled = false
           AND c.date BETWEEN $2 AND $3
         GROUP BY k."filialId"
       `, [dealerIds, startDate, endDate]);
@@ -3616,7 +3616,7 @@ export class ReportService {
         JOIN kassa k ON c."kassaId" = k.id
         WHERE k."filialId" = ANY($1)
           AND c.type = 'income'
-          AND c.isCancelled = false
+          AND c.is_cancelled = false
           AND c.date BETWEEN $2 AND $3
       `, [allIds, startDate, endDate]);
 
