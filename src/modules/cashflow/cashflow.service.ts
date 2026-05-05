@@ -670,6 +670,9 @@ export class CashflowService {
         ...(report?.filial?.id && { filial: report.filial.id }),
         ...(report?.id && { report: report.id }),
         ...(kassa?.status === KassaProgresEnum.WARNING && { date: kassa.finishedAt }),
+        // Order cashflows kutib turadi (order tasdiqlanguncha PENDING),
+        // qolganlari (manual + static) darhol APPROVED bo'lib yaratiladi.
+        status: value.tip === CashflowTipEnum.ORDER ? CashflowStatusEnum.PENDING : CashflowStatusEnum.APPROVED,
       };
 
       const insertResult = await queryRunner.manager
@@ -936,6 +939,7 @@ export class CashflowService {
             is_online: value.is_online || cashflowType.slug === 'cashCollection',
             is_static: false,
             parent: cashflow.id,
+            status: CashflowStatusEnum.APPROVED,
           };
 
           const reportIncomeResult = await queryRunner.manager
@@ -2463,6 +2467,7 @@ WHERE k.id = $1;
       date: now,
       is_static: true,
       filial: filial.id,
+      status: CashflowStatusEnum.APPROVED,
     };
 
     const kassaCashflow = this.cashflowRepository.create({
@@ -3333,6 +3338,7 @@ WHERE k.id = $1;
               is_online: cashflow.is_online || newSlug === 'cashCollection',
               is_static: false,
               parent: cashflow.id,
+              status: CashflowStatusEnum.APPROVED,
             };
             await queryRunner.manager.createQueryBuilder()
               .insert().into(Cashflow)

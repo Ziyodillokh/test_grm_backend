@@ -27,6 +27,7 @@ import { PlanYearService } from '@modules/plan-year/plan-year.service';
 import userRoleEnum from '@infra/shared/enum/user-role.enum';
 import KassaProgresEnum from '@infra/shared/enum/kassa-progres-enum';
 import CashflowTipEnum from '@infra/shared/enum/cashflow/cashflow-tip.enum';
+import CashflowStatusEnum from '@infra/shared/enum/cashflow/cashflow-status.enum';
 
 @Injectable()
 export class ReportService {
@@ -386,7 +387,8 @@ export class ReportService {
                 createdBy: u,
                 is_online: false,
                 is_static: true,
-              }),
+                status: CashflowStatusEnum.APPROVED,
+              } as any),
             );
 
             if (u.position.role === 9) {
