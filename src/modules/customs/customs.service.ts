@@ -81,7 +81,7 @@ export class CustomsService {
       .leftJoin(
         'cashflow',
         'c',
-        `c."customsId" = l.id AND c.isCancelled = false AND c.date BETWEEN :startDate AND :endDate`,
+        `c."customsId" = l.id AND c.is_cancelled = false AND c.date BETWEEN :startDate AND :endDate`,
         { startDate, endDate },
       )
       .where('l."deletedDate" IS NULL')
@@ -121,7 +121,7 @@ export class CustomsService {
             .select('c."customsId"', 'customsId')
             .addSelect(`SUM(CASE WHEN c.type = 'income' THEN c.price ELSE 0 END)`, 'period_income')
             .from('cashflow', 'c')
-            .where('c.isCancelled = false AND c.date BETWEEN :s AND :e', { s: startDate, e: endDate })
+            .where('c.is_cancelled = false AND c.date BETWEEN :s AND :e', { s: startDate, e: endDate })
             .groupBy('c."customsId"'),
         'pi',
         'pi."customsId" = l.id',
