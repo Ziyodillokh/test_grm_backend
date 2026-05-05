@@ -11,10 +11,13 @@ import { PartiyaStatusModule } from '../partiya-status/partiya-status.module';
 import { Filial } from '../filial/filial.entity';
 import { ProductExcel } from '../excel/excel-product.entity';
 import { PartiyaCollectionPriceModule } from '../partiya-collection-price/partiya-collection-price.module';
+import { Factory } from '../factory/factory.entity';
+import { Cashflow } from '../cashflow/cashflow.entity';
+import { CashflowType } from '../cashflow-type/cashflow-type.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Partiya, Filial, ProductExcel]),
+    TypeOrmModule.forFeature([Partiya, Filial, ProductExcel, Factory, Cashflow, CashflowType]),
     ActionModule,
     forwardRef(() => ExcelModule),
     PartiyaStatusModule,

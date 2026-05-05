@@ -5,15 +5,20 @@ import { IPaginationOptions, paginate, Pagination } from 'nestjs-typeorm-paginat
 import { Partiya } from './partiya.entity';
 import { CreatePartiyaDto, UpdatePartiyaDto } from './dto';
 import { partiyaDateSort } from '../../infra/helpers';
-import { Not, Repository } from 'typeorm';
+import { DataSource, Not, Repository } from 'typeorm';
 import { ActionService } from '../action/action.service';
-import { FilialTypeEnum, PartiyaStatusEnum, ProductReportEnum, UserRoleEnum } from '../../infra/shared/enum';
+import { CashFlowEnum, FilialTypeEnum, PartiyaStatusEnum, ProductReportEnum, UserRoleEnum } from '../../infra/shared/enum';
 import { PartiyaStatusService } from '../partiya-status/partiya-status.service';
 import { Filial } from '../filial/filial.entity';
 import { User } from '../user/user.entity';
 import { ExcelService } from '../excel/excel.service';
 import { PartiyaCollectionPriceService } from '../partiya-collection-price/partiya-collection-price.service';
 import { ProductExcel } from '../excel/excel-product.entity';
+import { Factory } from '../factory/factory.entity';
+import { Cashflow } from '../cashflow/cashflow.entity';
+import { CashflowType } from '../cashflow-type/cashflow-type.entity';
+import CashflowStatusEnum from '../../infra/shared/enum/cashflow/cashflow-status.enum';
+import CashflowTipEnum from '../../infra/shared/enum/cashflow/cashflow-tip.enum';
 
 @Injectable()
 export class PartiyaService {
@@ -29,7 +34,91 @@ export class PartiyaService {
     @InjectRepository(ProductExcel)
     private readonly productExcelRepository: Repository<ProductExcel>,
     private readonly partiyaCollectionPriceService: PartiyaCollectionPriceService,
+    @InjectRepository(Factory)
+    private readonly factoryRepository: Repository<Factory>,
+    @InjectRepository(Cashflow)
+    private readonly cashflowRepository: Repository<Cashflow>,
+    @InjectRepository(CashflowType)
+    private readonly cashflowTypeRepository: Repository<CashflowType>,
+    private readonly dataSource: DataSource,
   ) {}
+
+  /**
+   * Partiya FINISHED bo'lganda factory.owed'ni shu partiya qiymatiga oshirib, alohida
+   * 'partiya' slug'li income cashflow yaratadi. Hisoblash factory.service'dagi
+   * period_owed bilan bir xil formula: productexcel × partiya-collection-price.
+   */
+  private async createPartiyaDebtCashflow(partiyaId: string): Promise<void> {
+    const partiya = await this.partiyaRepository.findOne({
+      where: { id: partiyaId },
+      relations: { factory: true },
+    });
+    if (!partiya?.factory?.id) return;
+
+    const rows: { col_title: string; total_kv: string; price: string; subtotal: string }[] =
+      await this.dataSource.query(
+        `
+        SELECT
+          col.title AS col_title,
+          SUM(CASE
+            WHEN qb."isMetric" = true THEN (pe.check_count::numeric / 100) * s.x
+            ELSE s.y * s.x * pe.count
+          END)::numeric(20, 2) AS total_kv,
+          pcp."factoryPricePerKv"::text AS price,
+          (SUM(CASE
+            WHEN qb."isMetric" = true THEN (pe.check_count::numeric / 100) * s.x
+            ELSE s.y * s.x * pe.count
+          END) * pcp."factoryPricePerKv")::numeric(20, 2) AS subtotal
+        FROM partiya p
+        JOIN "partiya-collection-price" pcp ON pcp."partiyaId" = p.id
+        JOIN productexcel pe ON pe."partiyaId" = p.id
+        JOIN qrbase qb ON pe."barCodeId" = qb.id AND qb."collectionId" = pcp."collectionId"
+        JOIN size s ON qb."sizeId" = s.id
+        JOIN collection col ON pcp."collectionId" = col.id
+        WHERE p.id = $1
+        GROUP BY col.title, pcp."factoryPricePerKv"
+        ORDER BY col.title
+        `,
+        [partiyaId],
+      );
+
+    const total = rows.reduce((s, r) => s + Number(r.subtotal), 0);
+    if (total <= 0) return;
+
+    const cashflowType = await this.cashflowTypeRepository.findOne({ where: { slug: 'partiya' } });
+    if (!cashflowType) return;
+
+    const breakdown = rows
+      .map((r) => `${r.col_title}: ${r.total_kv} m² × $${r.price} = $${r.subtotal}`)
+      .join('\n');
+    const dateStr = new Date(partiya.date).toISOString().slice(0, 10);
+
+    await this.cashflowRepository.save(
+      this.cashflowRepository.create({
+        price: total,
+        type: CashFlowEnum.InCome,
+        tip: CashflowTipEnum.CASHFLOW,
+        title: 'Partiya',
+        comment: `Partiya: ${dateStr}\n${breakdown}`,
+        date: partiya.date,
+        cashflow_type: cashflowType,
+        factory: partiya.factory,
+        is_online: false,
+        is_static: true,
+        status: CashflowStatusEnum.APPROVED,
+      } as any),
+    );
+
+    await this.factoryRepository
+      .createQueryBuilder()
+      .update(Factory)
+      .set({
+        owed: () => `COALESCE(owed, 0) + ${total}`,
+        totalDebt: () => `(COALESCE(owed, 0) + ${total}) - COALESCE(given, 0)`,
+      })
+      .where('id = :id', { id: partiya.factory.id })
+      .execute();
+  }
 
   /** Partiyadagi unique kolleksiya idlarini topish */
   private async getPartiyaCollectionIds(partiyaId: string): Promise<string[]> {
@@ -164,7 +253,16 @@ export class PartiyaService {
         throw new BadRequestException('Partiyani yopib bo\'lmaydi: mahsulotlarning umumiy hajmi partiya hajmiga teng emas.');
 
       await this.excelProductService.createProducts(partiya.id);
-      return await this.partiyaRepository.update({ id }, { partiya_status: status });
+      const result = await this.partiyaRepository.update({ id }, { partiya_status: status });
+
+      // Factory'ga partiya qiymati qo'shiladi (owed o'sadi) va alohida cashflow yoziladi.
+      try {
+        await this.createPartiyaDebtCashflow(partiya.id);
+      } catch (e) {
+        console.error('createPartiyaDebtCashflow failed:', e?.message || e);
+      }
+
+      return result;
       //
     } else {
       throw new BadRequestException(`${user.position.title} sifatida partiyani yopa olmaysiz`);
