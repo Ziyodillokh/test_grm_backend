@@ -1718,6 +1718,7 @@ export class CashflowService {
           customs: true,
           parent: true,
           child: { report: true },
+          createdBy: { position: true },
         },
       });
 
@@ -1754,10 +1755,7 @@ export class CashflowService {
 
       // Kassa logikasini teskari qilish — logistics/customs uchun skip (kassaga dahli yo'q)
       if (kassa && !isLogisticsFlow && !isCustomsFlow) {
-        const user = await this.userRepo.findOne({
-          where: { id: cashflow.createdBy?.id },
-          relations: ['position'],
-        });
+        const user = cashflow.createdBy;
 
         if (kassa.status === KassaProgresEnum.ACCEPTED) {
           throw new BadRequestException('Cannot delete cashflow from accepted kassa');
@@ -1828,10 +1826,7 @@ export class CashflowService {
 
       // Report logikasini teskari qilish
       if (report) {
-        const user = await this.userRepo.findOne({
-          where: { id: cashflow.createdBy?.id },
-          relations: ['position'],
-        });
+        const user = cashflow.createdBy;
 
         const isDebtFlow = cashflow.cashflow_type.slug === 'kent' && cashflow.debt;
 
