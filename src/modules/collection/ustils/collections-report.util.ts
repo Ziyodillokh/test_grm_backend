@@ -9,8 +9,8 @@ export const util = ({ filial, limit, offset }) => {
                                                                                       AS "totalKvPrice",
        COALESCE(count(o), 0)::INTEGER                                                 as "totalSellCount",
        COALESCE(sum(o.kv), 0)::INTEGER                                                as "totalSellSize",
-       COALESCE(sum(o.price), 0)::INTEGER + COALESCE(sum(o."plasticSum"), 0)::INTEGER as "totalSellPrice",
-       COALESCE(sum(o."netProfitSum"), 0)::INTEGER                                    as "totalnetProfitSum",
+       COALESCE(sum(o.price), 0)::INTEGER + COALESCE(sum(o.plastic), 0)::INTEGER as "totalSellPrice",
+       COALESCE(sum(o."netProfit"), 0)::INTEGER                                    as "totalnetProfitSum",
        jsonb_agg(distinct cp)                                                                  as "collectionPrices"
     FROM collection c
          LEFT JOIN qrbase q ON q."collectionId" = c.id

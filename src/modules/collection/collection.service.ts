@@ -831,7 +831,7 @@ export class CollectionService {
       .addSelect('COALESCE(COUNT(o), 0)', 'totalSellCount')
       .addSelect('COALESCE(SUM(o.kv), 0)', 'totalSellKv')
       .addSelect(
-        '(COALESCE(SUM(o.price), 0) + COALESCE(SUM(o."plasticSum"), 0))',
+        '(COALESCE(SUM(o.price), 0) + COALESCE(SUM(o.plastic), 0))',
         'totalSellPrice',
       )
       .groupBy('c.id')
@@ -840,8 +840,8 @@ export class CollectionService {
       COALESCE(SUM(p.count * p.y * sz.x), 0) <> 0
       OR COALESCE(SUM(o.kv), 0) <> 0
       OR COALESCE(SUM(o.price), 0) <> 0
-      OR COALESCE(SUM(o."plasticSum"), 0) <> 0
-      OR COALESCE(SUM(o."netProfitSum"), 0) <> 0
+      OR COALESCE(SUM(o.plastic), 0) <> 0
+      OR COALESCE(SUM(o."netProfit"), 0) <> 0
     `)
       .orderBy('c.title', 'ASC');
 
@@ -894,7 +894,7 @@ export class CollectionService {
       .addSelect('COALESCE(COUNT(o), 0)', 'totalSellCount')
       .addSelect('COALESCE(SUM(o.kv), 0)', 'totalSellKv')
       .addSelect(
-        '(COALESCE(SUM(o.price), 0) + COALESCE(SUM(o."plasticSum"), 0))',
+        '(COALESCE(SUM(o.price), 0) + COALESCE(SUM(o.plastic), 0))',
         'totalSellPrice',
       );
 

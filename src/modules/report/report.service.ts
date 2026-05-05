@@ -1451,9 +1451,9 @@ export class ReportService {
       .leftJoin('ord.bar_code', 'bar_code')
       .leftJoin('ord.kassa', 'kassa')
       .select([
-        `COALESCE(SUM(ord.price + ord.plasticSum), 0)::NUMERIC(20, 2) AS total_sum`,
+        `COALESCE(SUM(ord.price + ord.plastic), 0)::NUMERIC(20, 2) AS total_sum`,
         `COALESCE(SUM(ord.kv), 0)::NUMERIC(20, 2) AS total_kv`,
-        `COALESCE(SUM(ord.netProfitSum), 0)::NUMERIC(20, 2) AS total_profit_sum`,
+        `COALESCE(SUM(ord."netProfit"), 0)::NUMERIC(20, 2) AS total_profit_sum`,
         `
       SUM(CASE
         WHEN bar_code.isMetric = true THEN 1
@@ -1462,7 +1462,7 @@ export class ReportService {
       `,
         `COALESCE(SUM(CASE WHEN ord.isDebt = true then ord.price ELSE 0 END), 0)::NUMERIC(20, 2) as total_debtSum`,
         `COALESCE(SUM(CASE WHEN ord.isDebt = true then ord.kv ELSE 0 END), 0)::NUMERIC(20, 2) as total_debtSize`,
-        `COALESCE(SUM(CASE WHEN ord.isDebt = true then ord.netProfitSum ELSE 0 END), 0)::NUMERIC(20, 2) as total_debtProfitSum`,
+        `COALESCE(SUM(CASE WHEN ord.isDebt = true then ord."netProfit" ELSE 0 END), 0)::NUMERIC(20, 2) as total_debtProfitSum`,
         `
       SUM(CASE
         WHEN ord.isDebt = true THEN CASE WHEN bar_code.isMetric = true THEN 1 ELSE ord.x END
@@ -2350,10 +2350,10 @@ export class ReportService {
       .leftJoin('ord.bar_code', 'bar_code')
       .leftJoin('ord.kassa', 'kassa')
       .select([
-        `COALESCE(SUM(ord.price + ord."plasticSum"), 0)::NUMERIC(20, 2) AS total_sum`,
+        `COALESCE(SUM(ord.price + ord.plastic), 0)::NUMERIC(20, 2) AS total_sum`,
         `COALESCE(SUM(ord.kv), 0)::NUMERIC(20, 2) AS total_kv`,
-        `COALESCE(SUM(ord.netProfitSum), 0)::NUMERIC(20, 2) AS total_profit_sum`,
-        `COALESCE(SUM(ord.discountSum), 0)::NUMERIC(20, 2) AS total_discount`,
+        `COALESCE(SUM(ord."netProfit"), 0)::NUMERIC(20, 2) AS total_profit_sum`,
+        `COALESCE(SUM(ord.discount), 0)::NUMERIC(20, 2) AS total_discount`,
         `
       SUM(
         CASE WHEN bar_code.isMetric = true THEN 1 ELSE ord.x END
@@ -2361,7 +2361,7 @@ export class ReportService {
       `,
         `COALESCE(SUM(CASE WHEN ord.isDebt = true then ord.price ELSE 0 END), 0)::NUMERIC(20, 2) as total_debtSum`,
         `COALESCE(SUM(CASE WHEN ord.isDebt = true then ord.kv ELSE 0 END), 0)::NUMERIC(20, 2) as total_debtSize`,
-        `COALESCE(SUM(CASE WHEN ord.isDebt = true then ord.netProfitSum ELSE 0 END), 0)::NUMERIC(20, 2) as total_debtProfitSum`,
+        `COALESCE(SUM(CASE WHEN ord.isDebt = true then ord."netProfit" ELSE 0 END), 0)::NUMERIC(20, 2) as total_debtProfitSum`,
         `
       SUM(
         CASE WHEN ord.isDebt = true THEN (CASE WHEN bar_code.isMetric = true THEN 1 ELSE ord.x END)

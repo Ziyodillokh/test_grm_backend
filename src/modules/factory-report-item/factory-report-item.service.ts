@@ -820,8 +820,8 @@ export class FactoryReportService {
         `json_build_object('id', fa.id, 'title', fa.title) as factory`,
         `COALESCE(SUM(o.kv), 0) as "totalKv"`,
         `COALESCE(SUM(CASE WHEN q."isMetric" = true THEN 1 ELSE o.x END), 0) as "totalCount"`,
-        `COALESCE(SUM(o.price + o."plasticSum"), 0)::NUMERIC(20,2) as "totalPrice"`,
-        `COALESCE(SUM(o."netProfitSum"), 0)::NUMERIC(20,2) as "totalNetProfitPrice"`,
+        `COALESCE(SUM(o.price + o.plastic), 0)::NUMERIC(20,2) as "totalPrice"`,
+        `COALESCE(SUM(o."netProfit"), 0)::NUMERIC(20,2) as "totalNetProfitPrice"`,
       ])
       .innerJoin('o.bar_code', 'q')
       .innerJoin('q.size', 's')
@@ -862,8 +862,8 @@ export class FactoryReportService {
         .select([
           `COALESCE(SUM(o.kv), 0) as "totalKv"`,
           `COALESCE(SUM(CASE WHEN q."isMetric" = true THEN 1 ELSE o.x END), 0) as "totalCount"`,
-          `COALESCE(SUM(o.price + o."plasticSum"), 0)::NUMERIC(20,2) as "totalPrice"`,
-          `COALESCE(SUM(o."netProfitSum"), 0)::NUMERIC(20,2) as "totalNetProfitPrice"`,
+          `COALESCE(SUM(o.price + o.plastic), 0)::NUMERIC(20,2) as "totalPrice"`,
+          `COALESCE(SUM(o."netProfit"), 0)::NUMERIC(20,2) as "totalNetProfitPrice"`,
         ])
         .innerJoin('o.bar_code', 'q')
         .innerJoin('q.collection', 'c')

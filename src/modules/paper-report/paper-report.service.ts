@@ -866,15 +866,15 @@ export class PaperReportService {
       o."sellerId",
       o."createdById",
       CASE 
-        WHEN o."plasticSum" IS NOT NULL
-        THEN GREATEST(o."price" - o."plasticSum", 0) 
+        WHEN o.plastic IS NOT NULL
+        THEN GREATEST(o."price" - o.plastic, 0) 
         ELSE o."price" 
       END as naqd_pul,
-      COALESCE(o."plasticSum", 0) as terminal_sum,
+      COALESCE(o.plastic, 0) as terminal_sum,
       COALESCE(o."price", 0) as total_sum,
       COALESCE(o.x, 0) as soni,
-      COALESCE(o."discountSum", 0) as chegirma,
-      COALESCE(o."additionalProfitSum", 0) as foyda,
+      COALESCE(o.discount, 0) as chegirma,
+      COALESCE(o."additionalProfit", 0) as foyda,
       o.date,
       COALESCE(o.comment, '') as comment,
       COALESCE(c.title, '') as collection_title,
@@ -965,7 +965,7 @@ export class PaperReportService {
 
       // Terminal (order) - faqat filial type FILIAL bo'lganlar
       const orderQuery = `
-    SELECT o."plasticSum" as summa, o.comment as izoh, f.title as filial, 
+    SELECT o.plastic as summa, o.comment as izoh, f.title as filial, 
            u."firstName" as kassir_name, u."lastName" as kassir_lastname, o.date
     FROM "order" o
     INNER JOIN kassa k ON o."kassaId" = k.id
@@ -973,7 +973,7 @@ export class PaperReportService {
     LEFT JOIN "users" u ON o."createdById" = u.id
     WHERE o.date BETWEEN $1 AND $2
       AND o.status = $4
-      AND o."plasticSum" > 0
+      AND o.plastic > 0
       ${filialId ? 'AND k."filialId" = $5' : ''}
     ORDER BY o.date DESC
   `;
@@ -1795,7 +1795,7 @@ export class PaperReportService {
       fct.title as factory,
       fil.id as filial_id,
       fil.title as filial,
-      SUM(o."netProfitSum") as foyda
+      SUM(o."netProfit") as foyda
     FROM "order" o
     INNER JOIN kassa k ON o."kassaId" = k.id
     INNER JOIN filial fil ON k."filialId" = fil.id
@@ -1850,7 +1850,7 @@ export class PaperReportService {
       c.title as collection,
       fil.id as filial_id,
       fil.title as filial,
-      SUM(o."netProfitSum") as foyda
+      SUM(o."netProfit") as foyda
     FROM "order" o
     INNER JOIN kassa k ON o."kassaId" = k.id
     INNER JOIN filial fil ON k."filialId" = fil.id

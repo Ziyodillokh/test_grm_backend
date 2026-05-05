@@ -2323,19 +2323,19 @@ export class CashflowService {
     const kassa = `
 WITH orderSums AS (
   SELECT
-    COALESCE(SUM(CASE WHEN o.status IN('accepted', 'returned') THEN o.price + o."plasticSum" ELSE 0 END), 0) AS "sale",
+    COALESCE(SUM(CASE WHEN o.status IN('accepted', 'returned') THEN o.price + o.plastic ELSE 0 END), 0) AS "sale",
     COALESCE(SUM(CASE WHEN o.status IN('accepted', 'returned') AND o."isDebt" != true THEN o.price ELSE 0 END), 0) AS inHand,
-    COALESCE(SUM(CASE WHEN o.status IN('accepted', 'returned') AND o."isDebt" != true THEN o."plasticSum" ELSE 0 END), 0) AS "plasticSum",
-    COALESCE(SUM(CASE WHEN o.status IN('accepted', 'returned') THEN o."additionalProfitSum" ELSE 0 END), 0) AS "additionalProfitSum",
-    COALESCE(SUM(CASE WHEN o.status IN('accepted', 'returned') THEN o."netProfitSum" ELSE 0 END), 0) AS "netProfitSum",
-    COALESCE(SUM(CASE WHEN o.status IN('accepted', 'returned') THEN o."discountSum" ELSE 0 END), 0) AS "discountSum",
+    COALESCE(SUM(CASE WHEN o.status IN('accepted', 'returned') AND o."isDebt" != true THEN o.plastic ELSE 0 END), 0) AS "plasticSum",
+    COALESCE(SUM(CASE WHEN o.status IN('accepted', 'returned') THEN o."additionalProfit" ELSE 0 END), 0) AS "additionalProfitSum",
+    COALESCE(SUM(CASE WHEN o.status IN('accepted', 'returned') THEN o."netProfit" ELSE 0 END), 0) AS "netProfitSum",
+    COALESCE(SUM(CASE WHEN o.status IN('accepted', 'returned') THEN o.discount ELSE 0 END), 0) AS "discountSum",
     COALESCE(SUM(CASE WHEN o.status IN('accepted', 'returned') THEN o.kv ELSE 0 END), 0) AS "totalSellKv",
     COALESCE(SUM(CASE WHEN o.status = 'returned' THEN o.price ELSE 0 END), 0) AS "returnSale",
     COALESCE(SUM(CASE WHEN o.status IN('accepted', 'returned') THEN (CASE WHEN q."isMetric" = true THEN 1 ELSE o.x END) ELSE 0 END), 0) AS "sellCount",
-    COALESCE(SUM(CASE WHEN o.status = 'accepted' AND o."isDebt" = true THEN o.price + o."plasticSum" ELSE 0 END), 0) AS "debtSum",
+    COALESCE(SUM(CASE WHEN o.status = 'accepted' AND o."isDebt" = true THEN o.price + o.plastic ELSE 0 END), 0) AS "debtSum",
     COALESCE(SUM(CASE WHEN o.status = 'accepted' AND o."isDebt" = true THEN o.kv ELSE 0 END), 0) AS "debtKv",
     COALESCE(SUM(CASE WHEN o.status = 'accepted' AND o."isDebt" = true THEN (CASE WHEN q."isMetric" = true THEN 1 ELSE o.x END) ELSE 0 END), 0) AS "debtCount",
-    COALESCE(SUM(CASE WHEN o.status IN('accepted', 'returned') AND p."isInternetShop" = true THEN o.price + o."plasticSum" ELSE 0 END), 0) AS "internetShopSum"
+    COALESCE(SUM(CASE WHEN o.status IN('accepted', 'returned') AND p."isInternetShop" = true THEN o.price + o.plastic ELSE 0 END), 0) AS "internetShopSum"
   FROM "order" o
   LEFT JOIN qrbase q ON o."barCodeId" = q.id
   LEFT JOIN product p ON o."productId" = p.id

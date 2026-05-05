@@ -62,9 +62,9 @@ export class SalesReportService {
         f.title AS "title",
         COALESCE(SUM(o.x), 0)::int AS "count",
         COALESCE(SUM(o.kv), 0)::numeric(20,2) AS "kv",
-        COALESCE(SUM(o.price + o."plasticSum"), 0)::numeric(20,2) AS "sum",
-        COALESCE(SUM(o."netProfitSum"), 0)::numeric(20,2) AS "profit",
-        COALESCE(SUM(o."discountSum"), 0)::numeric(20,2) AS "discount"
+        COALESCE(SUM(o.price + o.plastic), 0)::numeric(20,2) AS "sum",
+        COALESCE(SUM(o."netProfit"), 0)::numeric(20,2) AS "profit",
+        COALESCE(SUM(o.discount), 0)::numeric(20,2) AS "discount"
       FROM filial f
       LEFT JOIN kassa k ON k."filialId" = f.id AND k."deletedDate" IS NULL
       LEFT JOIN "order" o ON o."kassaId" = k.id
@@ -87,9 +87,9 @@ export class SalesReportService {
       SELECT
         COALESCE(SUM(o.x), 0)::int AS "totalCount",
         COALESCE(SUM(o.kv), 0)::numeric(20,2) AS "totalKv",
-        COALESCE(SUM(o.price + o."plasticSum"), 0)::numeric(20,2) AS "totalSum",
-        COALESCE(SUM(o."netProfitSum"), 0)::numeric(20,2) AS "totalProfit",
-        COALESCE(SUM(o."discountSum"), 0)::numeric(20,2) AS "totalDiscount",
+        COALESCE(SUM(o.price + o.plastic), 0)::numeric(20,2) AS "totalSum",
+        COALESCE(SUM(o."netProfit"), 0)::numeric(20,2) AS "totalProfit",
+        COALESCE(SUM(o.discount), 0)::numeric(20,2) AS "totalDiscount",
         COUNT(DISTINCT f.id)::int AS "totalGroups"
       FROM filial f
       LEFT JOIN kassa k ON k."filialId" = f.id AND k."deletedDate" IS NULL
@@ -138,9 +138,9 @@ export class SalesReportService {
         ${groupTitle} AS "title",
         COALESCE(SUM(o.x), 0)::int AS "count",
         COALESCE(SUM(o.kv), 0)::numeric(20,2) AS "kv",
-        COALESCE(SUM(o.price + o."plasticSum"), 0)::numeric(20,2) AS "sum",
-        COALESCE(SUM(o."netProfitSum"), 0)::numeric(20,2) AS "profit",
-        COALESCE(SUM(o."discountSum"), 0)::numeric(20,2) AS "discount"
+        COALESCE(SUM(o.price + o.plastic), 0)::numeric(20,2) AS "sum",
+        COALESCE(SUM(o."netProfit"), 0)::numeric(20,2) AS "profit",
+        COALESCE(SUM(o.discount), 0)::numeric(20,2) AS "discount"
       FROM "order" o
       JOIN product p ON o."productId" = p.id
       JOIN qrbase q ON p."barCodeId" = q.id
@@ -162,9 +162,9 @@ export class SalesReportService {
       SELECT
         COALESCE(SUM(o.x), 0)::int AS "totalCount",
         COALESCE(SUM(o.kv), 0)::numeric(20,2) AS "totalKv",
-        COALESCE(SUM(o.price + o."plasticSum"), 0)::numeric(20,2) AS "totalSum",
-        COALESCE(SUM(o."netProfitSum"), 0)::numeric(20,2) AS "totalProfit",
-        COALESCE(SUM(o."discountSum"), 0)::numeric(20,2) AS "totalDiscount",
+        COALESCE(SUM(o.price + o.plastic), 0)::numeric(20,2) AS "totalSum",
+        COALESCE(SUM(o."netProfit"), 0)::numeric(20,2) AS "totalProfit",
+        COALESCE(SUM(o.discount), 0)::numeric(20,2) AS "totalDiscount",
         COUNT(DISTINCT ${groupCol})::int AS "totalGroups"
       FROM "order" o
       JOIN product p ON o."productId" = p.id
@@ -423,9 +423,9 @@ export class SalesReportService {
         SELECT p."partiyaId",
           SUM(o.x)::int AS sold_count,
           SUM(o.kv) AS sold_kv,
-          SUM(o.price + o."plasticSum") AS sold_sum,
-          SUM(o."netProfitSum") AS profit,
-          SUM(o."discountSum") AS discount,
+          SUM(o.price + o.plastic) AS sold_sum,
+          SUM(o."netProfit") AS profit,
+          SUM(o.discount) AS discount,
           SUM(o.kv * COALESCE(pcpr."factoryPricePerKv", 0)) AS coming_sum,
           SUM(o.kv * COALESCE(pcpr."overheadPerKv", 0)) AS overhead_sum
         FROM "order" o
@@ -494,9 +494,9 @@ export class SalesReportService {
         SELECT p."partiyaId",
           SUM(o.x)::int AS sold_count,
           SUM(o.kv) AS sold_kv,
-          SUM(o.price + o."plasticSum") AS sold_sum,
-          SUM(o."netProfitSum") AS profit,
-          SUM(o."discountSum") AS discount,
+          SUM(o.price + o.plastic) AS sold_sum,
+          SUM(o."netProfit") AS profit,
+          SUM(o.discount) AS discount,
           SUM(o.kv * COALESCE(pcpr."factoryPricePerKv", 0)) AS coming_sum,
           SUM(o.kv * COALESCE(pcpr."overheadPerKv", 0)) AS overhead_sum
         FROM "order" o
@@ -616,9 +616,9 @@ export class SalesReportService {
           ${groupTitle} AS gtitle,
           o.x AS cnt,
           o.kv AS kv,
-          (o.price + o."plasticSum") AS sm,
-          o."netProfitSum" AS profit,
-          o."discountSum" AS discount
+          (o.price + o.plastic) AS sm,
+          o."netProfit" AS profit,
+          o.discount AS discount
         FROM "order" o
         JOIN product p ON o."productId" = p.id
         JOIN qrbase q ON p."barCodeId" = q.id
@@ -678,9 +678,9 @@ export class SalesReportService {
           ${groupCol} AS gid,
           o.x AS cnt,
           o.kv AS kv,
-          (o.price + o."plasticSum") AS sm,
-          o."netProfitSum" AS profit,
-          o."discountSum" AS discount
+          (o.price + o.plastic) AS sm,
+          o."netProfit" AS profit,
+          o.discount AS discount
         FROM "order" o
         JOIN product p ON o."productId" = p.id
         JOIN qrbase q ON p."barCodeId" = q.id
