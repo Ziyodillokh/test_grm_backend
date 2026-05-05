@@ -341,7 +341,7 @@ export class FilialPlanService {
 
         `
         COALESCE(
-          SUM(COALESCE(k.planPrice::numeric, 0)) / :sellerCount,
+          SUM(COALESCE(k."planPrice"::numeric, 0)) / :sellerCount,
           0
         ) AS "planPrice"
       `,
@@ -363,7 +363,7 @@ export class FilialPlanService {
       .clone()
       .select([
         'COALESCE(SUM(o.price + o.plastic), 0) AS "earn"',
-        'COALESCE(SUM(k.planPrice), 0) AS "planPrice"',
+        'COALESCE(SUM(k."planPrice"), 0) AS "planPrice"',
         'COALESCE(SUM(o.discount), 0) AS "discount"',
         'COALESCE(COUNT(o.id), 0) AS "count"',
         'COALESCE(SUM(o.kv), 0) AS "kv"',
@@ -470,7 +470,7 @@ export class FilialPlanService {
       // Filialning shu oydagi planPrice yig'indisi
       const planRaw = await this.kassaRepo
         .createQueryBuilder('k')
-        .select('COALESCE(SUM(k.planPrice), 0)', 'filialPlan')
+        .select('COALESCE(SUM(k."planPrice"), 0)', 'filialPlan')
         .leftJoin('k.filial', 'f')
         .where('f.id = :filialId', { filialId: seller.filial.id })
         .andWhere('k.year = :year', { year: safeYear })
