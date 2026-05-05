@@ -768,12 +768,12 @@ export class ReportService {
           }
         }
 
-        // Income cashflowlarni yig'ish
+        // Income cashflowlarni yig'ish (saldo va dealer/transfer kabi static
+        // cashflowlar ham haqiqiy daromad — qo'shilishi kerak).
         const incomeFlows = await cashflowRepository.find({
           where: {
             report: { id: report.id },
             type: CashFlowEnum.InCome,
-            is_static: false,
           },
           relations: ['cashflow_type', 'createdBy', 'createdBy.position'],
           order: { date: 'ASC' },
