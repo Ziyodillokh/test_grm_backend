@@ -309,8 +309,9 @@ export class CashflowService {
         'COALESCE(SUM(cashflow.price), 0) AS "totalSum"',
         'COALESCE(SUM(ord.plastic), 0) AS "plasticSum"',
         'COALESCE(SUM(ord.price), 0) AS "totalOrderPrice"',
-        `COALESCE(SUM(CASE WHEN cashflow.type = 'income' THEN cashflow.price ELSE 0 END), 0) AS "totalIncome"`,
-        `COALESCE(SUM(CASE WHEN cashflow.type = 'expense' THEN cashflow.price ELSE 0 END), 0) AS "totalExpense"`,
+        // Logistics/Customs cashflowlari kassa balansiga ta'sir qilmaydi — provider qarzigina
+        `COALESCE(SUM(CASE WHEN cashflow.type = 'income' AND cashflow_type.slug NOT IN ('logistics','customs') THEN cashflow.price ELSE 0 END), 0) AS "totalIncome"`,
+        `COALESCE(SUM(CASE WHEN cashflow.type = 'expense' AND cashflow_type.slug NOT IN ('logistics','customs') THEN cashflow.price ELSE 0 END), 0) AS "totalExpense"`,
         `COALESCE(SUM(CASE WHEN ord.status = 'returned' THEN ord.plastic + ord.price ELSE 0 END), 0) AS "totalReturnSale"`,
         'COALESCE(SUM(ord.discount), 0) AS "totalDiscount"',
         'COALESCE(SUM(ord.additionalProfit), 0) AS "totalAdditionalProfit"',
