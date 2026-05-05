@@ -341,68 +341,67 @@ export class ReportService {
       throw new BadRequestException('Dealer reports must be closed by D_MANAGER before confirmation.');
     }
 
-    if (userRole === userRoleEnum.ACCOUNTANT) {
+    // Tasdiqlash flagini set qilamiz, keyin user'ning saldo qoldig'ini keyingi oyga o'tkazamiz.
+    let carryRole: 9 | 10 | null = null;
+    if (userRole === userRoleEnum.ACCOUNTANT && !report.isAccountantConfirmed) {
       report.isAccountantConfirmed = true;
-    } else if (userRole === userRoleEnum.M_MANAGER) {
+      carryRole = 10;
+    } else if (userRole === userRoleEnum.M_MANAGER && !report.isMManagerConfirmed) {
       report.isMManagerConfirmed = true;
+      carryRole = 9;
     }
 
     if (report.isAccountantConfirmed && report.isMManagerConfirmed) {
       report.status = ReportProgresEnum.ACCEPTED;
+    }
 
-      // ──── Saldo: qoldiqlarni keyingi oyga o'tkazish ────
-      const nextMonth = report.month === 12 ? 1 : report.month + 1;
-      const nextYear = report.month === 12 ? report.year + 1 : report.year;
+    if (carryRole) {
+      const amount = carryRole === 9 ? Number(report.managerSum || 0) : Number(report.accountantSum || 0);
 
-      const nextReport = await this.reportRepo.findOne({
-        where: { month: nextMonth, year: nextYear, filialType: FilialTypeEnum.FILIAL },
-      });
+      if (amount > 0) {
+        const nextMonth = report.month === 12 ? 1 : report.month + 1;
+        const nextYear = report.month === 12 ? report.year + 1 : report.year;
 
-      if (nextReport) {
+        const nextReport = await this.reportRepo.findOne({
+          where: { month: nextMonth, year: nextYear, filialType: FilialTypeEnum.FILIAL },
+        });
+
         const slugSaldo = await this.cashflowTypeRepository.findOne({
           where: { slug: 'balance' },
         });
 
-        const users = await this.userRepository.find({
-          where: [
-            { position: { role: 9 }, isActive: true },
-            { position: { role: 10 }, isActive: true },
-          ],
-          relations: { position: true },
-        });
+        if (nextReport && slugSaldo) {
+          await this.cashflowRepository.save(
+            this.cashflowRepository.create({
+              price: amount,
+              type: CashFlowEnum.InCome,
+              tip: CashflowTipEnum.CASHFLOW,
+              comment: `${report.month}-oy saldo qoldig'i ${report.year}`,
+              cashflow_type: slugSaldo,
+              date: new Date().toISOString(),
+              report: nextReport,
+              createdBy: user,
+              is_online: false,
+              is_static: true,
+              status: CashflowStatusEnum.APPROVED,
+            } as any),
+          );
 
-        for (const u of users) {
-          const amount = u.position.role === 9 ? report.managerSum : report.accountantSum;
-
-          if (amount > 0 && slugSaldo) {
-            await this.cashflowRepository.save(
-              this.cashflowRepository.create({
-                price: amount,
-                type: CashFlowEnum.InCome,
-                tip: CashflowTipEnum.CASHFLOW,
-                comment: `${report.month}-oy saldo qoldig'i ${report.year}`,
-                cashflow_type: slugSaldo,
-                date: new Date().toISOString(),
-                report: nextReport,
-                createdBy: u,
-                is_online: false,
-                is_static: true,
-                status: CashflowStatusEnum.APPROVED,
-              } as any),
-            );
-
-            if (u.position.role === 9) {
-              nextReport.managerSum += amount;
-              nextReport.managerSaldo = amount;
-            } else {
-              nextReport.accountantSum += amount;
-              nextReport.accountantSaldo = amount;
-            }
-            nextReport.totalIncome += amount;
+          if (carryRole === 9) {
+            nextReport.managerSum = Number(nextReport.managerSum || 0) + amount;
+            nextReport.managerSaldo = amount;
+          } else {
+            nextReport.accountantSum = Number(nextReport.accountantSum || 0) + amount;
+            nextReport.accountantSaldo = amount;
           }
+          nextReport.totalIncome = Number(nextReport.totalIncome || 0) + amount;
+          await this.reportRepo.save(nextReport);
         }
 
-        await this.reportRepo.save(nextReport);
+        // Joriy reportdan tasdiqlagan user'ning sumini nolga tushiramiz —
+        // qoldiq keyingi oyga ko'chdi.
+        if (carryRole === 9) report.managerSum = 0;
+        else report.accountantSum = 0;
       }
     }
 
