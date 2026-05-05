@@ -797,6 +797,14 @@ export class ReportService {
             continue;
           }
 
+          // Logistics/Customs cashflowlari report kassasiga ta'sir qilmaydi —
+          // ular shunchaki provider qarzini qayd qilish uchun.
+          const cfSlug = cashflow.cashflow_type?.slug;
+          if (cfSlug === 'logistics' || cfSlug === 'customs') {
+            console.log(`    SKIP (${cfSlug}): Cashflow ID ${cashflow.id}`);
+            continue;
+          }
+
           const price = Math.abs(cashflow.price || 0);
           const isAccountant = user.position.role === UserRoleEnum.ACCOUNTANT;
 
@@ -854,6 +862,13 @@ export class ReportService {
           const user = cashflow.createdBy;
           if (!user || !user.position) {
             console.log(`    SKIP: Cashflow ID ${cashflow.id} - user yoki position yo'q`);
+            continue;
+          }
+
+          // Logistics/Customs cashflowlari report kassasiga ta'sir qilmaydi.
+          const cfSlug = cashflow.cashflow_type?.slug;
+          if (cfSlug === 'logistics' || cfSlug === 'customs') {
+            console.log(`    SKIP (${cfSlug}): Cashflow ID ${cashflow.id}`);
             continue;
           }
 

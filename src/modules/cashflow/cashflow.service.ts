@@ -1134,6 +1134,7 @@ export class CashflowService {
         report: { id: reportId },
         ...(userId && { createdBy: { id: userId } }),
       },
+      relations: { cashflow_type: true },
       order: {
         order: {
           date: 'DESC',
@@ -1143,6 +1144,9 @@ export class CashflowService {
 
     const totals = cashflow.reduce(
       (acc, curr) => {
+        // Logistics/Customs cashflowlari kassa balansiga ta'sir qilmaydi
+        const slug = curr.cashflow_type?.slug;
+        if (slug === 'logistics' || slug === 'customs') return acc;
         if (curr.type === CashFlowEnum.InCome) {
           return { ...acc, income: acc.income + curr.price };
         } else {
