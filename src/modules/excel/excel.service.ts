@@ -658,7 +658,8 @@ export class ExcelService {
     ) AS "collectionPrice",
     pe."displayPrice",
     pcp."factoryPricePerKv",
-    pcp."overheadPerKv"
+    pcp."overheadPerKv",
+    pcp."sharePricePerKv"
         FROM productexcel pe
           JOIN qrbase qr
         ON qr.id = pe."barCodeId"
@@ -668,7 +669,7 @@ export class ExcelService {
           LEFT JOIN "partiya-collection-price" pcp
             ON pcp."partiyaId" = p.id AND pcp."collectionId" = c.id
         WHERE ${whereConditions}
-        GROUP BY c.id, c.title, pe."displayPrice", pcp."factoryPricePerKv", pcp."overheadPerKv"
+        GROUP BY c.id, c.title, pe."displayPrice", pcp."factoryPricePerKv", pcp."overheadPerKv", pcp."sharePricePerKv"
         ORDER BY c.title
         OFFSET ${offset} LIMIT ${limit}
       `,
@@ -691,6 +692,7 @@ export class ExcelService {
       collectionPrice: item.collectionPrice?.length ? item.collectionPrice[0] : null,
       factoryPricePerKv: Number(item.factoryPricePerKv) || 0,
       overheadPerKv: Number(item.overheadPerKv) || 0,
+      sharePricePerKv: Number(item.sharePricePerKv) || 0,
     }));
 
     return {
