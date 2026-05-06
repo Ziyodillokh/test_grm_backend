@@ -168,13 +168,27 @@ export class LogisticsService {
 
   async getLogisticsDetailReport(logisticsId: string, dto: LogisticsDetailQueryDto) {
     const year = dto.year || dayjs().year();
-    const month = dto.month || dayjs().month() + 1;
+    const month = dto.month || null;
     const page = dto.page || 1;
     const limit = dto.limit || 20;
     const offset = (page - 1) * limit;
 
-    const startDate = dayjs(`${year}-${month}-01`).startOf('month').toDate();
-    const endDate = dayjs(`${year}-${month}-01`).endOf('month').toDate();
+    let startDate: Date;
+    let endDate: Date;
+    if (dto.fromDate || dto.toDate) {
+      startDate = dto.fromDate
+        ? dayjs(dto.fromDate).startOf('day').toDate()
+        : dayjs(`${year}-01-01`).startOf('year').toDate();
+      endDate = dto.toDate
+        ? dayjs(dto.toDate).endOf('day').toDate()
+        : dayjs(`${year}-12-31`).endOf('year').toDate();
+    } else if (month) {
+      startDate = dayjs(`${year}-${month}-01`).startOf('month').toDate();
+      endDate = dayjs(`${year}-${month}-01`).endOf('month').toDate();
+    } else {
+      startDate = dayjs(`${year}-01-01`).startOf('year').toDate();
+      endDate = dayjs(`${year}-12-31`).endOf('year').toDate();
+    }
 
     const logistics = await this.findOne(logisticsId);
 

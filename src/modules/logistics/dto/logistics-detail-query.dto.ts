@@ -15,6 +15,16 @@ export class LogisticsDetailQueryDto {
   @IsNumber()
   month?: number;
 
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  fromDate?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  toDate?: string;
+
   @ApiProperty({ required: false, description: 'Cashflow type: Приход or Расход' })
   @IsOptional()
   @IsString()
