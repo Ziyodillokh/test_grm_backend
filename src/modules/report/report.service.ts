@@ -796,10 +796,14 @@ export class ReportService {
             continue;
           }
 
-          // Logistics Приход — provider qarzigina, kassaga qo'shilmaydi.
+          // Logistics Приход + Share+Foyda Приход — kassaga qo'shilmaydi.
           const cfSlug = cashflow.cashflow_type?.slug;
           if (cfSlug === 'logistics') {
             console.log(`    SKIP (logistics): Cashflow ID ${cashflow.id}`);
+            continue;
+          }
+          if (cfSlug === 'share' && (cashflow as any).shareKind === 'profit') {
+            console.log(`    SKIP (share+profit): Cashflow ID ${cashflow.id}`);
             continue;
           }
 

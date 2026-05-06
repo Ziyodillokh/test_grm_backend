@@ -41,6 +41,14 @@ export class Share extends BaseEntity {
     transformer: new ColumnNumericTransformer(),
     default: 0,
   })
+  profit: number;
+
+  @Column('numeric', {
+    precision: 20,
+    scale: 2,
+    transformer: new ColumnNumericTransformer(),
+    default: 0,
+  })
   totalDebt: number;
 
   @OneToMany(() => Cashflow, (cashflow) => cashflow.share, { onDelete: 'SET NULL' })

@@ -84,6 +84,7 @@ export class ShareService {
         's."fullName" AS "fullName"',
         's.phone AS phone',
         's.capital AS capital',
+        's.profit AS profit',
         's.given_capital AS given_capital',
         's.given_profit AS given_profit',
         's."totalDebt" AS "totalDebt"',
@@ -132,6 +133,7 @@ export class ShareService {
       items: items.map((i) => ({
         ...i,
         capital: Number(i.capital || 0),
+        profit: Number(i.profit || 0),
         given_capital: Number(i.given_capital || 0),
         given_profit: Number(i.given_profit || 0),
         totalDebt: Number(i.totalDebt || 0),

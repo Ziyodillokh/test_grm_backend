@@ -310,9 +310,11 @@ export class CashflowService {
         'COALESCE(SUM(cashflow.price), 0) AS "totalSum"',
         'COALESCE(SUM(ord.plastic), 0) AS "plasticSum"',
         'COALESCE(SUM(ord.price), 0) AS "totalOrderPrice"',
-        // Logistics Приход — provider qarzigina, kassaga qo'shilmaydi.
-        // Logistics Расход va boshqa cashflowlar hisobga olinadi.
-        `COALESCE(SUM(CASE WHEN cashflow.type = 'income' AND cashflow_type.slug <> 'logistics' THEN cashflow.price ELSE 0 END), 0) AS "totalIncome"`,
+        // Logistics Приход + Share Foyda Приход — kassaga qo'shilmaydi.
+        `COALESCE(SUM(CASE WHEN cashflow.type = 'income'
+              AND cashflow_type.slug <> 'logistics'
+              AND NOT (cashflow_type.slug = 'share' AND cashflow."shareKind" = 'profit')
+            THEN cashflow.price ELSE 0 END), 0) AS "totalIncome"`,
         `COALESCE(SUM(CASE WHEN cashflow.type = 'expense' THEN cashflow.price ELSE 0 END), 0) AS "totalExpense"`,
         `COALESCE(SUM(CASE WHEN ord.status = 'returned' THEN ord.plastic + ord.price ELSE 0 END), 0) AS "totalReturnSale"`,
         'COALESCE(SUM(ord.discount), 0) AS "totalDiscount"',
@@ -724,6 +726,11 @@ export class CashflowService {
       const isCustomsFlow = cashflow.cashflow_type &&
         cashflow.cashflow_type.slug === 'customs' && value.customsId;
 
+      // Share Foyda income — managerSum/totalIncome ga qo'shilmaydi (logistics income kabi).
+      const isShareProfitIncome = cashflow.cashflow_type?.slug === 'share'
+        && value.type === 'income'
+        && (value as any).shareKind === 'profit';
+
       // Report logikasi
       if (report) {
         const isDebtFlow = cashflow.cashflow_type.slug === 'kent' && value.debtId;
@@ -736,9 +743,9 @@ export class CashflowService {
             debt.totalDebt = debt.owed - debt.given;
             await queryRunner.manager.save(debt);
           }
-          // Logistics Приход — provider qarzigina (logistics.owed bilan kuzatiladi).
-          // Customs va boshqa cashflowlar hisobga olinadi.
-          if (!isLogisticsFlow) {
+          // Logistics Приход — provider qarzigina.
+          // Share + Foyda — qarz obligatsiyasi, kassaga ta'sir qilmaydi.
+          if (!isLogisticsFlow && !isShareProfitIncome) {
             if (user?.position?.role === UserRoleEnum.ACCOUNTANT) {
               report.accountantSum += price;
             } else {
@@ -821,28 +828,37 @@ export class CashflowService {
       if (isShareFlow) {
         const shareId = (value as any).shareId as string;
         const shareKind = (value as any).shareKind as 'capital' | 'profit' | undefined;
+        if (shareKind !== 'capital' && shareKind !== 'profit') {
+          throw new BadRequestException('shareKind talab qilinadi: capital yoki profit');
+        }
         const share = await queryRunner.manager.findOne(Share, { where: { id: shareId } });
         if (!share) throw new BadRequestException('Share not found');
+
         if (value.type === 'income') {
-          share.capital = Number(share.capital) + price;
-          share.totalDebt = Number(share.capital) - Number(share.given_capital);
-        } else if (value.type === 'expense') {
-          if (shareKind !== 'capital' && shareKind !== 'profit') {
-            throw new BadRequestException('shareKind talab qilinadi: capital yoki profit');
+          // Kapital → capital += price (kassaga ham qo'shiladi — yuqorida)
+          // Foyda  → profit  += price (kassaga qo'shilmaydi — pastdagi filtrda hisobga olinadi)
+          if (shareKind === 'capital') {
+            share.capital = Number(share.capital) + price;
+          } else {
+            share.profit = Number(share.profit) + price;
           }
+          share.totalDebt = Number(share.totalDebt) + price;
+        } else if (value.type === 'expense') {
           if (shareKind === 'capital') {
             share.given_capital = Number(share.given_capital) + price;
-            share.totalDebt = Number(share.capital) - Number(share.given_capital);
+            share.capital = Number(share.capital) - price;
           } else {
             share.given_profit = Number(share.given_profit) + price;
+            share.profit = Number(share.profit) - price;
           }
+          share.totalDebt = Number(share.totalDebt) - price;
         }
         await queryRunner.manager.save(share);
       }
 
       const today = dayjs().format('YYYY-MM-DD');
 
-      if (value.type === 'income' && kassa?.id && !isLogisticsFlow && !isCustomsFlow) {
+      if (value.type === 'income' && kassa?.id && !isLogisticsFlow && !isCustomsFlow && !isShareProfitIncome) {
         if (!isOrder && cashflow.cashflow_type.slug !== 'transfer') {
           kassa.income += price;
           if (value?.is_online) {
@@ -1175,10 +1191,10 @@ export class CashflowService {
     const totals = cashflow.reduce(
       (acc, curr) => {
         const slug = curr.cashflow_type?.slug;
-        // Logistics Приход — provider qarzigina, kassaga qo'shilmaydi.
-        // Логistics Расход (to'lov) va boshqa cashflowlar hisobga olinadi.
         if (curr.type === CashFlowEnum.InCome) {
           if (slug === 'logistics') return acc;
+          // Share Foyda Приход — kassaga qo'shilmaydi
+          if (slug === 'share' && (curr as any).shareKind === 'profit') return acc;
           return { ...acc, income: acc.income + curr.price };
         }
         return { ...acc, expense: acc.expense + curr.price };
@@ -1859,8 +1875,9 @@ export class CashflowService {
         const isDebtFlow = cashflow.cashflow_type.slug === 'kent' && cashflow.debt;
 
         if (cashflow.type === 'income') {
-          // Logistics/Customs Приход da report ta'sirlanmagan → reverse ham kerak emas
-          if (!isLogisticsFlow && !isCustomsFlow) {
+          // Logistics Приход + Share+Foyda Приход — kassaga ta'sir qilmagan → reverse ham kerak emas
+          const isShareProfitIncome = cashflow.cashflow_type?.slug === 'share' && cashflow.shareKind === 'profit';
+          if (!isLogisticsFlow && !isCustomsFlow && !isShareProfitIncome) {
             report.totalIncome -= price;
             if (user?.position?.role === UserRoleEnum.ACCOUNTANT) {
               report.accountantSum -= price;
@@ -1966,20 +1983,26 @@ export class CashflowService {
         }
       }
 
-      // Share (Sherikchilik) reverse
+      // Share (Sherikchilik) reverse — yangi 4-shaqlda
       if (cashflow.share?.id) {
         const share = await queryRunner.manager.findOne(Share, { where: { id: cashflow.share.id } });
         if (share) {
           if (cashflow.type === 'income') {
-            share.capital = Number(share.capital) - price;
-            share.totalDebt = Number(share.capital) - Number(share.given_capital);
+            if (cashflow.shareKind === 'capital') {
+              share.capital = Number(share.capital) - price;
+            } else if (cashflow.shareKind === 'profit') {
+              share.profit = Number(share.profit) - price;
+            }
+            share.totalDebt = Number(share.totalDebt) - price;
           } else if (cashflow.type === 'expense') {
             if (cashflow.shareKind === 'capital') {
               share.given_capital = Number(share.given_capital) - price;
-              share.totalDebt = Number(share.capital) - Number(share.given_capital);
+              share.capital = Number(share.capital) + price;
             } else if (cashflow.shareKind === 'profit') {
               share.given_profit = Number(share.given_profit) - price;
+              share.profit = Number(share.profit) + price;
             }
+            share.totalDebt = Number(share.totalDebt) + price;
           }
           await queryRunner.manager.save(share);
         }
