@@ -668,6 +668,8 @@ export class CashflowService {
         factory: value.factoryId,
         logistics: value.logisticsId,
         customs: value.customsId,
+        share: (value as any).shareId,
+        shareKind: (value as any).shareKind ?? null,
         ...(kassa?.filial?.id && { filial: kassa.filial.id }),
         ...(kassa?.id && { kassa: kassa.id }),
         ...(report?.filial?.id && { filial: report.filial.id }),
