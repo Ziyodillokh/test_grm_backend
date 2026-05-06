@@ -7,7 +7,7 @@ import { CashflowController } from './cashflow.controller';
 import { KassaModule } from '../kassa/kassa.module';
 import { ActionModule } from '../action/action.module';
 import { GrmSocketModule } from '../web-socket/web-socket.module';
-import { DebtModule } from '../debt/debt.module';
+import { StreetModule } from '../street/street.module';
 import { CashflowTypeModule } from '../cashflow-type/cashflow-type.module';
 import { ReportsModule } from '../report/report.module';
 import { SellerReportItem } from '../seller-report-item/seller-report-item.entity';
@@ -51,7 +51,7 @@ import { Share } from '../share/share.entity';
     forwardRef(() => ReportsModule),
     forwardRef(() => OrderModule),
     forwardRef(() => CashflowTypeModule),
-    forwardRef(() => DebtModule),
+    forwardRef(() => StreetModule),
     forwardRef(() => LogisticsModule),
     forwardRef(() => CustomsModule),
     forwardRef(() => GrmSocketModule),

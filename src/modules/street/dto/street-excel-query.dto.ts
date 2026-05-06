@@ -2,7 +2,7 @@ import { IsOptional, IsUUID, IsNumber } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 
-export class DebtExcelQueryDto {
+export class StreetExcelQueryDto {
   @ApiProperty({ required: false, description: 'Year (default: current year)' })
   @IsOptional()
   @Transform(({ value }) => parseInt(value, 10))
@@ -15,8 +15,8 @@ export class DebtExcelQueryDto {
   @IsNumber()
   month?: number;
 
-  @ApiProperty({ required: false, description: 'Specific debt ID for single kent export' })
+  @ApiProperty({ required: false, description: "Specific street ID for single Ko'cha export" })
   @IsOptional()
   @IsUUID('4')
-  debtId?: string;
+  streetId?: string;
 }

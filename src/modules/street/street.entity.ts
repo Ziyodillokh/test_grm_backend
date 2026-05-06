@@ -3,9 +3,9 @@ import { Entity, Column, Generated, OneToMany } from 'typeorm';
 import { Cashflow } from '../cashflow/cashflow.entity';
 import { BaseEntity } from '../../common/database/base.entity';
 
-@Entity('debts')
-export class Debt extends BaseEntity {
-  @Column({ nullable: true }) // nullable: true qo'shing
+@Entity('street')
+export class Street extends BaseEntity {
+  @Column({ nullable: true })
   fullName: string;
 
   @Column({ nullable: false })
@@ -33,12 +33,20 @@ export class Debt extends BaseEntity {
     transformer: new ColumnNumericTransformer(),
     default: 0,
   })
+  percent: number;
+
+  @Column('numeric', {
+    precision: 20,
+    scale: 2,
+    transformer: new ColumnNumericTransformer(),
+    default: 0,
+  })
   totalDebt: number;
 
   @Column()
   @Generated('increment')
   number_debt: number;
 
-  @OneToMany(() => Cashflow, (cashflow) => cashflow.debt, { onDelete: 'SET NULL' })
+  @OneToMany(() => Cashflow, (cashflow) => cashflow.street, { onDelete: 'SET NULL' })
   cashflow: Cashflow[];
 }

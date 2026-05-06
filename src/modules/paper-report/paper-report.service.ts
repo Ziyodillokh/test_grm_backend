@@ -12,7 +12,7 @@ import { ClientService } from '@modules/client/client.service';
 import { IPaginationOptions, paginate, Pagination } from 'nestjs-typeorm-paginate';
 import * as ExcelJS from 'exceljs';
 import { Buffer } from 'buffer';
-import { Debt } from '@modules/debt/debt.entity';
+import { Street } from '@modules/street/street.entity';
 import * as XLSX from 'xlsx';
 import { TransferService } from '@modules/transfer/transfer.service';
 import { ReportService } from '@modules/report/report.service';
@@ -40,8 +40,8 @@ export class PaperReportService {
     @InjectRepository(Order)
     private readonly orderRepository: Repository<Order>,
 
-    @InjectRepository(Debt)
-    private readonly debtRepository: Repository<Debt>,
+    @InjectRepository(Street)
+    private readonly debtRepository: Repository<Street>,
 
     @InjectRepository(Filial)
     private readonly filialRepository: Repository<Filial>,
@@ -495,8 +495,8 @@ export class PaperReportService {
                     AND c.date BETWEEN $3 AND $4 
                     THEN c.price ELSE 0 END), 0)
       ) as "totalDebt"
-    FROM debts d
-    LEFT JOIN cashflow c ON d.id = c."debtId"
+    FROM street d
+    LEFT JOIN cashflow c ON d.id = c."streetId"
     GROUP BY d.id, d."fullName", d."totalDebt"
   `,
       [CashFlowEnum.InCome, CashFlowEnum.Consumption, startDate, endDate],
@@ -1749,8 +1749,8 @@ export class PaperReportService {
                     AND c.date BETWEEN $3 AND $4 
                     THEN c.price ELSE 0 END), 0)
       ) as "totalDebt"
-    FROM debts d
-    LEFT JOIN cashflow c ON d.id = c."debtId"
+    FROM street d
+    LEFT JOIN cashflow c ON d.id = c."streetId"
     GROUP BY d.id, d."fullName", d."totalDebt"
   `,
         [CashFlowEnum.InCome, CashFlowEnum.Consumption, startDate, endDate],

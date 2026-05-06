@@ -35,7 +35,7 @@ import { CurrencyModule } from './modules/currency/currency.module';
 import { DataSenderModule } from './modules/data-sender/data-sender.module';
 import { DealerTransactionModule } from './modules/dealer-transaction/dealer-transaction.module';
 import { DealerTransactionItemModule } from './modules/dealer-transaction_item/dealer-transaction_item.module';
-import { DebtModule } from './modules/debt/debt.module';
+import { StreetModule } from './modules/street/street.module';
 import { LogisticsModule } from './modules/logistics/logistics.module';
 import { CustomsModule } from './modules/customs/customs.module';
 import { ShareModule } from './modules/share/share.module';
@@ -155,7 +155,7 @@ import { VideoMessageModule } from './modules/video-message/video-message.module
     CashflowModule,
     CashflowTypeModule,
     AccountingModule,
-    DebtModule,
+    StreetModule,
     LogisticsModule,
     CustomsModule,
     ShareModule,

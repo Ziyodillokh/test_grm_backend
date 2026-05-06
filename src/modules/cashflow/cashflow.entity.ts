@@ -8,7 +8,7 @@ import { CashFlowEnum, CashflowStatusEnum } from '../../infra/shared/enum';
 import { Order } from '../order/order.entity';
 import { Filial } from '../filial/filial.entity';
 import { Report } from '../report/report.entity';
-import { Debt } from '../debt/debt.entity';
+import { Street } from '../street/street.entity';
 import { Factory } from '../factory/factory.entity';
 import { Logistics } from '../logistics/logistics.entity';
 import { Customs } from '../customs/customs.entity';
@@ -77,9 +77,18 @@ export class Cashflow extends BaseEntity {
   @JoinColumn()
   report: Report;
 
-  @ManyToOne(() => Debt, (debt) => debt.cashflow, { onDelete: 'SET NULL' })
+  @ManyToOne(() => Street, (street) => street.cashflow, { onDelete: 'SET NULL' })
   @JoinColumn()
-  debt: Debt;
+  street: Street;
+
+  @Column('numeric', {
+    precision: 20,
+    scale: 2,
+    transformer: new ColumnNumericTransformer(),
+    default: 0,
+    name: 'street_percent',
+  })
+  streetPercent: number;
 
   @ManyToOne(() => Factory, (factory) => factory.cashflows, { onDelete: 'SET NULL' })
   @JoinColumn()

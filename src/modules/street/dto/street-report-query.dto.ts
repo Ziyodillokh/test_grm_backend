@@ -2,7 +2,7 @@ import { IsOptional, IsString, IsNumber } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 
-export class DebtDetailQueryDto {
+export class StreetReportQueryDto {
   @ApiProperty({ required: false, description: 'Year (default: current year)' })
   @IsOptional()
   @Transform(({ value }) => parseInt(value, 10))
@@ -15,20 +15,10 @@ export class DebtDetailQueryDto {
   @IsNumber()
   month?: number;
 
-  @ApiProperty({ required: false })
+  @ApiProperty({ required: false, description: 'Search by fullName' })
   @IsOptional()
   @IsString()
-  fromDate?: string;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsString()
-  toDate?: string;
-
-  @ApiProperty({ required: false, description: 'Cashflow type: Приход or Расход' })
-  @IsOptional()
-  @IsString()
-  type?: string;
+  search?: string;
 
   @ApiProperty({ required: false, default: 1 })
   @IsOptional()

@@ -5,28 +5,28 @@ import { Cron } from '@nestjs/schedule';
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const dayjs = require('dayjs');
 import * as ExcelJS from 'exceljs';
-import { Debt } from './debt.entity';
+import { Street } from './street.entity';
 import { Cashflow } from '../cashflow/cashflow.entity';
 import { CashflowService } from '../cashflow/cashflow.service';
 import { CashFlowEnum } from 'src/infra/shared/enum';
 import CashflowTipEnum from 'src/infra/shared/enum/cashflow/cashflow-tip.enum';
 import { IPaginationOptions, paginate, Pagination } from 'nestjs-typeorm-paginate';
 import DebtTransactionTypeEnum from 'src/infra/shared/enum/debt-type-enum';
-import { CreateDebtDto } from './dto/create-debt.dto';
-import { UpdateDebtDto } from './dto/update-debt.dto';
+import { CreateStreetDto } from './dto/create-street.dto';
+import { UpdateStreetDto } from './dto/update-street.dto';
 import { CashflowTypeService } from '../cashflow-type/cashflow-type.service';
-import { DebtTransactionDto } from './dto/amount-debt-dto';
-import { DebtReportQueryDto } from './dto/debt-report-query.dto';
-import { DebtDetailQueryDto } from './dto/debt-detail-query.dto';
-import { DebtExcelQueryDto } from './dto/debt-excel-query.dto';
+import { StreetTransactionDto } from './dto/amount-street-dto';
+import { StreetReportQueryDto } from './dto/street-report-query.dto';
+import { StreetDetailQueryDto } from './dto/street-detail-query.dto';
+import { StreetExcelQueryDto } from './dto/street-excel-query.dto';
 
 @Injectable()
-export class DebtService {
-  private readonly logger = new Logger(DebtService.name);
+export class StreetService {
+  private readonly logger = new Logger(StreetService.name);
 
   constructor(
-    @InjectRepository(Debt)
-    private readonly debtRepository: Repository<Debt>,
+    @InjectRepository(Street)
+    private readonly streetRepository: Repository<Street>,
     @InjectRepository(Cashflow)
     private readonly cashflowRepository: Repository<Cashflow>,
     private readonly connection: DataSource,
@@ -36,53 +36,52 @@ export class DebtService {
     private readonly cashflowTypeService: CashflowTypeService,
   ) {}
 
-  async findAll(options: IPaginationOptions): Promise<Pagination<Debt>> {
-    const queryBuilder = this.debtRepository.createQueryBuilder('debt');
-    return paginate<Debt>(queryBuilder, options);
+  async findAll(options: IPaginationOptions): Promise<Pagination<Street>> {
+    const queryBuilder = this.streetRepository.createQueryBuilder('street');
+    return paginate<Street>(queryBuilder, options);
   }
 
-  async findOne(id: string): Promise<Debt> {
-    const debt = await this.debtRepository.findOne({ where: { id } });
-    if (!debt) {
-      throw new NotFoundException('Debt not found');
+  async findOne(id: string): Promise<Street> {
+    const street = await this.streetRepository.findOne({ where: { id } });
+    if (!street) {
+      throw new NotFoundException('Street not found');
     }
-    return debt;
+    return street;
   }
 
-  async create(dto: CreateDebtDto): Promise<Debt> {
-    const debt = this.debtRepository.create(dto);
-    return this.debtRepository.save(debt);
+  async create(dto: CreateStreetDto): Promise<Street> {
+    const street = this.streetRepository.create(dto);
+    return this.streetRepository.save(street);
   }
 
-  async update(id: string, dto: UpdateDebtDto): Promise<Debt> {
-    const debt = await this.findOne(id);
-    Object.assign(debt, dto);
-    return this.debtRepository.save(debt);
+  async update(id: string, dto: UpdateStreetDto): Promise<Street> {
+    const street = await this.findOne(id);
+    Object.assign(street, dto);
+    return this.streetRepository.save(street);
   }
 
   async remove(id: string): Promise<{ message: string }> {
-    const debt = await this.findOne(id);
-    await this.debtRepository.remove(debt);
-    return { message: 'Debt successfully deleted' };
+    const street = await this.findOne(id);
+    await this.streetRepository.remove(street);
+    return { message: 'Street successfully deleted' };
   }
 
-  async getDebtBalance(id: string): Promise<{ balance: number }> {
-    const debt = await this.findOne(id);
-    const balance = debt.owed - debt.given;
+  async getStreetBalance(id: string): Promise<{ balance: number }> {
+    const street = await this.findOne(id);
+    const balance = Number(street.owed) + Number(street.percent) - Number(street.given);
     return { balance };
   }
 
-  async handleTransaction(dto: DebtTransactionDto, userId: string) {
+  async handleTransaction(dto: StreetTransactionDto, userId: string) {
     const queryRunner = this.connection.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
 
     try {
-      const debt = await this.findOne(dto.debtId);
+      const street = await this.findOne(dto.streetId);
 
       const cashflowTypeId = await this.cashflowTypeService.getDebtTypeId();
 
-      // CashflowService orqali operatsiyani amalga oshirish
       await this.cashflowService.create(
         {
           type: dto.transactionType === DebtTransactionTypeEnum.TAKE ? CashFlowEnum.InCome : CashFlowEnum.Consumption,
@@ -90,25 +89,25 @@ export class DebtService {
           comment: dto.comment,
           kassa: dto.kassaId,
           cashflow_type: cashflowTypeId,
-          debtId: debt.id,
+          streetId: street.id,
           tip: CashflowTipEnum.DEBT,
-          title: 'debt',
+          title: 'street',
           createdBy: userId,
           order: null,
           report: null,
-        },
+        } as any,
         userId,
       );
 
-      // Debt ma'lumotlarini yangilash (after given/owed are updated)
-      const updatedDebt = await this.findOne(dto.debtId);
-      updatedDebt.totalDebt = updatedDebt.owed - updatedDebt.given;
-      if (updatedDebt.totalDebt < 0) updatedDebt.totalDebt = 0;
+      const updated = await this.findOne(dto.streetId);
+      updated.totalDebt =
+        Number(updated.owed) + Number(updated.percent) - Number(updated.given);
+      if (updated.totalDebt < 0) updated.totalDebt = 0;
 
-      await this.debtRepository.save(updatedDebt);
+      await this.streetRepository.save(updated);
 
       await queryRunner.commitTransaction();
-      return { message: 'Transaction completed', debt: updatedDebt };
+      return { message: 'Transaction completed', street: updated };
     } catch (error) {
       await queryRunner.rollbackTransaction();
       throw error;
@@ -118,7 +117,7 @@ export class DebtService {
   }
 
   async getNextNumber(): Promise<number> {
-    const last = await this.debtRepository.findOne({
+    const last = await this.streetRepository.findOne({
       order: { number_debt: 'DESC' },
     });
 
@@ -127,7 +126,7 @@ export class DebtService {
 
   // ==================== REPORT METHODS ====================
 
-  async getDebtReport(dto: DebtReportQueryDto) {
+  async getStreetReport(dto: StreetReportQueryDto) {
     const year = dto.year || dayjs().year();
     const month = dto.month || dayjs().month() + 1;
     const page = dto.page || 1;
@@ -137,79 +136,79 @@ export class DebtService {
     const startDate = dayjs(`${year}-${month}-01`).startOf('month').toDate();
     const endDate = dayjs(`${year}-${month}-01`).endOf('month').toDate();
 
-    const qb = this.debtRepository
-      .createQueryBuilder('d')
+    const qb = this.streetRepository
+      .createQueryBuilder('s')
       .select([
-        'd.id AS id',
-        'd."fullName" AS "fullName"',
-        'd.phone AS phone',
-        'd.given AS given',
-        'd.owed AS owed',
-        'd."totalDebt" AS "totalDebt"',
-        'd.number_debt AS number_debt',
+        's.id AS id',
+        's."fullName" AS "fullName"',
+        's.phone AS phone',
+        's.given AS given',
+        's.owed AS owed',
+        's.percent AS percent',
+        's."totalDebt" AS "totalDebt"',
+        's.number_debt AS number_debt',
         `COALESCE(SUM(CASE WHEN c.type = 'income' THEN c.price ELSE 0 END), 0)::NUMERIC(20,2) AS period_income`,
         `COALESCE(SUM(CASE WHEN c.type = 'expense' THEN c.price ELSE 0 END), 0)::NUMERIC(20,2) AS period_expense`,
       ])
       .leftJoin(
         'cashflow',
         'c',
-        `c."debtId" = d.id AND c.is_cancelled = false AND c.date BETWEEN :startDate AND :endDate`,
+        `c."streetId" = s.id AND c.is_cancelled = false AND c.date BETWEEN :startDate AND :endDate`,
         { startDate, endDate },
       )
-      .where('d."deletedDate" IS NULL')
-      .groupBy('d.id')
-      .orderBy('d."totalDebt"', 'DESC')
+      .where('s."deletedDate" IS NULL')
+      .groupBy('s.id')
+      .orderBy('s."totalDebt"', 'DESC')
       .offset(offset)
       .limit(limit);
 
     if (dto.search) {
-      qb.andWhere('d."fullName" ILIKE :search', { search: `%${dto.search}%` });
+      qb.andWhere('s."fullName" ILIKE :search', { search: `%${dto.search}%` });
     }
 
     const items = await qb.getRawMany();
 
-    // Count total
-    const countQb = this.debtRepository
-      .createQueryBuilder('d')
-      .where('d."deletedDate" IS NULL');
+    const countQb = this.streetRepository
+      .createQueryBuilder('s')
+      .where('s."deletedDate" IS NULL');
     if (dto.search) {
-      countQb.andWhere('d."fullName" ILIKE :search', { search: `%${dto.search}%` });
+      countQb.andWhere('s."fullName" ILIKE :search', { search: `%${dto.search}%` });
     }
     const totalItems = await countQb.getCount();
 
-    // Totals
-    const totalsQb = this.debtRepository
-      .createQueryBuilder('d')
+    const totalsQb = this.streetRepository
+      .createQueryBuilder('s')
       .select([
-        `SUM(d.given)::NUMERIC(20,2) AS total_given`,
-        `SUM(d.owed)::NUMERIC(20,2) AS total_owed`,
-        `SUM(d."totalDebt")::NUMERIC(20,2) AS total_debt`,
+        `SUM(s.given)::NUMERIC(20,2) AS total_given`,
+        `SUM(s.owed)::NUMERIC(20,2) AS total_owed`,
+        `SUM(s.percent)::NUMERIC(20,2) AS total_percent`,
+        `SUM(s."totalDebt")::NUMERIC(20,2) AS total_debt`,
         `COALESCE(SUM(pi.period_income), 0)::NUMERIC(20,2) AS total_period_income`,
         `COALESCE(SUM(pe.period_expense), 0)::NUMERIC(20,2) AS total_period_expense`,
       ])
       .leftJoin(
         (sub) =>
           sub
-            .select('c."debtId"', 'debtId')
+            .select('c."streetId"', 'streetId')
             .addSelect(`SUM(CASE WHEN c.type = 'income' THEN c.price ELSE 0 END)`, 'period_income')
             .from('cashflow', 'c')
             .where('c.is_cancelled = false AND c.date BETWEEN :s AND :e', { s: startDate, e: endDate })
-            .groupBy('c."debtId"'),
+            .groupBy('c."streetId"'),
         'pi',
-        'pi."debtId" = d.id',
+        'pi."streetId" = s.id',
       )
       .leftJoin(
         (sub) =>
           sub
-            .select('c2."debtId"', 'debtId')
+            .select('c2."streetId"', 'streetId')
             .addSelect(`SUM(CASE WHEN c2.type = 'expense' THEN c2.price ELSE 0 END)`, 'period_expense')
             .from('cashflow', 'c2')
-            .where('c2.isCancelled = false AND c2.date BETWEEN :s2 AND :e2', { s2: startDate, e2: endDate })
-            .groupBy('c2."debtId"'),
+            .where('c2.is_cancelled = false AND c2.date BETWEEN :s2 AND :e2', { s2: startDate, e2: endDate })
+            .groupBy('c2."streetId"'),
         'pe',
-        'pe."debtId" = d.id',
+        'pe."streetId" = s.id',
       )
-      .where('d."deletedDate" IS NULL');
+      .where('s."deletedDate" IS NULL');
 
     const totals = await totalsQb.getRawOne();
 
@@ -218,6 +217,7 @@ export class DebtService {
         ...i,
         given: Number(i.given || 0),
         owed: Number(i.owed || 0),
+        percent: Number(i.percent || 0),
         totalDebt: Number(i.totalDebt || 0),
         period_income: Number(i.period_income || 0),
         period_expense: Number(i.period_expense || 0),
@@ -231,6 +231,7 @@ export class DebtService {
       totals: {
         total_given: Number(totals?.total_given || 0),
         total_owed: Number(totals?.total_owed || 0),
+        total_percent: Number(totals?.total_percent || 0),
         total_debt: Number(totals?.total_debt || 0),
         total_period_income: Number(totals?.total_period_income || 0),
         total_period_expense: Number(totals?.total_period_expense || 0),
@@ -238,14 +239,13 @@ export class DebtService {
     };
   }
 
-  async getDebtDetailReport(debtId: string, dto: DebtDetailQueryDto) {
+  async getStreetDetailReport(streetId: string, dto: StreetDetailQueryDto) {
     const year = dto.year || dayjs().year();
     const month = dto.month || null;
     const page = dto.page || 1;
     const limit = dto.limit || 20;
     const offset = (page - 1) * limit;
 
-    // Filter ustuvorligi: fromDate/toDate (date range) → month → faqat year.
     let startDate: Date;
     let endDate: Date;
     if (dto.fromDate || dto.toDate) {
@@ -263,13 +263,14 @@ export class DebtService {
       endDate = dayjs(`${year}-12-31`).endOf('year').toDate();
     }
 
-    const debt = await this.findOne(debtId);
+    const street = await this.findOne(streetId);
 
     const cashflow_qb = this.cashflowRepository
       .createQueryBuilder('cash')
       .select([
         'cash.id',
         'cash.price',
+        'cash.streetPercent',
         'cash.type',
         'cash.tip',
         'cash.comment',
@@ -279,14 +280,14 @@ export class DebtService {
       ])
       .leftJoin('cash.cashflow_type', 'cashflow_type')
       .addSelect(['cashflow_type.id', 'cashflow_type.title', 'cashflow_type.slug'])
-      .leftJoin('cash.debt', 'debt')
-      .addSelect(['debt.id', 'debt.fullName'])
+      .leftJoin('cash.street', 'street')
+      .addSelect(['street.id', 'street.fullName'])
       .leftJoin('cash.createdBy', 'createdBy')
       .addSelect(['createdBy.id', 'createdBy.firstName', 'createdBy.lastName'])
       .leftJoin('createdBy.avatar', 'avatar')
       .addSelect(['avatar.id', 'avatar.path', 'avatar.mimetype', 'avatar.name'])
-      .where('debt.id = :debtId', { debtId })
-      .andWhere('cash.isCancelled = false')
+      .where('street.id = :streetId', { streetId })
+      .andWhere('cash.is_cancelled = false')
       .andWhere('cash.date BETWEEN :start AND :end', { start: startDate, end: endDate })
       .orderBy('cash.date', 'DESC')
       .offset(offset)
@@ -300,11 +301,12 @@ export class DebtService {
       .createQueryBuilder('cash')
       .select(`
         SUM(CASE WHEN cash.type = 'income' THEN cash.price ELSE 0 END)::NUMERIC(20,2) AS total_income,
+        SUM(CASE WHEN cash.type = 'income' THEN cash."streetPercent" ELSE 0 END)::NUMERIC(20,2) AS total_percent,
         SUM(CASE WHEN cash.type = 'expense' THEN cash.price ELSE 0 END)::NUMERIC(20,2) AS total_expense
       `)
-      .leftJoin('cash.debt', 'debt')
-      .where('debt.id = :debtId', { debtId })
-      .andWhere('cash.isCancelled = false')
+      .leftJoin('cash.street', 'street')
+      .where('street.id = :streetId', { streetId })
+      .andWhere('cash.is_cancelled = false')
       .andWhere('cash.date BETWEEN :start AND :end', { start: startDate, end: endDate });
 
     if (dto.type) {
@@ -326,21 +328,23 @@ export class DebtService {
       },
       totals: {
         total_income: Number(totals?.total_income || 0),
+        total_percent: Number(totals?.total_percent || 0),
         total_expense: Number(totals?.total_expense || 0),
-        balance: Number((Number(totals?.total_income || 0) - Number(totals?.total_expense || 0)).toFixed(2)),
+        balance: Number((Number(totals?.total_income || 0) + Number(totals?.total_percent || 0) - Number(totals?.total_expense || 0)).toFixed(2)),
       },
-      debt: {
-        id: debt.id,
-        fullName: debt.fullName,
-        phone: debt.phone,
-        given: debt.given,
-        owed: debt.owed,
-        totalDebt: debt.totalDebt,
+      street: {
+        id: street.id,
+        fullName: street.fullName,
+        phone: street.phone,
+        given: street.given,
+        owed: street.owed,
+        percent: street.percent,
+        totalDebt: street.totalDebt,
       },
     };
   }
 
-  async generateDebtExcel(dto: DebtExcelQueryDto): Promise<Buffer> {
+  async generateStreetExcel(dto: StreetExcelQueryDto): Promise<Buffer> {
     const year = dto.year || dayjs().year();
     const month = dto.month || dayjs().month() + 1;
     const startDate = dayjs(`${year}-${month}-01`).startOf('month').toDate();
@@ -360,76 +364,76 @@ export class DebtService {
       },
     };
 
-    if (dto.debtId) {
-      // Single kent cashflows export
-      const debt = await this.findOne(dto.debtId);
-      const sheet = workbook.addWorksheet(`${debt.fullName}`);
+    if (dto.streetId) {
+      const street = await this.findOne(dto.streetId);
+      const sheet = workbook.addWorksheet(`${street.fullName}`);
 
-      sheet.mergeCells('A1:F1');
+      sheet.mergeCells('A1:G1');
       const titleCell = sheet.getCell('A1');
-      titleCell.value = `${debt.fullName} — ${year} yil ${month}-oy`;
+      titleCell.value = `${street.fullName} — ${year} yil ${month}-oy`;
       titleCell.font = { bold: true, size: 14 };
 
-      const headers = ['№', 'Sana', 'Turi', 'Summa ($)', 'Izoh', 'Kim qo\'shgan'];
+      const headers = ['№', 'Sana', 'Turi', 'Summa ($)', 'Foiz ($)', 'Izoh', "Kim qo'shgan"];
       headers.forEach((h, i) => {
         const cell = sheet.getCell(3, i + 1);
         cell.value = h;
         cell.style = headerStyle;
       });
       sheet.columns = [
-        { width: 5 }, { width: 18 }, { width: 12 }, { width: 15 }, { width: 30 }, { width: 20 },
+        { width: 5 }, { width: 18 }, { width: 12 }, { width: 15 }, { width: 12 }, { width: 30 }, { width: 20 },
       ];
 
       const cashflows = await this.cashflowRepository
         .createQueryBuilder('cash')
-        .leftJoin('cash.debt', 'debt')
+        .leftJoin('cash.street', 'street')
         .leftJoin('cash.createdBy', 'createdBy')
-        .select(['cash.id', 'cash.price', 'cash.type', 'cash.comment', 'cash.date', 'createdBy.firstName', 'createdBy.lastName'])
-        .where('debt.id = :debtId', { debtId: dto.debtId })
-        .andWhere('cash.isCancelled = false')
+        .select(['cash.id', 'cash.price', 'cash.streetPercent', 'cash.type', 'cash.comment', 'cash.date', 'createdBy.firstName', 'createdBy.lastName'])
+        .where('street.id = :streetId', { streetId: dto.streetId })
+        .andWhere('cash.is_cancelled = false')
         .andWhere('cash.date BETWEEN :start AND :end', { start: startDate, end: endDate })
         .orderBy('cash.date', 'DESC')
         .getMany();
 
-      cashflows.forEach((cf, idx) => {
+      cashflows.forEach((cf: any, idx) => {
         const row = sheet.getRow(idx + 4);
         row.getCell(1).value = idx + 1;
         row.getCell(2).value = dayjs(cf.date).format('DD.MM.YYYY HH:mm');
         row.getCell(3).value = cf.type;
         row.getCell(4).value = Number(cf.price);
-        row.getCell(5).value = cf.comment || '';
-        row.getCell(6).value = cf.createdBy ? `${cf.createdBy.firstName} ${cf.createdBy.lastName}` : '';
+        row.getCell(5).value = Number(cf.streetPercent || 0);
+        row.getCell(6).value = cf.comment || '';
+        row.getCell(7).value = cf.createdBy ? `${cf.createdBy.firstName} ${cf.createdBy.lastName}` : '';
       });
     } else {
-      // All kents summary export
-      const report = await this.getDebtReport({ year, month, page: 1, limit: 10000 });
-      const sheet = workbook.addWorksheet('Kentlar');
+      const report = await this.getStreetReport({ year, month, page: 1, limit: 10000 });
+      const sheet = workbook.addWorksheet("Ko'cha");
 
-      sheet.mergeCells('A1:H1');
+      sheet.mergeCells('A1:I1');
       const titleCell = sheet.getCell('A1');
-      titleCell.value = `Kentlar hisoboti — ${year} yil ${month}-oy`;
+      titleCell.value = `Ko'cha hisoboti — ${year} yil ${month}-oy`;
       titleCell.font = { bold: true, size: 14 };
 
-      const headers = ['№', 'Ism', 'Telefon', 'Взято ($)', 'Дано ($)', 'Qoldiq ($)', 'Davriy kirim ($)', 'Davriy chiqim ($)'];
+      const headers = ['№', 'Ism', 'Telefon', 'Olgan ($)', 'Foiz ($)', 'Qaytargan ($)', 'Qoldiq ($)', 'Davriy kirim ($)', 'Davriy chiqim ($)'];
       headers.forEach((h, i) => {
         const cell = sheet.getCell(3, i + 1);
         cell.value = h;
         cell.style = headerStyle;
       });
       sheet.columns = [
-        { width: 5 }, { width: 25 }, { width: 18 }, { width: 15 }, { width: 15 }, { width: 15 }, { width: 15 }, { width: 15 },
+        { width: 5 }, { width: 25 }, { width: 18 }, { width: 15 }, { width: 12 }, { width: 15 }, { width: 15 }, { width: 15 }, { width: 15 },
       ];
 
-      report.items.forEach((item, idx) => {
+      report.items.forEach((item: any, idx) => {
         const row = sheet.getRow(idx + 4);
         row.getCell(1).value = idx + 1;
         row.getCell(2).value = item.fullName || '';
         row.getCell(3).value = item.phone || '';
         row.getCell(4).value = item.owed;
-        row.getCell(5).value = item.given;
-        row.getCell(6).value = item.totalDebt;
-        row.getCell(7).value = item.period_income;
-        row.getCell(8).value = item.period_expense;
+        row.getCell(5).value = item.percent;
+        row.getCell(6).value = item.given;
+        row.getCell(7).value = item.totalDebt;
+        row.getCell(8).value = item.period_income;
+        row.getCell(9).value = item.period_expense;
       });
     }
 
@@ -437,16 +441,16 @@ export class DebtService {
     return Buffer.from(buffer);
   }
 
-  @Cron('1 0 1 1 *', { name: 'debt-year-end-reset' })
-  async handleYearEndDebtReset() {
-    this.logger.log('Starting year-end debt reset...');
-    const debts = await this.debtRepository.find();
-    for (const debt of debts) {
-      debt.owed = debt.totalDebt;
-      debt.given = 0;
-      // totalDebt = owed - given = totalDebt (unchanged)
+  @Cron('1 0 1 1 *', { name: 'street-year-end-reset' })
+  async handleYearEndStreetReset() {
+    this.logger.log('Starting year-end street reset...');
+    const streets = await this.streetRepository.find();
+    for (const street of streets) {
+      street.owed = street.totalDebt;
+      street.given = 0;
+      street.percent = 0;
     }
-    await this.debtRepository.save(debts);
-    this.logger.log(`Year-end debt reset completed for ${debts.length} debts`);
+    await this.streetRepository.save(streets);
+    this.logger.log(`Year-end street reset completed for ${streets.length} streets`);
   }
 }

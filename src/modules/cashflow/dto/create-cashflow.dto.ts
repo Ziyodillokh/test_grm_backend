@@ -54,12 +54,21 @@ class CreateCashflowDto {
   readonly createdBy: string;
 
   @ApiProperty({
-    description: `debt id`,
+    description: `street (Ko'cha) id`,
     example: 'uuid',
   })
   @IsOptional()
   @IsUUID('4')
-  debtId?: string;
+  streetId?: string;
+
+  @ApiProperty({
+    description: `street percent (foiz) — only for slug='street' income`,
+    example: 500,
+    required: false,
+  })
+  @IsOptional()
+  @IsNumber()
+  streetPercent?: number;
 
   @ApiProperty({
     description: `factory id`,

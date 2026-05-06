@@ -2,11 +2,11 @@ import { ApiProperty } from '@nestjs/swagger';
 import { IsNotEmpty, IsNumber, IsString, IsUUID, IsEnum, IsOptional } from 'class-validator';
 import DebtTransactionTypeEnum from 'src/infra/shared/enum/debt-type-enum';
 
-export class DebtTransactionDto {
-  @ApiProperty({ description: 'Debt ID' })
+export class StreetTransactionDto {
+  @ApiProperty({ description: 'Street ID' })
   @IsUUID()
   @IsNotEmpty()
-  debtId: string;
+  streetId: string;
 
   @ApiProperty({ description: 'Transaction amount' })
   @IsNumber()

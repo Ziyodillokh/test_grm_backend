@@ -10,7 +10,7 @@ import { ActionService } from '../action/action.service';
 import { GRMGateway } from '../web-socket/web-socket.gateway';
 import { PaginatedFilterCashflowDto } from './dto/paginated-filter-cashflow.dto';
 import CashflowTipEnum from '../../infra/shared/enum/cashflow/cashflow-tip.enum';
-import { DebtService } from '../debt/debt.service';
+import { StreetService } from '../street/street.service';
 import { Factory } from '../factory/factory.entity';
 import { Logistics } from '../logistics/logistics.entity';
 import { LogisticsService } from '../logistics/logistics.service';
@@ -76,8 +76,8 @@ export class CashflowService {
     private readonly kassaService: KassaService,
     private readonly connection: DataSource,
     private readonly actionService: ActionService,
-    @Inject(forwardRef(() => DebtService))
-    private readonly debtService: DebtService,
+    @Inject(forwardRef(() => StreetService))
+    private readonly streetService: StreetService,
     private readonly entityManager: EntityManager,
     @Inject(forwardRef(() => ReportService))
     private readonly reportService: ReportService,
@@ -104,7 +104,7 @@ export class CashflowService {
       .createQueryBuilder('cashflow')
       .leftJoinAndSelect('cashflow.createdBy', 'createdBy')
       .leftJoinAndSelect('createdBy.avatar', 'avatar')
-      .leftJoinAndSelect('cashflow.debt', 'debt')
+      .leftJoinAndSelect('cashflow.street', 'street')
       .leftJoinAndSelect('cashflow.cashflow_type', 'cashflow_type')
       .leftJoinAndSelect('cashflow.filial', 'filial')
       .leftJoinAndSelect('cashflow.order', 'ord') // ✅ FIXED
@@ -193,7 +193,7 @@ export class CashflowService {
     }
 
     if (filter.debt)
-      baseQb.andWhere('cashflow.debtId = :debt', { debt: filter.debt });
+      baseQb.andWhere('cashflow."streetId" = :debt', { debt: filter.debt });
 
     if (filter.kassaId)
       baseQb.andWhere('cashflow.kassaId = :kassaId', {
@@ -320,7 +320,7 @@ export class CashflowService {
         'COALESCE(SUM(ord.discount), 0) AS "totalDiscount"',
         'COALESCE(SUM(ord.additionalProfit), 0) AS "totalAdditionalProfit"',
         `COALESCE(SUM(CASE WHEN cashflow_type.slug = 'cashCollection' THEN cashflow.price ELSE 0 END), 0) AS "totalCashCollection"`,
-        'COALESCE(SUM(CASE WHEN debt.id IS NOT NULL THEN ord.price ELSE 0 END), 0) AS "totalDebtSum"',
+        'COALESCE(SUM(CASE WHEN street.id IS NOT NULL THEN ord.price ELSE 0 END), 0) AS "totalDebtSum"',
         'COUNT(DISTINCT ord.id) AS "count"',
         'COALESCE(SUM(ord.kv), 0) AS "kv"',
       ])
@@ -666,7 +666,8 @@ export class CashflowService {
         ...value,
         createdBy: userId,
         price,
-        debt: value.debtId,
+        street: (value as any).streetId,
+        streetPercent: (value as any).streetPercent ?? 0,
         factory: value.factoryId,
         logistics: value.logisticsId,
         customs: value.customsId,
@@ -733,15 +734,19 @@ export class CashflowService {
 
       // Report logikasi
       if (report) {
-        const isDebtFlow = cashflow.cashflow_type.slug === 'kent' && value.debtId;
+        const streetIdValue = (value as any).streetId;
+        const streetPercentValue = Number((value as any).streetPercent || 0);
+        const isStreetFlow = cashflow.cashflow_type.slug === 'street' && streetIdValue;
 
         if (value.type === 'income') {
-          if (isDebtFlow) {
-            const debt = await this.debtService.findOne(value.debtId);
-            if (!debt) throw new BadRequestException('Debt not found');
-            debt.owed += price;
-            debt.totalDebt = debt.owed - debt.given;
-            await queryRunner.manager.save(debt);
+          if (isStreetFlow) {
+            const street = await this.streetService.findOne(streetIdValue);
+            if (!street) throw new BadRequestException('Street not found');
+            street.owed = Number(street.owed) + price;
+            street.percent = Number(street.percent) + streetPercentValue;
+            street.totalDebt =
+              Number(street.owed) + Number(street.percent) - Number(street.given);
+            await queryRunner.manager.save(street);
           }
           // Logistics Приход — provider qarzigina.
           // Share + Foyda — qarz obligatsiyasi, kassaga ta'sir qilmaydi.
@@ -754,12 +759,13 @@ export class CashflowService {
             report.totalIncome += price;
           }
         } else if (value.type === 'expense') {
-          if (isDebtFlow) {
-            const debt = await this.debtService.findOne(value.debtId);
-            if (!debt) throw new BadRequestException('Debt not found');
-            debt.given += price;
-            debt.totalDebt = debt.owed - debt.given;
-            await queryRunner.manager.save(debt);
+          if (isStreetFlow) {
+            const street = await this.streetService.findOne(streetIdValue);
+            if (!street) throw new BadRequestException('Street not found');
+            street.given = Number(street.given) + price;
+            street.totalDebt =
+              Number(street.owed) + Number(street.percent) - Number(street.given);
+            await queryRunner.manager.save(street);
           }
 
           if (user?.position?.role === UserRoleEnum.ACCOUNTANT) {
@@ -979,7 +985,7 @@ export class CashflowService {
           const reportCashflowData = {
             createdBy: targetUser.id,
             price,
-            debt: value.debtId,
+            street: (value as any).streetId,
             filial: kassa.filial.id,
             report: reports?.id,
             type: CashFlowEnum.InCome,
@@ -1225,7 +1231,7 @@ export class CashflowService {
           order: { product: { bar_code: { size: true } }, seller: true },
           cashflow_type: true,
           kassa: true,
-          debt: true,
+          street: true,
           factory: true,
           logistics: true,
           customs: true,
@@ -1307,13 +1313,17 @@ export class CashflowService {
           }
         }
 
-        if (cashflow.cashflow_type.slug === 'kent' && cashflow.debt) {
-          const debt = await this.debtService.findOne(cashflow.debt.id);
-          if (!debt) throw new BadRequestException('Debt not found');
+        if (cashflow.cashflow_type.slug === 'street' && cashflow.street) {
+          const street = await this.streetService.findOne(cashflow.street.id);
+          if (!street) throw new BadRequestException('Street not found');
 
-          debt.owed -= price;
-          debt.totalDebt = Math.max(0, debt.owed - debt.given);
-          await queryRunner.manager.save(debt);
+          street.owed = Number(street.owed) - price;
+          street.percent = Number(street.percent) - Number(cashflow.streetPercent || 0);
+          street.totalDebt = Math.max(
+            0,
+            Number(street.owed) + Number(street.percent) - Number(street.given),
+          );
+          await queryRunner.manager.save(street);
         }
 
         // Logistics Приход reverse
@@ -1366,13 +1376,16 @@ export class CashflowService {
           throw new BadRequestException('You can not delete cashflow!');
         }
 
-        if (cashflow.cashflow_type.slug === 'kent' && cashflow.debt) {
-          const debt = await this.debtService.findOne(cashflow.debt.id);
-          if (!debt) throw new BadRequestException('Debt not found');
+        if (cashflow.cashflow_type.slug === 'street' && cashflow.street) {
+          const street = await this.streetService.findOne(cashflow.street.id);
+          if (!street) throw new BadRequestException('Street not found');
 
-          debt.given -= price;
-          debt.totalDebt = Math.max(0, debt.owed - debt.given);
-          await queryRunner.manager.save(debt);
+          street.given = Number(street.given) - price;
+          street.totalDebt = Math.max(
+            0,
+            Number(street.owed) + Number(street.percent) - Number(street.given),
+          );
+          await queryRunner.manager.save(street);
         }
 
         // Factory to'lov reverse
@@ -1760,7 +1773,7 @@ export class CashflowService {
           cashflow_type: true,
           kassa: { filial: true },
           report: true,
-          debt: true,
+          street: true,
           factory: true,
           logistics: true,
           customs: true,
@@ -1877,7 +1890,7 @@ export class CashflowService {
       if (report) {
         const user = cashflow.createdBy;
 
-        const isDebtFlow = cashflow.cashflow_type.slug === 'kent' && cashflow.debt;
+        const isStreetFlow = cashflow.cashflow_type.slug === 'street' && cashflow.street;
 
         if (cashflow.type === 'income') {
           // Logistics Приход + Share+Foyda Приход — kassaga ta'sir qilmagan → reverse ham kerak emas
@@ -1895,13 +1908,15 @@ export class CashflowService {
             }
           }
 
-          if (isDebtFlow) {
-            const debt = await this.debtService.findOne(cashflow.debt?.id);
-            if (debt) {
-              debt.owed -= price;
-              debt.totalDebt = debt.owed - debt.given;
-              if (debt.totalDebt < 0) debt.totalDebt = 0;
-              await queryRunner.manager.save(debt);
+          if (isStreetFlow) {
+            const street = await this.streetService.findOne(cashflow.street?.id);
+            if (street) {
+              street.owed = Number(street.owed) - price;
+              street.percent = Number(street.percent) - Number(cashflow.streetPercent || 0);
+              street.totalDebt =
+                Number(street.owed) + Number(street.percent) - Number(street.given);
+              if (street.totalDebt < 0) street.totalDebt = 0;
+              await queryRunner.manager.save(street);
             }
           }
         } else if (cashflow.type === 'expense') {
@@ -1913,13 +1928,14 @@ export class CashflowService {
             report.managerSum += price;
           }
 
-          if (isDebtFlow) {
-            const debt = await this.debtService.findOne(cashflow.debt?.id);
-            if (debt) {
-              debt.given -= price;
-              debt.totalDebt = debt.owed - debt.given;
-              if (debt.totalDebt < 0) debt.totalDebt = 0;
-              await queryRunner.manager.save(debt);
+          if (isStreetFlow) {
+            const street = await this.streetService.findOne(cashflow.street?.id);
+            if (street) {
+              street.given = Number(street.given) - price;
+              street.totalDebt =
+                Number(street.owed) + Number(street.percent) - Number(street.given);
+              if (street.totalDebt < 0) street.totalDebt = 0;
+              await queryRunner.manager.save(street);
             }
           }
 
@@ -2969,7 +2985,7 @@ WHERE k.id = $1;
           },
           parent: true,
           child: { report: true },
-          debt: true,
+          street: true,
           factory: true,
           logistics: true,
           customs: true,
@@ -3300,19 +3316,20 @@ WHERE k.id = $1;
           }
         }
 
-        // --- Debt effects ---
-        if (priceDiff !== 0 && cashflow.debt) {
-          const isDebtFlow = oldSlug === 'kent';
-          if (isDebtFlow) {
-            const debt = await this.debtService.findOne(cashflow.debt.id);
-            if (debt) {
+        // --- Street effects ---
+        if (priceDiff !== 0 && cashflow.street) {
+          const isStreetFlow = oldSlug === 'street';
+          if (isStreetFlow) {
+            const street = await this.streetService.findOne(cashflow.street.id);
+            if (street) {
               if (cashflow.type === CashFlowEnum.InCome) {
-                debt.owed += priceDiff;
+                street.owed = Number(street.owed) + priceDiff;
               } else {
-                debt.given += priceDiff;
+                street.given = Number(street.given) + priceDiff;
               }
-              debt.totalDebt = debt.owed - debt.given;
-              await queryRunner.manager.save(debt);
+              street.totalDebt =
+                Number(street.owed) + Number(street.percent) - Number(street.given);
+              await queryRunner.manager.save(street);
             }
           }
         }

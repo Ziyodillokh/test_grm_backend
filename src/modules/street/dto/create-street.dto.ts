@@ -1,8 +1,8 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsNotEmpty, IsOptional, IsString, IsNumber, Min } from 'class-validator';
 
-export class CreateDebtDto {
-  @ApiProperty({ description: 'Full name of the debtor' })
+export class CreateStreetDto {
+  @ApiProperty({ description: "Full name of the Ko'cha contact" })
   @IsNotEmpty()
   @IsString()
   fullName: string;

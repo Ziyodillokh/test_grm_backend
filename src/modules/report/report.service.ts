@@ -1446,7 +1446,7 @@ export class ReportService {
                ELSE 0 END)::NUMERIC(20, 2) AS total_expense
       `)
       .leftJoin('cash.cashflow_type', 'cashflow_type')
-      .where('cashflow_type.slug = :slug', { slug: 'kent' });
+      .where('cashflow_type.slug = :slug', { slug: 'street' });
 
     const qb = this.packageTransfer.createQueryBuilder('pt')
       .select([
@@ -2443,7 +2443,7 @@ export class ReportService {
       SUM(CASE WHEN cash.type = 'expense' THEN price ELSE 0 END) as expense
     `)
       .leftJoin('cash.cashflow_type', 'ct')
-      .where(`ct.slug IN ('kent')`);
+      .where(`ct.slug IN ('street')`);
 
     // Business xarajatlar (logistika alohida)
     const business_qb = this.cashflowRepository.createQueryBuilder('cash')
@@ -3068,8 +3068,8 @@ export class ReportService {
       }
 
       case 'kent_income': {
-        // Kent prixod: slug=dolg type=Приход (faqat umumiy)
-        const qb = makeCashflowByDate(['kent'], 'income');
+        // Ko'cha prixod: slug=street type=income (faqat umumiy)
+        const qb = makeCashflowByDate(['street'], 'income');
         items = await qb.getMany();
         break;
       }
@@ -3084,8 +3084,8 @@ export class ReportService {
       // ====== TO'Q SARIQ BO'LIM (chiqimlar) ======
 
       case 'kent_expense': {
-        // Kent rasxod: slug=dolg type=Расход (faqat umumiy)
-        const qb = makeCashflowByDate(['kent'], 'expense');
+        // Ko'cha rasxod: slug=street type=expense (faqat umumiy)
+        const qb = makeCashflowByDate(['street'], 'expense');
         items = await qb.getMany();
         break;
       }
