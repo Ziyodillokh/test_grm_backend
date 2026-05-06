@@ -1323,7 +1323,7 @@ export class ExcelService {
 
     // Har collection uchun eng so'nggi sotuv narxi (CollectionPrice)
     // va BUG A4 — shu collection uchun yangi CollectionPrice yozuv yaratamiz,
-    // uning comingPrice si = pcp.factoryPricePerKv + pcp.overheadPerKv
+    // uning comingPrice si = pcp.factoryPricePerKv + pcp.overheadPerKv + pcp.sharePricePerKv
     const latestCpByCollectionId = new Map<string, CollectionPrice>();
 
     for (const collectionId of uniqueCollectionIds) {
@@ -1331,7 +1331,7 @@ export class ExcelService {
       if (!pcp) continue; // assertAllCollectionsPriced allaqachon tekshirdi
 
       const computedComingPrice =
-        Number(pcp.factoryPricePerKv) + Number(pcp.overheadPerKv);
+        Number(pcp.factoryPricePerKv) + Number(pcp.overheadPerKv) + Number((pcp as any).sharePricePerKv || 0);
 
       // Eng so'nggi sotuv narxini olish (priceMeter ko'chirib olish uchun)
       const existingLatest = await this.collectionPriceRepository.findOne({
@@ -1377,7 +1377,7 @@ export class ExcelService {
       const cp = latestCpByCollectionId.get(collectionId);
 
       const comingPrice =
-        Number(pcp.factoryPricePerKv) + Number(pcp.overheadPerKv);
+        Number(pcp.factoryPricePerKv) + Number(pcp.overheadPerKv) + Number((pcp as any).sharePricePerKv || 0);
 
       const data: CreateProductDto = {
         partiya: partiya_id,

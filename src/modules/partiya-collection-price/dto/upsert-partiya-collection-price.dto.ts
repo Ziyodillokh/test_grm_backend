@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { ArrayMinSize, IsArray, IsNotEmpty, IsNumber, IsUUID, Min, ValidateNested } from 'class-validator';
+import { ArrayMinSize, IsArray, IsNotEmpty, IsNumber, IsOptional, IsUUID, Min, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class PartiyaCollectionPriceItemDto {
@@ -17,6 +17,12 @@ export class PartiyaCollectionPriceItemDto {
   @IsNumber()
   @Min(0)
   overheadPerKv: number;
+
+  @ApiProperty({ example: 3.0, description: 'Sherikga ulush per square meter (default 0)', required: false })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  sharePricePerKv?: number;
 }
 
 export class UpsertPartiyaCollectionPriceDto {

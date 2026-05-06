@@ -31,4 +31,12 @@ export class PartiyaCollectionPrice extends BaseEntity {
     default: 0,
   })
   overheadPerKv: number;
+
+  @Column('numeric', {
+    precision: 20,
+    scale: 2,
+    transformer: new ColumnNumericTransformer(),
+    default: 0,
+  })
+  sharePricePerKv: number;
 }

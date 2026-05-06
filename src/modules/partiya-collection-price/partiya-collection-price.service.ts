@@ -56,6 +56,7 @@ export class PartiyaCollectionPriceService {
         if (existing) {
           existing.factoryPricePerKv = item.factoryPricePerKv;
           existing.overheadPerKv = item.overheadPerKv;
+          existing.sharePricePerKv = item.sharePricePerKv ?? 0;
           const saved = await repo.save(existing);
           results.push(saved);
         } else {
@@ -64,6 +65,7 @@ export class PartiyaCollectionPriceService {
             collection: { id: item.collectionId } as any,
             factoryPricePerKv: item.factoryPricePerKv,
             overheadPerKv: item.overheadPerKv,
+            sharePricePerKv: item.sharePricePerKv ?? 0,
           });
           const saved = await repo.save(created);
           results.push(saved);
