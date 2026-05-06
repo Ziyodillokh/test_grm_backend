@@ -229,10 +229,9 @@ export class FactoryService {
             CASE
               WHEN qb."isMetric" = true THEN (pe.check_count::numeric / 100) * s.x
               ELSE s.y * s.x * pe.count
-            END * (pcp."factoryPricePerKv" - CASE WHEN f."isPriceMinus3" THEN 3 ELSE 0 END)
+            END * pcp."factoryPricePerKv"
           )::NUMERIC(20,2) AS period_owed
         FROM partiya p
-        JOIN factory f ON f.id = p."factoryId"
         JOIN "partiya-collection-price" pcp ON pcp."partiyaId" = p.id
         JOIN productexcel pe ON pe."partiyaId" = p.id
         JOIN qrbase qb ON pe."barCodeId" = qb.id AND qb."collectionId" = pcp."collectionId"
@@ -318,7 +317,7 @@ export class FactoryService {
         p.date,
         pn.title AS partiya_name,
         col.title AS collection_title,
-        (pcp."factoryPricePerKv" - CASE WHEN f."isPriceMinus3" THEN 3 ELSE 0 END) AS price_per_kv,
+        pcp."factoryPricePerKv" AS price_per_kv,
         SUM(CASE
           WHEN qb."isMetric" = true THEN (pe.check_count::numeric / 100) * s.x
           ELSE s.y * s.x * pe.count
@@ -326,9 +325,8 @@ export class FactoryService {
         (SUM(CASE
           WHEN qb."isMetric" = true THEN (pe.check_count::numeric / 100) * s.x
           ELSE s.y * s.x * pe.count
-        END) * (pcp."factoryPricePerKv" - CASE WHEN f."isPriceMinus3" THEN 3 ELSE 0 END))::NUMERIC(20,2) AS total_cost
+        END) * pcp."factoryPricePerKv")::NUMERIC(20,2) AS total_cost
       FROM partiya p
-      JOIN factory f ON f.id = p."factoryId"
       LEFT JOIN partiya_number pn ON p."partiyaNoId" = pn.id
       JOIN "partiya-collection-price" pcp ON pcp."partiyaId" = p.id
       JOIN collection col ON pcp."collectionId" = col.id
@@ -338,7 +336,7 @@ export class FactoryService {
       WHERE p."factoryId" = $1
         AND p.partiya_status = 'finished'
         AND p.date BETWEEN $2 AND $3
-      GROUP BY p.id, p.date, pn.title, col.title, pcp."factoryPricePerKv", f."isPriceMinus3"
+      GROUP BY p.id, p.date, pn.title, col.title, pcp."factoryPricePerKv"
       ORDER BY p.date ASC
     `, [factoryId, startDate, endDate]);
 

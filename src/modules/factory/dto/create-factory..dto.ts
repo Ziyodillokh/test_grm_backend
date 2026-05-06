@@ -1,4 +1,4 @@
-import { IsBoolean, IsNotEmpty, IsOptional, IsString, IsUUID } from 'class-validator';
+import { IsNotEmpty, IsString, IsUUID } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { IsUnique } from '../../../infra/shared/decorators/is-unique.decorator';
 
@@ -19,14 +19,6 @@ class CreateFactoryDto {
   @IsNotEmpty()
   @IsUUID('4')
   readonly country: string;
-
-  @ApiProperty({
-    required: false,
-    description: 'Per-kv 3$ ayirilsin (sherikga foyda ulushiga ketadi)',
-  })
-  @IsOptional()
-  @IsBoolean()
-  readonly isPriceMinus3?: boolean;
 }
 
 export default CreateFactoryDto;
