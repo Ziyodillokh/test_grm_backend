@@ -16,6 +16,9 @@
     @Column('boolean', { default: false })
     isReportEnabled: boolean;
 
+    @Column('boolean', { default: false })
+    isPriceMinus3: boolean;
+
     @Column('numeric', { precision: 20, scale: 2, transformer: new ColumnNumericTransformer(), default: 0 })
     owed: number;
 

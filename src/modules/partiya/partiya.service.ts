@@ -64,19 +64,20 @@ export class PartiyaService {
             WHEN qb."isMetric" = true THEN (pe.check_count::numeric / 100) * s.x
             ELSE s.y * s.x * pe.count
           END)::numeric(20, 2) AS total_kv,
-          pcp."factoryPricePerKv"::text AS price,
+          (pcp."factoryPricePerKv" - CASE WHEN f."isPriceMinus3" THEN 3 ELSE 0 END)::text AS price,
           (SUM(CASE
             WHEN qb."isMetric" = true THEN (pe.check_count::numeric / 100) * s.x
             ELSE s.y * s.x * pe.count
-          END) * pcp."factoryPricePerKv")::numeric(20, 2) AS subtotal
+          END) * (pcp."factoryPricePerKv" - CASE WHEN f."isPriceMinus3" THEN 3 ELSE 0 END))::numeric(20, 2) AS subtotal
         FROM partiya p
+        JOIN factory f ON f.id = p."factoryId"
         JOIN "partiya-collection-price" pcp ON pcp."partiyaId" = p.id
         JOIN productexcel pe ON pe."partiyaId" = p.id
         JOIN qrbase qb ON pe."barCodeId" = qb.id AND qb."collectionId" = pcp."collectionId"
         JOIN size s ON qb."sizeId" = s.id
         JOIN collection col ON pcp."collectionId" = col.id
         WHERE p.id = $1
-        GROUP BY col.title, pcp."factoryPricePerKv"
+        GROUP BY col.title, pcp."factoryPricePerKv", f."isPriceMinus3"
         ORDER BY col.title
         `,
         [partiyaId],
