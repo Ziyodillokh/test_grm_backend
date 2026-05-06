@@ -51,6 +51,7 @@ export class ShareService {
       given_capital: 0,
       given_profit: 0,
       totalDebt: 0,
+      isProfitDebt: dto.isProfitDebt ?? true,
     });
     return this.shareRepository.save(share);
   }

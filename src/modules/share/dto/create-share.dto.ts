@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsOptional, IsString } from 'class-validator';
 
 export class CreateShareDto {
   @ApiProperty({ required: false })
@@ -11,4 +11,9 @@ export class CreateShareDto {
   @IsOptional()
   @IsString()
   phone?: string;
+
+  @ApiProperty({ required: false, description: 'foyda chiqim totalDebt\'ga tegishimi (default true)' })
+  @IsOptional()
+  @IsBoolean()
+  isProfitDebt?: boolean;
 }

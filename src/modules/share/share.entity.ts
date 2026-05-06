@@ -51,6 +51,11 @@ export class Share extends BaseEntity {
   })
   totalDebt: number;
 
+  // true: foyda chiqim totalDebt'dan ayiriladi (default).
+  // false: foyda chiqim totalDebt'ga tegmaydi — sherikning qoldig'i o'zgarmiydi.
+  @Column({ type: 'boolean', default: true })
+  isProfitDebt: boolean;
+
   @OneToMany(() => Cashflow, (cashflow) => cashflow.share, { onDelete: 'SET NULL' })
   cashflow: Cashflow[];
 }
