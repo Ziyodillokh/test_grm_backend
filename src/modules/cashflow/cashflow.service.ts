@@ -845,12 +845,13 @@ export class CashflowService {
           share.totalDebt = Number(share.totalDebt) + price;
         } else if (value.type === 'expense') {
           if (shareKind === 'capital') {
+            // Tan chiqim — capital field (GROSS) tegmaydi; given_capital o'sadi
+            // va totalDebt har holda kamayadi.
             share.given_capital = Number(share.given_capital) + price;
-            share.capital = Number(share.capital) - price;
             share.totalDebt = Number(share.totalDebt) - price;
           } else {
             // Foyda chiqim — share.profit'ga tegmiymiz; isProfitDebt=false bo'lsa
-            // totalDebt ham o'zgarmaydi (sherikning qoldig'i tushmiydi).
+            // totalDebt ham o'zgarmaydi.
             share.given_profit = Number(share.given_profit) + price;
             if (share.isProfitDebt) {
               share.totalDebt = Number(share.totalDebt) - price;
@@ -2000,8 +2001,8 @@ export class CashflowService {
             share.totalDebt = Number(share.totalDebt) - price;
           } else if (cashflow.type === 'expense') {
             if (cashflow.shareKind === 'capital') {
+              // Tan chiqim reverse — capital tegmagan, faqat given_capital + totalDebt
               share.given_capital = Number(share.given_capital) - price;
-              share.capital = Number(share.capital) + price;
               share.totalDebt = Number(share.totalDebt) + price;
             } else if (cashflow.shareKind === 'profit') {
               share.given_profit = Number(share.given_profit) - price;
