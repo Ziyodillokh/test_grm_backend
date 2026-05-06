@@ -848,8 +848,8 @@ export class CashflowService {
             share.given_capital = Number(share.given_capital) + price;
             share.capital = Number(share.capital) - price;
           } else {
+            // Foyda chiqim — share.profit'ga tegmaymiz, faqat given_profit'ni o'sib boradi
             share.given_profit = Number(share.given_profit) + price;
-            share.profit = Number(share.profit) - price;
           }
           share.totalDebt = Number(share.totalDebt) - price;
         }
@@ -2000,7 +2000,7 @@ export class CashflowService {
               share.capital = Number(share.capital) + price;
             } else if (cashflow.shareKind === 'profit') {
               share.given_profit = Number(share.given_profit) - price;
-              share.profit = Number(share.profit) + price;
+              // Foyda chiqim profit'ga tegmagan → reverse'da ham tegmiymiz
             }
             share.totalDebt = Number(share.totalDebt) + price;
           }
