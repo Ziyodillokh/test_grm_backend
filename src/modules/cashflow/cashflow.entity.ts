@@ -13,6 +13,7 @@ import { Factory } from '../factory/factory.entity';
 import { Logistics } from '../logistics/logistics.entity';
 import { Customs } from '../customs/customs.entity';
 import { PackageTransfer } from '../package-transfer/package-transfer.entity';
+import { Share } from '../share/share.entity';
 import { BaseEntity } from '../../common/database/base.entity';
 
 @Entity('cashflow')
@@ -95,6 +96,14 @@ export class Cashflow extends BaseEntity {
   @ManyToOne(() => PackageTransfer, (pt) => pt.cashflows, { onDelete: 'SET NULL' })
   @JoinColumn()
   packageTransfer: PackageTransfer;
+
+  @ManyToOne(() => Share, (share) => share.cashflow, { onDelete: 'SET NULL', nullable: true })
+  @JoinColumn()
+  share: Share;
+
+  // 'capital' yoki 'profit' — faqat slug=share expense uchun ishlatiladi
+  @Column({ type: 'varchar', nullable: true })
+  shareKind: 'capital' | 'profit' | null;
 
   @OneToMany(() => Cashflow, cashflow => cashflow.parent)
   child: Cashflow[];

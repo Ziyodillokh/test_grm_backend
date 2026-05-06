@@ -26,6 +26,7 @@ import { OrderModule } from '@modules/order/order.module';
 import { Report } from '@modules/report/report.entity';
 import { LogisticsModule } from '../logistics/logistics.module';
 import { CustomsModule } from '../customs/customs.module';
+import { Share } from '../share/share.entity';
 @Module({
   imports: [
     TypeOrmModule.forFeature([
@@ -42,6 +43,7 @@ import { CustomsModule } from '../customs/customs.module';
       CashflowType,
       Kassa,
       Report,
+      Share,
     ]),
     forwardRef(() => KassaModule),
     ActionModule,

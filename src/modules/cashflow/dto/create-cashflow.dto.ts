@@ -86,6 +86,24 @@ class CreateCashflowDto {
   customsId?: string;
 
   @ApiProperty({
+    description: `share id (sherik) — only for cashflow_type slug='share'`,
+    example: 'uuid',
+    required: false,
+  })
+  @IsOptional()
+  @IsUUID('4')
+  shareId?: string;
+
+  @ApiProperty({
+    description: `share kind: capital (tani) or profit (foyda) — only for share expense`,
+    example: 'capital',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  shareKind?: 'capital' | 'profit';
+
+  @ApiProperty({
     description: `cashflow_type id`,
     example: 'uuid',
   })

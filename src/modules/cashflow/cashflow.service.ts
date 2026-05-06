@@ -16,6 +16,7 @@ import { Logistics } from '../logistics/logistics.entity';
 import { LogisticsService } from '../logistics/logistics.service';
 import { Customs } from '../customs/customs.entity';
 import { CustomsService } from '../customs/customs.service';
+import { Share } from '../share/share.entity';
 import { CashFlowEnum, CashflowStatusEnum, FilialTypeEnum, KassaProgresEnum, OrderEnum, UserRoleEnum } from '../../infra/shared/enum';
 import { Order } from '../order/order.entity';
 import { ReportService } from '../report/report.service';
@@ -811,6 +812,30 @@ export class CashflowService {
         }
         customs.totalDebt = Number(customs.owed) - Number(customs.given);
         await queryRunner.manager.save(customs);
+      }
+
+      // Share (Sherikchilik) flow — Ulush
+      const isShareFlow = cashflow.cashflow_type?.slug === 'share' && (value as any).shareId;
+      if (isShareFlow) {
+        const shareId = (value as any).shareId as string;
+        const shareKind = (value as any).shareKind as 'capital' | 'profit' | undefined;
+        const share = await queryRunner.manager.findOne(Share, { where: { id: shareId } });
+        if (!share) throw new BadRequestException('Share not found');
+        if (value.type === 'income') {
+          share.capital = Number(share.capital) + price;
+          share.totalDebt = Number(share.capital) - Number(share.given_capital);
+        } else if (value.type === 'expense') {
+          if (shareKind !== 'capital' && shareKind !== 'profit') {
+            throw new BadRequestException('shareKind talab qilinadi: capital yoki profit');
+          }
+          if (shareKind === 'capital') {
+            share.given_capital = Number(share.given_capital) + price;
+            share.totalDebt = Number(share.capital) - Number(share.given_capital);
+          } else {
+            share.given_profit = Number(share.given_profit) + price;
+          }
+        }
+        await queryRunner.manager.save(share);
       }
 
       const today = dayjs().format('YYYY-MM-DD');
@@ -1716,6 +1741,7 @@ export class CashflowService {
           factory: true,
           logistics: true,
           customs: true,
+          share: true,
           parent: true,
           child: { report: true },
           createdBy: { position: true },
@@ -1935,6 +1961,25 @@ export class CashflowService {
           }
           customs.totalDebt = Math.max(0, Number(customs.owed) - Number(customs.given));
           await queryRunner.manager.save(customs);
+        }
+      }
+
+      // Share (Sherikchilik) reverse
+      if (cashflow.share?.id) {
+        const share = await queryRunner.manager.findOne(Share, { where: { id: cashflow.share.id } });
+        if (share) {
+          if (cashflow.type === 'income') {
+            share.capital = Number(share.capital) - price;
+            share.totalDebt = Number(share.capital) - Number(share.given_capital);
+          } else if (cashflow.type === 'expense') {
+            if (cashflow.shareKind === 'capital') {
+              share.given_capital = Number(share.given_capital) - price;
+              share.totalDebt = Number(share.capital) - Number(share.given_capital);
+            } else if (cashflow.shareKind === 'profit') {
+              share.given_profit = Number(share.given_profit) - price;
+            }
+          }
+          await queryRunner.manager.save(share);
         }
       }
 
