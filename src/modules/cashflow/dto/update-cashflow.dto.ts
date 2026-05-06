@@ -19,6 +19,15 @@ class UpdateCashflowDto {
   readonly plasticSum: number;
 
   @ApiProperty({
+    description: `streetPercent (Ko'cha foiz summa) — only for slug='street' income`,
+    example: 0,
+    required: false,
+  })
+  @IsOptional()
+  @IsNumber()
+  readonly streetPercent?: number;
+
+  @ApiProperty({
     description: `type`,
     example: 'income',
   })

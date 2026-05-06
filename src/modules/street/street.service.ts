@@ -301,7 +301,7 @@ export class StreetService {
       .createQueryBuilder('cash')
       .select(`
         SUM(CASE WHEN cash.type = 'income' THEN cash.price ELSE 0 END)::NUMERIC(20,2) AS total_income,
-        SUM(CASE WHEN cash.type = 'income' THEN cash."streetPercent" ELSE 0 END)::NUMERIC(20,2) AS total_percent,
+        SUM(CASE WHEN cash.type = 'income' THEN cash.street_percent ELSE 0 END)::NUMERIC(20,2) AS total_percent,
         SUM(CASE WHEN cash.type = 'expense' THEN cash.price ELSE 0 END)::NUMERIC(20,2) AS total_expense
       `)
       .leftJoin('cash.street', 'street')

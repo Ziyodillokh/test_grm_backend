@@ -3316,14 +3316,21 @@ WHERE k.id = $1;
           }
         }
 
-        // --- Street effects ---
-        if (priceDiff !== 0 && cashflow.street) {
+        // --- Street effects (price + percent diff) ---
+        const oldStreetPercent = Number(cashflow.streetPercent || 0);
+        const newStreetPercent =
+          (data as any).streetPercent !== undefined
+            ? Math.abs(Number((data as any).streetPercent))
+            : oldStreetPercent;
+        const percentDiff = newStreetPercent - oldStreetPercent;
+        if ((priceDiff !== 0 || percentDiff !== 0) && cashflow.street) {
           const isStreetFlow = oldSlug === 'street';
           if (isStreetFlow) {
             const street = await this.streetService.findOne(cashflow.street.id);
             if (street) {
               if (cashflow.type === CashFlowEnum.InCome) {
                 street.owed = Number(street.owed) + priceDiff;
+                street.percent = Number(street.percent) + percentDiff;
               } else {
                 street.given = Number(street.given) + priceDiff;
               }
@@ -3333,6 +3340,7 @@ WHERE k.id = $1;
             }
           }
         }
+        cashflow.streetPercent = newStreetPercent;
 
         // --- Factory effects ---
         if (priceDiff !== 0 && cashflow.factory?.id && cashflow.type === CashFlowEnum.Consumption) {
