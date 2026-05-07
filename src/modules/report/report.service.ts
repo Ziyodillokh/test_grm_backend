@@ -439,6 +439,24 @@ export class ReportService {
 
     report['owed'] = totalOwed;
 
+    // Dealer reports: per-kassa frozenOwed computed (open: live filial.owed-given,
+    // closed: stored kassa.frozenOwed) + report.totalFrozenOwed = SUM(per-row).
+    if (report.filialType === FilialTypeEnum.DEALER && report.kassas?.length) {
+      let totalFrozen = 0;
+      for (const k of report.kassas) {
+        if (k?.filial?.type === FilialType.DEALER) {
+          const isOpen = k.status === 'open';
+          const liveDebt = Math.max(
+            Number(k.filial?.owed || 0) - Number(k.filial?.given || 0),
+            0,
+          );
+          (k as any).frozenOwed = isOpen ? liveDebt : Number(k.frozenOwed || 0);
+          totalFrozen += Number((k as any).frozenOwed || 0);
+        }
+      }
+      (report as any).totalFrozenOwed = totalFrozen;
+    }
+
     return report;
   }
 
@@ -3502,6 +3520,30 @@ export class ReportService {
     const totalOwed = packageEntries.reduce((sum: number, e: any) => sum + Number(e.total_cost || 0), 0);
     const totalGiven = paymentEntries.reduce((sum: number, e: any) => sum + Number(e.total_cost || 0), 0);
 
+    // Dealer's kassa for this period (same year+month) — needed for cards on detail page
+    let kassaPayload: any = null;
+    if (month) {
+      const dealerKassa = await this.kassaRepo.findOne({
+        where: { filial: { id: dealerId }, year, month },
+        relations: { filial: true },
+      });
+      if (dealerKassa) {
+        const isOpen = dealerKassa.status === 'open';
+        const liveDebt = Number(dealer.owed || 0) - Number(dealer.given || 0);
+        kassaPayload = {
+          id: dealerKassa.id,
+          status: dealerKassa.status,
+          income: Number(dealerKassa.income || 0),
+          inHand: Number(dealerKassa.inHand || 0),
+          plasticSum: Number(dealerKassa.plasticSum || 0),
+          debtSum: Number(dealerKassa.debtSum || 0),
+          debtSize: Number(dealerKassa.debtSize || 0),
+          discountSum: Number(dealerKassa.discountSum || 0),
+          frozenOwed: isOpen ? Math.max(liveDebt, 0) : Number(dealerKassa.frozenOwed || 0),
+        };
+      }
+    }
+
     return {
       items: paginatedItems,
       meta: {
@@ -3522,6 +3564,7 @@ export class ReportService {
         given: dealer.given,
         balance: Number(((dealer.owed || 0) - (dealer.given || 0)).toFixed(2)),
       },
+      kassa: kassaPayload,
     };
   }
 

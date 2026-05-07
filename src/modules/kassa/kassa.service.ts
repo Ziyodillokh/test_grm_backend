@@ -111,7 +111,24 @@ export class KassaService {
     qb.addOrderBy('kassa.month', 'DESC');
 
     // Single-page response (max 200 — bir filial bir yilda max 12 oy, paginatsiya kerak emas)
-    return paginate<Kassa>(qb, { ...options, limit: 200 });
+    const result = await paginate<Kassa>(qb, { ...options, limit: 200 });
+
+    // frozenOwed computed for dealer kassas:
+    //   open holatda — filial.owed - filial.given (live qarz qoldig'i)
+    //   closed holatda — kassa.frozenOwed (oy yopilganda olingan snapshot)
+    const items = result.items.map((k: any) => {
+      if (k?.filial?.type === FilialType.DEALER) {
+        const isOpen = k.status === KassaProgresEnum.OPEN;
+        const liveDebt = Number(k.filial?.owed || 0) - Number(k.filial?.given || 0);
+        return {
+          ...k,
+          frozenOwed: isOpen ? liveDebt : Number(k.frozenOwed || 0),
+        };
+      }
+      return k;
+    });
+
+    return { ...result, items } as typeof result;
   }
 
   async getReportTotals(filialId: string, year?: number) {
@@ -1011,7 +1028,7 @@ export class KassaService {
       }
     }
 
-    kassa.frozenOwed = kassa.filial?.owed || 0;
+    kassa.frozenOwed = Number(kassa.filial?.owed || 0) - Number(kassa.filial?.given || 0);
 
     return await this.kassaRepository.save(kassa);
   }
