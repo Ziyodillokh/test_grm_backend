@@ -14,6 +14,7 @@ import { Logistics } from '../logistics/logistics.entity';
 import { Customs } from '../customs/customs.entity';
 import { PackageTransfer } from '../package-transfer/package-transfer.entity';
 import { Share } from '../share/share.entity';
+import { Client } from '../client/client.entity';
 import { BaseEntity } from '../../common/database/base.entity';
 
 @Entity('cashflow')
@@ -113,6 +114,10 @@ export class Cashflow extends BaseEntity {
   // 'capital' yoki 'profit' — faqat slug=share expense uchun ishlatiladi
   @Column({ type: 'varchar', nullable: true })
   shareKind: 'capital' | 'profit' | null;
+
+  @ManyToOne(() => Client, (client) => client.cashflow, { onDelete: 'SET NULL', nullable: true })
+  @JoinColumn()
+  client: Client;
 
   @OneToMany(() => Cashflow, cashflow => cashflow.parent)
   child: Cashflow[];

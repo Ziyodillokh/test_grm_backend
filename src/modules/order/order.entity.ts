@@ -98,6 +98,14 @@ export class Order extends BaseEntity {
   })
   plastic: number;
 
+  @Column('numeric', {
+    precision: 20,
+    scale: 2,
+    transformer: new ColumnNumericTransformer(),
+    default: 0,
+  })
+  debtAmount: number;
+
   @ManyToOne(() => User, (user) => user.sellerOrders)
   @JoinColumn()
   seller: User;

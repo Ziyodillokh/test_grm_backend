@@ -45,6 +45,15 @@ class CreateWithBasketOrderDto {
   @IsOptional()
   @IsUUID('4')
   readonly clientId?: string;
+
+  @ApiProperty({
+    description: `Qarz miqdori (qisman qarz holatida) — chek_total = price + plasticSum + debtAmount`,
+    example: 12000,
+    required: false,
+  })
+  @IsOptional()
+  @IsNumber()
+  readonly debtAmount?: number;
 }
 
 export default CreateWithBasketOrderDto;

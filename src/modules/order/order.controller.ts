@@ -157,6 +157,7 @@ export class OrderController {
       data?.comment,
       data?.isDebt,
       data?.clientId,
+      data?.debtAmount,
     );
   }
 

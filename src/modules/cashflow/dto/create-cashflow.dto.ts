@@ -62,6 +62,15 @@ class CreateCashflowDto {
   streetId?: string;
 
   @ApiProperty({
+    description: `client (Mijoz yoki Qarzdor) id — slug='debt' uchun`,
+    example: 'uuid',
+    required: false,
+  })
+  @IsOptional()
+  @IsUUID('4')
+  clientId?: string;
+
+  @ApiProperty({
     description: `street percent (foiz) — only for slug='street' income`,
     example: 500,
     required: false,

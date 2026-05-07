@@ -817,17 +817,21 @@ export class KassaService {
 
       if (cf.type === CashFlowEnum.InCome) {
         if (isOrder && order) {
-          sale += price;
-          plasticSum += order.plastic || 0;
-          discount += (order.discount || 0) + (order.managerDiscount || 0);
+          // Qisman qarz: receipt total = price + plastic + debtAmount
+          const receiptTotal =
+            Number(order.price || 0) + Number(order.plastic || 0) + Number((order as any).debtAmount || 0);
+          sale += receiptTotal;
+          plasticSum += Number(order.plastic || 0);
+          inHand += Number(order.price || 0);
+          discount += (order.discount || 0) + ((order as any).managerDiscount || 0);
           netProfitSum += order.netProfit || 0;
           additionalProfitSum += order.additionalProfit || 0;
-          if (order.isDebt) {
-            debtSum += price;
-            debtSize += order.kv || 0;
-            debtCount += order.product?.bar_code?.isMetric ? 1 : (order.x || 0);
-          } else {
-            inHand += order.price || 0;
+          if (order.isDebt && receiptTotal > 0 && Number((order as any).debtAmount || 0) > 0) {
+            const debtRatio = Number((order as any).debtAmount) / receiptTotal;
+            const fullCount = order.product?.bar_code?.isMetric ? 1 : Number(order.x || 0);
+            debtSum += Number((order as any).debtAmount);
+            debtSize += Number(order.kv || 0) * debtRatio;
+            debtCount += fullCount * debtRatio;
           }
           const barCode = order?.product?.bar_code;
           const size = barCode?.size;
@@ -835,7 +839,7 @@ export class KassaService {
             totalSize += barCode.isMetric ? ((order.x || 0) / 100) * size.x : (size.kv || 0) * (order.x || 0);
             totalSellCount += barCode.isMetric ? 1 : (order.x || 0);
           }
-          if (order.product?.isInternetShop) internetShopSum += price;
+          if (order.product?.isInternetShop) internetShopSum += receiptTotal;
         } else {
           const isBalance = cf.cashflow_type?.slug === 'balance';
           if (!isBalance) {

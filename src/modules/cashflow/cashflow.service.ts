@@ -17,6 +17,7 @@ import { LogisticsService } from '../logistics/logistics.service';
 import { Customs } from '../customs/customs.entity';
 import { CustomsService } from '../customs/customs.service';
 import { Share } from '../share/share.entity';
+import { Client } from '../client/client.entity';
 import { CashFlowEnum, CashflowStatusEnum, FilialTypeEnum, KassaProgresEnum, OrderEnum, UserRoleEnum } from '../../infra/shared/enum';
 import { Order } from '../order/order.entity';
 import { ReportService } from '../report/report.service';
@@ -673,6 +674,7 @@ export class CashflowService {
         customs: value.customsId,
         share: (value as any).shareId,
         shareKind: (value as any).shareKind ?? null,
+        client: (value as any).clientId,
         ...(kassa?.filial?.id && { filial: kassa.filial.id }),
         ...(kassa?.id && { kassa: kassa.id }),
         ...(report?.filial?.id && { filial: report.filial.id }),
@@ -737,6 +739,8 @@ export class CashflowService {
         const streetIdValue = (value as any).streetId;
         const streetPercentValue = Number((value as any).streetPercent || 0);
         const isStreetFlow = cashflow.cashflow_type.slug === 'street' && streetIdValue;
+        const clientIdValue = (value as any).clientId;
+        const isQarzFlow = cashflow.cashflow_type.slug === 'debt' && clientIdValue;
 
         if (value.type === 'income') {
           if (isStreetFlow) {
@@ -747,6 +751,14 @@ export class CashflowService {
             street.totalDebt =
               Number(street.owed) + Number(street.percent) - Number(street.given);
             await queryRunner.manager.save(street);
+          }
+          if (isQarzFlow) {
+            // Qarz qaytarish: client.given oshadi (monotonik), totalDebt qayta hisoblanadi
+            const client = await queryRunner.manager.findOne(Client, { where: { id: clientIdValue } });
+            if (!client) throw new BadRequestException('Mijoz topilmadi');
+            client.given = Number(client.given) + price;
+            client.totalDebt = Number(client.owed) - Number(client.given);
+            await queryRunner.manager.save(client);
           }
           // Logistics Приход — provider qarzigina.
           // Share + Foyda — qarz obligatsiyasi, kassaga ta'sir qilmaydi.
@@ -766,6 +778,17 @@ export class CashflowService {
             street.totalDebt =
               Number(street.owed) + Number(street.percent) - Number(street.given);
             await queryRunner.manager.save(street);
+          }
+          if (isQarzFlow) {
+            // Yangi qarz berish — faqat Qarzdor (isDebtor=true) uchun
+            const client = await queryRunner.manager.findOne(Client, { where: { id: clientIdValue } });
+            if (!client) throw new BadRequestException('Mijoz topilmadi');
+            if (!client.isDebtor) {
+              throw new BadRequestException('Mijoz uchun Qarz expense cashflow taqiqlanadi (faqat Qarzdor)');
+            }
+            client.owed = Number(client.owed) + price;
+            client.totalDebt = Number(client.owed) - Number(client.given);
+            await queryRunner.manager.save(client);
           }
 
           if (user?.position?.role === UserRoleEnum.ACCOUNTANT) {
@@ -2418,19 +2441,28 @@ export class CashflowService {
     const kassa = `
 WITH orderSums AS (
   SELECT
-    COALESCE(SUM(CASE WHEN o.status IN('accepted', 'returned') THEN o.price + o.plastic ELSE 0 END), 0) AS "sale",
-    COALESCE(SUM(CASE WHEN o.status IN('accepted', 'returned') AND o."isDebt" != true THEN o.price ELSE 0 END), 0) AS inHand,
-    COALESCE(SUM(CASE WHEN o.status IN('accepted', 'returned') AND o."isDebt" != true THEN o.plastic ELSE 0 END), 0) AS "plasticSum",
+    COALESCE(SUM(CASE WHEN o.status IN('accepted', 'returned') THEN o.price + o.plastic + COALESCE(o."debtAmount", 0) ELSE 0 END), 0) AS "sale",
+    COALESCE(SUM(CASE WHEN o.status IN('accepted', 'returned') THEN o.price ELSE 0 END), 0) AS inHand,
+    COALESCE(SUM(CASE WHEN o.status IN('accepted', 'returned') THEN o.plastic ELSE 0 END), 0) AS "plasticSum",
     COALESCE(SUM(CASE WHEN o.status IN('accepted', 'returned') THEN o."additionalProfit" ELSE 0 END), 0) AS "additionalProfitSum",
     COALESCE(SUM(CASE WHEN o.status IN('accepted', 'returned') THEN o."netProfit" ELSE 0 END), 0) AS "netProfitSum",
     COALESCE(SUM(CASE WHEN o.status IN('accepted', 'returned') THEN o.discount ELSE 0 END), 0) AS "discountSum",
     COALESCE(SUM(CASE WHEN o.status IN('accepted', 'returned') THEN o.kv ELSE 0 END), 0) AS "totalSellKv",
     COALESCE(SUM(CASE WHEN o.status = 'returned' THEN o.price ELSE 0 END), 0) AS "returnSale",
     COALESCE(SUM(CASE WHEN o.status IN('accepted', 'returned') THEN (CASE WHEN q."isMetric" = true THEN 1 ELSE o.x END) ELSE 0 END), 0) AS "sellCount",
-    COALESCE(SUM(CASE WHEN o.status = 'accepted' AND o."isDebt" = true THEN o.price + o.plastic ELSE 0 END), 0) AS "debtSum",
-    COALESCE(SUM(CASE WHEN o.status = 'accepted' AND o."isDebt" = true THEN o.kv ELSE 0 END), 0) AS "debtKv",
-    COALESCE(SUM(CASE WHEN o.status = 'accepted' AND o."isDebt" = true THEN (CASE WHEN q."isMetric" = true THEN 1 ELSE o.x END) ELSE 0 END), 0) AS "debtCount",
-    COALESCE(SUM(CASE WHEN o.status IN('accepted', 'returned') AND p."isInternetShop" = true THEN o.price + o.plastic ELSE 0 END), 0) AS "internetShopSum"
+    COALESCE(SUM(CASE WHEN o.status = 'accepted' AND o."isDebt" = true THEN COALESCE(o."debtAmount", 0) ELSE 0 END), 0) AS "debtSum",
+    COALESCE(SUM(CASE
+      WHEN o.status = 'accepted' AND o."isDebt" = true
+       AND (o.price + o.plastic + COALESCE(o."debtAmount", 0)) > 0
+      THEN o.kv * (COALESCE(o."debtAmount", 0) / (o.price + o.plastic + COALESCE(o."debtAmount", 0)))
+      ELSE 0 END), 0) AS "debtKv",
+    COALESCE(SUM(CASE
+      WHEN o.status = 'accepted' AND o."isDebt" = true
+       AND (o.price + o.plastic + COALESCE(o."debtAmount", 0)) > 0
+      THEN (CASE WHEN q."isMetric" = true THEN 1 ELSE o.x END)
+           * (COALESCE(o."debtAmount", 0) / (o.price + o.plastic + COALESCE(o."debtAmount", 0)))
+      ELSE 0 END), 0) AS "debtCount",
+    COALESCE(SUM(CASE WHEN o.status IN('accepted', 'returned') AND p."isInternetShop" = true THEN o.price + o.plastic + COALESCE(o."debtAmount", 0) ELSE 0 END), 0) AS "internetShopSum"
   FROM "order" o
   LEFT JOIN qrbase q ON o."barCodeId" = q.id
   LEFT JOIN product p ON o."productId" = p.id
@@ -2808,15 +2840,23 @@ WHERE k.id = $1;
         if (isOrder && order) {
           await this.processManagerDiscount(queryRunner, order, true);
 
-          if (order.isDebt) {
-            kassa.debtSum += price;
-            kassa.debtSize += order.kv;
-            kassa.debtCount += order.product.bar_code.isMetric ? 1 : order.x;
-          } else {
-            kassa.inHand += order.price;
+          // Qisman qarz: order.price=naqd, order.plastic=terminal, order.debtAmount=qarz
+          // Receipt total = price + plastic + debtAmount
+          const receiptTotal =
+            Number(order.price || 0) + Number(order.plastic || 0) + Number(order.debtAmount || 0);
+          // Kassa tushumi: faqat haqiqatan to'langan qism
+          kassa.inHand += Number(order.price || 0);
+          kassa.plasticSum += Number(order.plastic || 0);
+          // Sotuv hisobotlari to'liq receipt
+          kassa.sale += receiptTotal;
+          if (order.isDebt && receiptTotal > 0 && Number(order.debtAmount || 0) > 0) {
+            // Qarz proporsional: 36m² 1000$, 500$ qarz → debtSize = 36 × 0.5 = 18m²
+            const debtRatio = Number(order.debtAmount) / receiptTotal;
+            const fullCount = order.product.bar_code.isMetric ? 1 : Number(order.x || 0);
+            kassa.debtSum += Number(order.debtAmount);
+            kassa.debtSize += Number(order.kv || 0) * debtRatio;
+            kassa.debtCount += fullCount * debtRatio;
           }
-          kassa.plasticSum += order.plastic || 0;
-          kassa.sale += price;
           kassa.discountSum += (order.discount || 0) + (order.managerDiscount || 0);
           kassa.netProfitSum += order.netProfit || 0;
           kassa.additionalProfitSum += order.additionalProfit || 0;
@@ -3066,7 +3106,7 @@ WHERE k.id = $1;
         if (cashflow.status === CashflowStatusEnum.APPROVED && kassa) {
           if (isMonthChange && targetKassa) {
             // --- TRANSFER: remove from old kassa, add to new kassa ---
-            if (!order.isDebt) kassa.inHand -= oldOrderPrice;
+            kassa.inHand -= oldOrderPrice;
             kassa.plasticSum -= oldPlasticSum;
             kassa.sale -= oldCashflowPrice;
             kassa.additionalProfitSum -= oldAdditionalProfit;
@@ -3092,7 +3132,7 @@ WHERE k.id = $1;
             await queryRunner.manager.save(kassa);
 
             // Add to target kassa with NEW values
-            if (!order.isDebt) targetKassa.inHand += newOrderPrice;
+            targetKassa.inHand += newOrderPrice;
             targetKassa.plasticSum += newPlasticSum;
             targetKassa.sale += newCashflowPrice;
             targetKassa.additionalProfitSum += newAdditionalProfit;
@@ -3126,7 +3166,7 @@ WHERE k.id = $1;
             const netProfitDiff = newNetProfit - order.netProfit;
             const discountDiff = newDiscountSum - order.discount;
 
-            if (!order.isDebt) kassa.inHand += orderPriceDiff;
+            kassa.inHand += orderPriceDiff;
             kassa.plasticSum += plasticDiff;
             kassa.sale += cashflowPriceDiff;
             kassa.additionalProfitSum += additionalProfitDiff;
@@ -3576,15 +3616,18 @@ WHERE k.id = $1;
         if (isOrder && order) {
           await this.processManagerDiscount(queryRunner, order, false);
 
-          if (order.isDebt) {
-            kassa.debtSum -= price;
-            kassa.debtSize -= order.kv;
-            kassa.debtCount -= order.product.bar_code.isMetric ? 1 : order.x;
-          } else {
-            kassa.inHand -= order.price;
+          const receiptTotal =
+            Number(order.price || 0) + Number(order.plastic || 0) + Number(order.debtAmount || 0);
+          kassa.inHand -= Number(order.price || 0);
+          kassa.plasticSum -= Number(order.plastic || 0);
+          kassa.sale -= receiptTotal;
+          if (order.isDebt && receiptTotal > 0 && Number(order.debtAmount || 0) > 0) {
+            const debtRatio = Number(order.debtAmount) / receiptTotal;
+            const fullCount = order.product.bar_code.isMetric ? 1 : Number(order.x || 0);
+            kassa.debtSum -= Number(order.debtAmount);
+            kassa.debtSize -= Number(order.kv || 0) * debtRatio;
+            kassa.debtCount -= fullCount * debtRatio;
           }
-          kassa.plasticSum -= order.plastic || 0;
-          kassa.sale -= price;
           kassa.discountSum -= (order.discount || 0) + (order.managerDiscount || 0);
           kassa.netProfitSum -= order.netProfit || 0;
           kassa.additionalProfitSum -= order.additionalProfit || 0;

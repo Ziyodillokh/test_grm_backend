@@ -3,6 +3,7 @@ import { Filial } from '../filial/filial.entity';
 import { User } from '../user/user.entity';
 import { ColumnNumericTransformer } from 'src/infra/helpers';
 import { Order } from '../order/order.entity';
+import { Cashflow } from '../cashflow/cashflow.entity';
 import { BaseEntity } from '../../common/database/base.entity';
 
 @Entity()
@@ -29,6 +30,17 @@ export class Client extends BaseEntity {
   })
   owed: number;
 
+  @Column('numeric', {
+    precision: 20,
+    scale: 2,
+    transformer: new ColumnNumericTransformer(),
+    default: 0,
+  })
+  totalDebt: number;
+
+  @Column({ type: 'boolean', default: false })
+  isDebtor: boolean;
+
   @Column({ type: 'text', nullable: true })
   comment: string;
 
@@ -42,4 +54,7 @@ export class Client extends BaseEntity {
 
   @OneToMany(() => Order, (order) => order.client)
   orders: Order[];
+
+  @OneToMany(() => Cashflow, (cashflow) => cashflow.client)
+  cashflow: Cashflow[];
 }

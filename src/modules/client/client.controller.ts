@@ -45,13 +45,18 @@ export class ClientController {
   }
 
   @Get('debt-report/filials/:filialId/clients')
-  @ApiOperation({ summary: 'Filial ichidagi qarzdor clientlar' })
+  @ApiOperation({ summary: 'Filial ichidagi qarzdor clientlar (type=mijoz|qarzdor)' })
   async getDebtClientsByFilial(
     @Param('filialId') filialId: string,
     @Query('page') page = 1,
     @Query('limit') limit = 20,
+    @Query('type') type?: 'mijoz' | 'qarzdor',
   ) {
-    return this.clientService.getDebtClientsByFilial(filialId, { page: +page, limit: +limit });
+    return this.clientService.getDebtClientsByFilial(
+      filialId,
+      { page: +page, limit: +limit },
+      type,
+    );
   }
 
   @Get('debt-report/clients/:clientId/orders')

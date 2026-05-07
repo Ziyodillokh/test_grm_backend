@@ -159,12 +159,14 @@ export class ClientService {
         throw new BadRequestException('Invalid payment amount');
       }
 
-      if (amount > client.owed) {
-        throw new BadRequestException(`To'lov miqdori qarz miqdoridan ortiq. Qarz: ${client.owed}, To'lov: ${amount}`);
+      const currentDebt = Number(client.owed || 0) - Number(client.given || 0);
+      if (amount > currentDebt) {
+        throw new BadRequestException(`To'lov miqdori qarz qoldig'idan ortiq. Qoldiq: ${currentDebt}, To'lov: ${amount}`);
       }
-      client.given = (client.given || 0) + amount;
-      client.owed = Math.max((client.owed || 0) - amount, 0);
-      console.log('💰 Updated client balances:', { owed: client.owed, given: client.given });
+      // Monotonik: faqat given oshadi, owed o'zgarmaydi
+      client.given = Number(client.given || 0) + amount;
+      client.totalDebt = Number(client.owed || 0) - Number(client.given);
+      console.log('💰 Updated client balances:', { owed: client.owed, given: client.given, totalDebt: client.totalDebt });
 
       // qarzga tegishli orderlar (client da bir nechta debt order bo'lishi mumkin)
       const orders = await orderRepo.find({
@@ -173,23 +175,19 @@ export class ClientService {
         order: { createdAt: 'DESC' },
       });
 
-      if (!orders.length) {
-        console.error('⚠️ No debt order found for client:', client.id);
-        throw new BadRequestException('Debt order not found for this client');
-      }
-
-      const order = orders[0];
+      const order = orders[0]; // bo'lmasligi mumkin (Qarzdor uchun)
 
       const openKassa = await kassaRepo.findOne({
         where: { filial: { id: client.filial.id }, status: KassaProgresEnum.OPEN, isActive: true },
         relations: {},
       });
 
-      console.log('📦 Found debt order:', { orderId: order.id, kassa: order.kassa?.id, createdBy: order.seller?.id });
+      if (!openKassa) {
+        throw new BadRequestException('Bu filialda ochiq kassa topilmadi');
+      }
 
       // cashflow_type
       const slugDolg = await this.getOneBySlug('debt_repayment');
-      console.log('🏷️ Loaded cashflow type (slug debt_repayment):', slugDolg?.id || slugDolg);
 
       // cashflow yaratish
       const cashflow = cashflowRepo.create({
@@ -200,11 +198,12 @@ export class ClientService {
         cashflow_type: slugDolg,
         date: new Date().toISOString(),
         kassa: openKassa,
-        filial: order.kassa.filial,
-        createdBy: order.seller,
+        filial: client.filial,
+        createdBy: order?.seller,
+        client,
         is_online: false,
         is_static: true,
-      });
+      } as any);
       console.log('📝 Prepared cashflow:', cashflow);
 
       await cashflowRepo.save(cashflow);
@@ -418,7 +417,11 @@ export class ClientService {
     return { items, totals };
   }
 
-  async getDebtClientsByFilial(filialId: string, options: IPaginationOptions) {
+  async getDebtClientsByFilial(
+    filialId: string,
+    options: IPaginationOptions,
+    type?: 'mijoz' | 'qarzdor',
+  ) {
     const qb = this.clientRepo
       .createQueryBuilder('c')
       .where('c."filialId" = :filialId', { filialId })
@@ -426,26 +429,35 @@ export class ClientService {
       .andWhere('c."deletedDate" IS NULL')
       .orderBy('(c.owed - c.given)', 'DESC');
 
+    if (type === 'mijoz') qb.andWhere('c."isDebtor" = false');
+    if (type === 'qarzdor') qb.andWhere('c."isDebtor" = true');
+
     const paginatedClients = await paginate(qb, options);
 
     const items = paginatedClients.items.map((c) => ({
       id: c.id,
       fullName: c.fullName,
       phone: c.phone,
+      isDebtor: c.isDebtor,
       owed: Number(c.owed || 0),
       given: Number(c.given || 0),
+      totalDebt: Number(c.owed || 0) - Number(c.given || 0),
       balance: Number(c.owed || 0) - Number(c.given || 0),
     }));
 
-    const summaryResult = await this.clientRepo
+    const summaryQb = this.clientRepo
       .createQueryBuilder('c')
       .select('COALESCE(SUM(c.owed), 0)', 'totalOwed')
       .addSelect('COALESCE(SUM(c.given), 0)', 'totalGiven')
       .addSelect('COALESCE(SUM(c.owed), 0) - COALESCE(SUM(c.given), 0)', 'balance')
       .where('c."filialId" = :filialId', { filialId })
       .andWhere('(c.owed - c.given) > 0')
-      .andWhere('c."deletedDate" IS NULL')
-      .getRawOne();
+      .andWhere('c."deletedDate" IS NULL');
+
+    if (type === 'mijoz') summaryQb.andWhere('c."isDebtor" = false');
+    if (type === 'qarzdor') summaryQb.andWhere('c."isDebtor" = true');
+
+    const summaryResult = await summaryQb.getRawOne();
 
     return {
       items,

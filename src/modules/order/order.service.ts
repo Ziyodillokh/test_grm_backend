@@ -474,20 +474,20 @@ export class OrderService {
     comment: string,
     isDebt?: boolean,
     clientId?: string,
+    debtAmount?: number,
   ): Promise<InsertResult> {
     return await this.entityManager.transaction(async (manager) => {
       if (!user.filial) {
         throw new BadRequestException('Sotish uchun foydalanuvchi filialga biriktirilgan bo\'lishi kerak.');
       }
 
-      // if (user.filial.need_get_report) {
-      //   throw new BadRequestException(`Sizda tugatilinmagan hisob kitob mavjud!`);
-      // }
-
-      if (isDebt && plasticSum > 0) {
-        throw new BadRequestException('Qarzni yopish uchun plastik summa qo\'sha olmaysiz!');
+      const debt = Number(debtAmount || 0);
+      // Qarz holatida clientId majburiy
+      if (debt > 0 && !clientId) {
+        throw new BadRequestException('Qarzga sotish uchun mijoz tanlanmagan!');
       }
-      const totalPrice = price + plasticSum;
+      // Cek total = price + plasticSum + debtAmount
+      const totalPrice = price + plasticSum + debt;
       const kassa = await this.kassaService.GetOpenKassa(user.filial.id);
       const sellerReport = await this.sellerReportService.getCurrentReport(user);
 
@@ -500,17 +500,25 @@ export class OrderService {
       const productMap = await this.loadProducts(orderBaskets);
 
       this.ensureStockAvailability(orderBaskets, productMap);
+      // Per-basket debtAmount proporsional taqsimlanadi (basket.price ulushi bo'yicha)
+      const totalBasketSum = orderBaskets.reduce(
+        (s, b) => s + Number((b as any).price || 0) + Number((b as any).plasticSum || 0),
+        0,
+      ) || 1;
       const orders = await Promise.all(
-        orderBaskets.map((basket) =>
-          this.prepareOrderFromBasket(basket, productMap.get(basket.product), {
+        orderBaskets.map((basket) => {
+          const basketTotal = Number((basket as any).price || 0) + Number((basket as any).plasticSum || 0);
+          const basketDebt = debt > 0 ? Number(((basketTotal / totalBasketSum) * debt).toFixed(2)) : 0;
+          return this.prepareOrderFromBasket(basket, productMap.get(basket.product), {
             sellerId: user.id,
             kassaId: kassa.id,
             reportId: sellerReport.id,
             comment,
-            isDebt,
+            isDebt: isDebt || basketDebt > 0,
             clientId,
-          }),
-        ),
+            debtAmount: basketDebt,
+          });
+        }),
       );
 
       const orderRepository = manager.getRepository(Order);
@@ -527,7 +535,10 @@ export class OrderService {
           cashflow_type: cashflow_type ? { id: cashflow_type.id } : null,
           kassa: { id: kassa.id },
           type: CashFlowEnum.InCome,
-          price: (savedOrder as any).price + ((savedOrder as any).plasticSum || 0),
+          // Cek total = price + plastic + debtAmount
+          price: Number((savedOrder as any).price || 0) +
+                 Number((savedOrder as any).plasticSum || 0) +
+                 Number((savedOrder as any).debtAmount || 0),
           createdBy: { id: user.id },
           status: CashflowStatusEnum.PENDING,
         });
@@ -580,8 +591,13 @@ export class OrderService {
       order.date = kassa.finishedAt as unknown as string || order.date;
     }
 
-    if (order.isDebt) {
-      await this.clientRepository.update({ id: order.client.id }, { owed: order.client.owed + (order.price + order.plastic) });
+    if (order.isDebt && order.client && Number(order.debtAmount || 0) > 0) {
+      const newOwed = Number(order.client.owed || 0) + Number(order.debtAmount);
+      const newGiven = Number(order.client.given || 0);
+      await this.clientRepository.update(
+        { id: order.client.id },
+        { owed: newOwed, totalDebt: newOwed - newGiven },
+      );
     }
 
     const response = await this.orderRepository
@@ -1143,6 +1159,7 @@ export class OrderService {
       comment?: string;
       isDebt?: boolean;
       clientId?: string;
+      debtAmount?: number;
     },
   ) {
     const size = product.bar_code.size;
@@ -1176,6 +1193,7 @@ export class OrderService {
     product.bar_code.isMetric = basket.isMetric;
     await this.saveRepo(product);
 
+    const debtAmount = Number(context.debtAmount || 0);
     return {
       product: basket.product,
       x: basket.x,
@@ -1192,8 +1210,9 @@ export class OrderService {
       additionalProfitSum,
       netProfitSum,
       bar_code: product.bar_code.id,
-      isDebt: !!context.isDebt, // 🟢 Shu yerda isDebt maydonini ham yozamiz
-      client: context.isDebt && context.clientId ? { id: context.clientId } : null,
+      isDebt: !!context.isDebt || debtAmount > 0,
+      debtAmount,
+      client: ((!!context.isDebt || debtAmount > 0) && context.clientId) ? { id: context.clientId } : null,
     };
   }
 
