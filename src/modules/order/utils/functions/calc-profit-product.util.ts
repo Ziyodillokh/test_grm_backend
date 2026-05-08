@@ -9,6 +9,7 @@ type ProportionalProfit = {
   isMetric: boolean;
   kv: number;
   plasticSum: number;
+  debtAmount: number;
   discountSum: number;
   discountPercentage: number;
 };
@@ -56,7 +57,8 @@ const calculatePrice = (basket: OrderBasket): number => {
 const util = (
   orderBasket: OrderBasket[],
   totalRevenue: number,
-  plasticSum: number
+  plasticSum: number,
+  debtSum: number = 0,
 ): ProportionalProfit[] => {
   let additionalDecimalSum = 0;
   let discountPercentage = 0;
@@ -111,6 +113,7 @@ const util = (
       isMetric: basket.isMetric,
       kv: 0,
       plasticSum: 0,
+      debtAmount: 0,
       discountSum,
       discountPercentage,
     };
@@ -144,7 +147,7 @@ const util = (
     proportionalProfits[0].price = +(proportionalProfits[0].price + diff).toFixed(2);
   }
 
-  // Handle plastic deduction
+  // Handle plastic deduction (greedy: from highest priced)
   if (plasticSum > 0) {
     proportionalProfits
       .sort((a, b) => b.price - a.price)
@@ -154,6 +157,21 @@ const util = (
         item.plasticSum = deduction;
         item.price -= deduction;
         plasticSum -= deduction;
+      });
+  }
+
+  // Handle debt deduction (greedy: from highest remaining price)
+  // After plastic deduction, basket.price is what's left to be paid in cash
+  // Debt portion is greedily taken from the largest remaining cash amounts.
+  if (debtSum > 0) {
+    proportionalProfits
+      .sort((a, b) => b.price - a.price)
+      .forEach((item) => {
+        if (debtSum === 0) return;
+        const deduction = Math.min(debtSum, item.price);
+        item.debtAmount = deduction;
+        item.price = +(item.price - deduction).toFixed(2);
+        debtSum -= deduction;
       });
   }
 

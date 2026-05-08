@@ -496,19 +496,13 @@ export class OrderService {
         throw new BadRequestException('Savatda mahsulot mavjud emas.');
       }
 
-      const orderBaskets = calcProdProfit(baskets, totalPrice, plasticSum);
+      const orderBaskets = calcProdProfit(baskets, totalPrice, plasticSum, debt);
       const productMap = await this.loadProducts(orderBaskets);
 
       this.ensureStockAvailability(orderBaskets, productMap);
-      // Per-basket debtAmount proporsional taqsimlanadi (basket.price ulushi bo'yicha)
-      const totalBasketSum = orderBaskets.reduce(
-        (s, b) => s + Number((b as any).price || 0) + Number((b as any).plasticSum || 0),
-        0,
-      ) || 1;
       const orders = await Promise.all(
         orderBaskets.map((basket) => {
-          const basketTotal = Number((basket as any).price || 0) + Number((basket as any).plasticSum || 0);
-          const basketDebt = debt > 0 ? Number(((basketTotal / totalBasketSum) * debt).toFixed(2)) : 0;
+          const basketDebt = Number((basket as any).debtAmount || 0);
           return this.prepareOrderFromBasket(basket, productMap.get(basket.product), {
             sellerId: user.id,
             kassaId: kassa.id,
