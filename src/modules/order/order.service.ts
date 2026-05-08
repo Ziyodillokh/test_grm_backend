@@ -678,6 +678,10 @@ export class OrderService {
     // Stock qaytarish
     if (product.bar_code.isMetric) {
       product.y = Math.abs(+data.x) / 100 + Math.abs(product.y);
+      // Metric product depleted bo'lsa (count=0 by applyStockDepletion), count ham tiklash
+      if (+product.y > 0 && +product.count <= 0) {
+        product.count = 1;
+      }
     } else {
       product.count += data.x;
     }
