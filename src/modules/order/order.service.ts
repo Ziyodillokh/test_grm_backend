@@ -531,7 +531,7 @@ export class OrderService {
           type: CashFlowEnum.InCome,
           // Cek total = price + plastic + debtAmount
           price: Number((savedOrder as any).price || 0) +
-                 Number((savedOrder as any).plasticSum || 0) +
+                 Number((savedOrder as any).plastic || 0) +
                  Number((savedOrder as any).debtAmount || 0),
           createdBy: { id: user.id },
           status: CashflowStatusEnum.PENDING,
@@ -1194,15 +1194,15 @@ export class OrderService {
       kv,
       isMetric: basket.isMetric,
       price: basket.price,
-      plasticSum: basket.plasticSum,
-      discountSum: basket.discountSum,
+      plastic: basket.plasticSum,
+      discount: basket.discountSum,
       discountPercentage: basket.discountPercentage,
       seller: context.sellerId,
       kassa: context.kassaId,
       report: context.reportId,
       comment: context.comment || null,
-      additionalProfitSum,
-      netProfitSum,
+      additionalProfit: additionalProfitSum,
+      netProfit: netProfitSum,
       bar_code: product.bar_code.id,
       isDebt: !!context.isDebt || debtAmount > 0,
       debtAmount,

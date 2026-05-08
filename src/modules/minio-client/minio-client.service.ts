@@ -1,5 +1,6 @@
 import { HttpException, HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { MinioService } from 'nestjs-minio-client';
+import { Client as MinioRawClient } from 'minio';
 import Config from '../../../config';
 import { BufferedFile } from './interface';
 import * as crypto from 'crypto';
@@ -17,7 +18,7 @@ export class MinioClientService {
   }
 
 
-  public get client() {
+  public get client(): MinioRawClient {
     return this.minio.client;
   }
 
