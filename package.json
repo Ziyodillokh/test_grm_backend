@@ -49,6 +49,7 @@
     "class-validator": "^0.14.0",
     "cookie-parser": "^1.4.6",
     "crypto": "^1.0.1",
+    "dayjs": "^1.11.20",
     "exceljs": "^4.4.0",
     "ioredis": "^5.8.2",
     "nestjs-minio-client": "^2.2.0",
