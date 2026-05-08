@@ -2856,6 +2856,18 @@ WHERE k.id = $1;
             kassa.debtSum += Number(order.debtAmount);
             kassa.debtSize += Number(order.kv || 0) * debtRatio;
             kassa.debtCount += fullCount * debtRatio;
+
+            // Client owed yangilash (monotonik)
+            const orderWithClient = await queryRunner.manager.findOne(Order, {
+              where: { id: order.id },
+              relations: { client: true },
+            });
+            if (orderWithClient?.client) {
+              const client = orderWithClient.client;
+              client.owed = Number(client.owed || 0) + Number(order.debtAmount);
+              client.totalDebt = Number(client.owed) - Number(client.given || 0);
+              await queryRunner.manager.save(client);
+            }
           }
           kassa.discountSum += (order.discount || 0) + (order.managerDiscount || 0);
           kassa.netProfitSum += order.netProfit || 0;
