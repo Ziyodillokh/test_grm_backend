@@ -152,7 +152,12 @@ export class Kassa extends BaseEntity implements IReportAggregates {
   planPrice: number;
 
   // ─── Qarz ma'lumotlari ─────────────────────────────────────
-  @Column('int', { default: 0 })
+  @Column('numeric', {
+    precision: 20,
+    scale: 3,
+    transformer: new ColumnNumericTransformer(),
+    default: 0,
+  })
   debtCount: number;
 
   @Column('numeric', {
