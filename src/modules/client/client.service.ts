@@ -57,6 +57,7 @@ export class ClientService {
       comment,
       filial,
       user,
+      isDebtor: dto.isDebtor ?? false,
     });
 
     return this.clientRepo.save(client);

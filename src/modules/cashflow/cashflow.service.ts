@@ -1258,6 +1258,7 @@ export class CashflowService {
           factory: true,
           logistics: true,
           customs: true,
+          client: true,
           child: { report: true },
         },
       });
@@ -1317,6 +1318,20 @@ export class CashflowService {
           kassa.income -= price;
           if (cashflow?.is_online) {
             kassa.plasticSum -= price;
+          }
+          // Qarz yopish: payDebt kassa.inHand += amount qilgan, client.given += amount qilgan
+          if (cashflow.cashflow_type.slug === 'debt_repayment') {
+            kassa.inHand -= price;
+            const clientId = (cashflow as any).client?.id;
+            if (clientId) {
+              const clientRepo = queryRunner.manager.getRepository(Client);
+              const client = await clientRepo.findOne({ where: { id: clientId } });
+              if (client) {
+                client.given = Number(client.given || 0) - price;
+                client.totalDebt = Number(client.owed || 0) - Number(client.given || 0);
+                await clientRepo.save(client);
+              }
+            }
           }
         }
 

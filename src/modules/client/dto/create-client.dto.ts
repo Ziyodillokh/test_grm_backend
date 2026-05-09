@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsPhoneNumber, IsUUID } from 'class-validator';
+import { IsString, IsOptional, IsPhoneNumber, IsUUID, IsBoolean } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class CreateClientDto {
@@ -22,4 +22,9 @@ export class CreateClientDto {
   @ApiProperty({ example: 'UUID' })
   @IsUUID('4')
   userId: string;
+
+  @ApiProperty({ required: false, default: false })
+  @IsOptional()
+  @IsBoolean()
+  isDebtor?: boolean;
 }
