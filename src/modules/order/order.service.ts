@@ -549,6 +549,13 @@ export class OrderService {
 
         const transferType = await this.cashFlowTypeService.getOneBySlug('transfer');
 
+        // Kassaning reportini topamiz — child cashflow uchun zarur
+        const kassaWithReport = await manager.findOne(Kassa, {
+          where: { id: kassa.id },
+          relations: { report: true },
+        });
+        const reportId = kassaWithReport?.report?.id;
+
         // Parent: kassa expense
         const parent = cashflowRepository.create({
           tip: CashflowTipEnum.CASHFLOW,
@@ -564,7 +571,7 @@ export class OrderService {
         } as any);
         const savedParent = await cashflowRepository.save(parent);
 
-        // Child: report income (kassa yo'q)
+        // Child: report income (reportga bog'lanadi, kassa yo'q)
         const child = cashflowRepository.create({
           tip: CashflowTipEnum.CASHFLOW,
           type: CashFlowEnum.InCome,
@@ -575,6 +582,7 @@ export class OrderService {
           parent: { id: (savedParent as any).id } as any,
           filial: { id: user.filial.id } as any,
           createdBy: { id: user.id },
+          report: reportId ? { id: reportId } as any : null,
           comment: comment || "O'tkazma orqali sotuv (report)",
         } as any);
         await cashflowRepository.save(child);
@@ -595,10 +603,6 @@ export class OrderService {
         }
 
         // Report effekti: totalIncome += childPrice, accountantSum += childPrice
-        const kassaWithReport = await manager.findOne(Kassa, {
-          where: { id: kassa.id },
-          relations: { report: true },
-        });
         if (kassaWithReport?.report) {
           const oneReport = kassaWithReport.report;
           oneReport.totalIncome = Number(oneReport.totalIncome || 0) + childPrice;
