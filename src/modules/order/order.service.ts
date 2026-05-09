@@ -562,8 +562,11 @@ export class OrderService {
         const kassaFresh = await kassaRepo.findOne({ where: { id: kassa.id } });
 
         // 1) Har order uchun APPROVED order cashflow + kassa effektlari (inline)
-        for (const savedOrder of savedOrders) {
-          const so: any = savedOrder;
+        // orderBaskets[i] basket.isMetric ga ega — saleCount uchun zarur
+        for (let i = 0; i < savedOrders.length; i++) {
+          const so: any = savedOrders[i];
+          const basket = orderBaskets[i] as any;
+          const isMetric = !!basket?.isMetric;
           const orderReceipt =
             Number(so.price || 0) + Number(so.plastic || 0) + Number(so.debtAmount || 0);
 
@@ -582,7 +585,7 @@ export class OrderService {
           // Order statusini Accept qilish
           await orderRepository.update(so.id, { status: OrderEnum.Accept });
 
-          // Kassa: order qabul effektlari
+          // Kassa: order qabul effektlari (sale, profit, hajm/count, terminal, discount)
           if (kassaFresh) {
             kassaFresh.inHand = Number(kassaFresh.inHand || 0) + Number(so.price || 0);
             kassaFresh.plasticSum = Number(kassaFresh.plasticSum || 0) + Number(so.plastic || 0);
@@ -590,6 +593,8 @@ export class OrderService {
             kassaFresh.discountSum = Number(kassaFresh.discountSum || 0) + Number(so.discount || 0) + Number(so.managerDiscount || 0);
             kassaFresh.netProfitSum = Number(kassaFresh.netProfitSum || 0) + Number(so.netProfit || 0);
             kassaFresh.additionalProfitSum = Number(kassaFresh.additionalProfitSum || 0) + Number(so.additionalProfit || 0);
+            kassaFresh.saleSize = Number(kassaFresh.saleSize || 0) + Number(so.kv || 0);
+            kassaFresh.saleCount = Number(kassaFresh.saleCount || 0) + (isMetric ? 1 : Number(so.x || 0));
           }
         }
 
@@ -643,7 +648,10 @@ export class OrderService {
         if (kassaWithReport?.report) {
           const oneReport = kassaWithReport.report;
           // Orderlardan to'plagan totallar
-          for (const so of savedOrders as any[]) {
+          for (let i = 0; i < (savedOrders as any[]).length; i++) {
+            const so: any = (savedOrders as any[])[i];
+            const basket: any = orderBaskets[i];
+            const isMetric = !!basket?.isMetric;
             const orderReceipt =
               Number(so.price || 0) + Number(so.plastic || 0) + Number(so.debtAmount || 0);
             oneReport.totalSale = Number(oneReport.totalSale || 0) + orderReceipt;
@@ -651,6 +659,8 @@ export class OrderService {
             oneReport.totalDiscountSum = Number(oneReport.totalDiscountSum || 0) + Number(so.discount || 0) + Number(so.managerDiscount || 0);
             oneReport.totalNetProfitSum = Number(oneReport.totalNetProfitSum || 0) + Number(so.netProfit || 0);
             oneReport.totalAdditionalProfitSum = Number(oneReport.totalAdditionalProfitSum || 0) + Number(so.additionalProfit || 0);
+            oneReport.totalSaleSize = Number(oneReport.totalSaleSize || 0) + Number(so.kv || 0);
+            oneReport.totalSaleCount = Number(oneReport.totalSaleCount || 0) + (isMetric ? 1 : Number(so.x || 0));
           }
           // Child transfer cashflowdan
           oneReport.totalIncome = Number(oneReport.totalIncome || 0) + childPrice;
