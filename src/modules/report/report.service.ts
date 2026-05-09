@@ -341,6 +341,21 @@ export class ReportService {
       throw new BadRequestException('Dealer reports must be closed by D_MANAGER before confirmation.');
     }
 
+    // Pre-condition: M-Manager faqat barcha kassalar accepted bo'lganda yopa oladi
+    if (userRole === userRoleEnum.M_MANAGER) {
+      const reportKassas = await this.kassaRepo.find({
+        where: { report: { id: report.id } as any },
+      });
+      const notAccepted = reportKassas.filter(
+        (k) => k.status !== KassaProgresEnum.ACCEPTED,
+      );
+      if (notAccepted.length > 0) {
+        throw new BadRequestException(
+          `Reportni yopish uchun barcha kassalar tasdiqlangan bo'lishi kerak. Yopilmagan kassalar: ${notAccepted.length}`,
+        );
+      }
+    }
+
     // Tasdiqlash flagini set qilamiz, keyin user'ning saldo qoldig'ini keyingi oyga o'tkazamiz.
     let carryRole: 9 | 10 | null = null;
     if (userRole === userRoleEnum.ACCOUNTANT && !report.isAccountantConfirmed) {

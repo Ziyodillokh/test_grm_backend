@@ -1209,19 +1209,22 @@ export class CashflowService {
   }
 
 
-  async getTotalForMManager(reportId: string, userId?: string) {
-    const cashflow = await this.cashflowRepository.find({
-      where: {
-        report: { id: reportId },
-        ...(userId && { createdBy: { id: userId } }),
-      },
-      relations: { cashflow_type: true },
-      order: {
-        order: {
-          date: 'DESC',
-        },
-      },
-    });
+  async getTotalForMManager(reportId: string, userId?: string, role?: number) {
+    const qb = this.cashflowRepository
+      .createQueryBuilder('c')
+      .leftJoinAndSelect('c.cashflow_type', 'ct')
+      .leftJoin('c.createdBy', 'createdBy')
+      .leftJoin('createdBy.position', 'position')
+      .where('c."reportId" = :reportId', { reportId })
+      .andWhere('c.status = :status', { status: CashflowStatusEnum.APPROVED })
+      .andWhere('COALESCE(c.is_cancelled, false) = false');
+
+    if (userId) qb.andWhere('createdBy.id = :userId', { userId });
+    if (role !== undefined && role !== null) {
+      qb.andWhere('position.role = :role', { role });
+    }
+
+    const cashflow = await qb.getMany();
 
     const totals = cashflow.reduce(
       (acc, curr) => {
@@ -1230,9 +1233,9 @@ export class CashflowService {
           if (slug === 'logistics') return acc;
           // Share Foyda Приход — kassaga qo'shilmaydi
           if (slug === 'share' && (curr as any).shareKind === 'profit') return acc;
-          return { ...acc, income: acc.income + curr.price };
+          return { ...acc, income: acc.income + Number(curr.price) };
         }
-        return { ...acc, expense: acc.expense + curr.price };
+        return { ...acc, expense: acc.expense + Number(curr.price) };
       },
       { income: 0, expense: 0 },
     );

@@ -102,8 +102,10 @@ export class CashflowController {
   async getTotalForMManager(
     @Param('id') reportId: string,
     @Query('userId') userId?: string,
+    @Query('role') role?: string,
   ): Promise<{ income: number; expense: number }> {
-    return this.cashflowService.getTotalForMManager(reportId, userId);
+    const roleNum = role !== undefined && role !== null && role !== '' ? Number(role) : undefined;
+    return this.cashflowService.getTotalForMManager(reportId, userId, roleNum);
   }
 
   @Get('/:id')
