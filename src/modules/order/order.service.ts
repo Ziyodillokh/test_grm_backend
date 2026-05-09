@@ -538,42 +538,13 @@ export class OrderService {
       const cashflowRepository = manager.getRepository(Cashflow);
 
       if (transferOn) {
-        // O'tkazma flow:
-        //  1) Har order uchun normal slug='order' cashflow yaratiladi va DARROV approved qilinadi
-        //     (kassa.inHand += price, plasticSum += plastic, sale += receiptTotal — odatdagidek)
-        //  2) Static slug='transfer' parent cashflow (kassa expense) — kassa.expense += ordersSum,
-        //     bu kassa.inHand'ni neytrallaydi (chunki online to'lovlar kassada qolmaydi)
-        //  3) Static slug='transfer' child cashflow (report income) — report.totalIncome + accountantSum
+        // O'tkazma flow — barchasi shu bitta transactionda inline:
+        //  1) Order cashflow APPROVED yaratiladi (slug='order', kassa link), kassa va report effektlari qo'lda yangilanadi
+        //  2) Static slug='transfer' parent (kassa expense) — kassa.expense += ordersSum, kassa.inHand -= ordersSum (neytrallaydi)
+        //  3) Static slug='transfer' child (report income) — report.totalIncome + accountantSum
         const orderType = await this.cashFlowTypeService.getOneBySlug('order');
         const transferType = await this.cashFlowTypeService.getOneBySlug('transfer');
 
-        // Har order uchun PENDING cashflow yaratamiz, keyin internal approve qilamiz
-        const orderCashflowIds: string[] = [];
-        for (const savedOrder of savedOrders) {
-          const cf = cashflowRepository.create({
-            tip: CashflowTipEnum.ORDER,
-            order: { id: (savedOrder as any).id },
-            cashflow_type: orderType ? { id: orderType.id } : null,
-            kassa: { id: kassa.id },
-            type: CashFlowEnum.InCome,
-            price:
-              Number((savedOrder as any).price || 0) +
-              Number((savedOrder as any).plastic || 0) +
-              Number((savedOrder as any).debtAmount || 0),
-            createdBy: { id: user.id },
-            status: CashflowStatusEnum.PENDING,
-          });
-          const saved = await cashflowRepository.save(cf);
-          orderCashflowIds.push((saved as any).id);
-        }
-
-        // Internal approve — har order cashflowga approveCashflow chaqiramiz
-        for (const cfId of orderCashflowIds) {
-          await this.cashFlowService.approveCashflow(cfId, user.id);
-        }
-
-        // Order cashflowlardan keyin kassa va report yangilanadi.
-        // Endi static transfer parent (kassa expense) yaratamiz va kassa.expense += ordersSum.
         const ordersSum = savedOrders.reduce(
           (acc: number, o: any) =>
             acc + Number(o.price || 0) + Number(o.plastic || 0) + Number(o.debtAmount || 0),
@@ -587,8 +558,42 @@ export class OrderService {
         });
         const filialTitle = kassaWithReport?.filial?.title || user.filial?.title || '';
         const reportId = kassaWithReport?.report?.id;
+        const kassaRepo = manager.getRepository(Kassa);
+        const kassaFresh = await kassaRepo.findOne({ where: { id: kassa.id } });
 
-        // Parent: kassa expense (static)
+        // 1) Har order uchun APPROVED order cashflow + kassa effektlari (inline)
+        for (const savedOrder of savedOrders) {
+          const so: any = savedOrder;
+          const orderReceipt =
+            Number(so.price || 0) + Number(so.plastic || 0) + Number(so.debtAmount || 0);
+
+          const cf = cashflowRepository.create({
+            tip: CashflowTipEnum.ORDER,
+            order: { id: so.id },
+            cashflow_type: orderType ? { id: orderType.id } : null,
+            kassa: { id: kassa.id },
+            type: CashFlowEnum.InCome,
+            price: orderReceipt,
+            createdBy: { id: user.id },
+            status: CashflowStatusEnum.APPROVED,
+          });
+          await cashflowRepository.save(cf);
+
+          // Order statusini Accept qilish
+          await orderRepository.update(so.id, { status: OrderEnum.Accept });
+
+          // Kassa: order qabul effektlari
+          if (kassaFresh) {
+            kassaFresh.inHand = Number(kassaFresh.inHand || 0) + Number(so.price || 0);
+            kassaFresh.plasticSum = Number(kassaFresh.plasticSum || 0) + Number(so.plastic || 0);
+            kassaFresh.sale = Number(kassaFresh.sale || 0) + orderReceipt;
+            kassaFresh.discountSum = Number(kassaFresh.discountSum || 0) + Number(so.discount || 0) + Number(so.managerDiscount || 0);
+            kassaFresh.netProfitSum = Number(kassaFresh.netProfitSum || 0) + Number(so.netProfit || 0);
+            kassaFresh.additionalProfitSum = Number(kassaFresh.additionalProfitSum || 0) + Number(so.additionalProfit || 0);
+          }
+        }
+
+        // 2) Static parent (kassa expense)
         const parent = cashflowRepository.create({
           tip: CashflowTipEnum.CASHFLOW,
           type: CashFlowEnum.Consumption,
@@ -603,7 +608,7 @@ export class OrderService {
         } as any);
         const savedParent = await cashflowRepository.save(parent);
 
-        // Child: report income (static, kassa yo'q, report ga bog'lanadi)
+        // 3) Static child (report income)
         const childComment = `${filialTitle} — ${comment || "O'tkazma orqali sotuv"}`;
         const child = cashflowRepository.create({
           tip: CashflowTipEnum.CASHFLOW,
@@ -620,25 +625,34 @@ export class OrderService {
         } as any);
         await cashflowRepository.save(child);
 
-        // Orderlarni parent transfer cashflowga bog'lash (cancel paytida topish uchun)
+        // Orderlarni parent transfer cashflowga bog'lash
         await orderRepository.update(
           (savedOrders as any[]).map((o) => o.id),
           { transferCashflow: { id: (savedParent as any).id } } as any,
         );
 
-        // Kassa effekti: parent expense → kassa.expense += ordersSum, kassa.inHand -= ordersSum.
-        // Bu order cashflow approve paytida qo'shilgan inHand += price ni neytrallaydi.
-        const kassaRepo = manager.getRepository(Kassa);
-        const kassaFresh = await kassaRepo.findOne({ where: { id: kassa.id } });
+        // Kassa: parent expense → expense += ordersSum, inHand -= ordersSum
+        // (orderlarning inHand += price ni neytrallaydi)
         if (kassaFresh) {
           kassaFresh.expense = Number(kassaFresh.expense || 0) + ordersSum;
           kassaFresh.inHand = Number(kassaFresh.inHand || 0) - ordersSum;
           await kassaRepo.save(kassaFresh);
         }
 
-        // Report effekti: child cashflow → totalIncome += childPrice, accountantSum += childPrice
+        // Report: orderlardan totalSale + boshqalar; child cashflowdan totalIncome + accountantSum
         if (kassaWithReport?.report) {
           const oneReport = kassaWithReport.report;
+          // Orderlardan to'plagan totallar
+          for (const so of savedOrders as any[]) {
+            const orderReceipt =
+              Number(so.price || 0) + Number(so.plastic || 0) + Number(so.debtAmount || 0);
+            oneReport.totalSale = Number(oneReport.totalSale || 0) + orderReceipt;
+            oneReport.totalPlasticSum = Number(oneReport.totalPlasticSum || 0) + Number(so.plastic || 0);
+            oneReport.totalDiscountSum = Number(oneReport.totalDiscountSum || 0) + Number(so.discount || 0) + Number(so.managerDiscount || 0);
+            oneReport.totalNetProfitSum = Number(oneReport.totalNetProfitSum || 0) + Number(so.netProfit || 0);
+            oneReport.totalAdditionalProfitSum = Number(oneReport.totalAdditionalProfitSum || 0) + Number(so.additionalProfit || 0);
+          }
+          // Child transfer cashflowdan
           oneReport.totalIncome = Number(oneReport.totalIncome || 0) + childPrice;
           oneReport.accountantSum = Number(oneReport.accountantSum || 0) + childPrice;
           await manager.save(oneReport);
