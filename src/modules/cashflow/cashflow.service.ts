@@ -109,6 +109,7 @@ export class CashflowService {
       .leftJoinAndSelect('cashflow.cashflow_type', 'cashflow_type')
       .leftJoinAndSelect('cashflow.filial', 'filial')
       .leftJoinAndSelect('cashflow.order', 'ord') // ✅ FIXED
+      .leftJoinAndSelect('cashflow.child', 'cf_child')
       .leftJoinAndSelect('ord.seller', 'seller')
       .leftJoinAndSelect('seller.avatar', 'avatar_s')
       .leftJoinAndSelect('ord.bar_code', 'bar_code')
@@ -1307,6 +1308,76 @@ export class CashflowService {
       const isOrder = (cashflow.tip as string) === CashflowTipEnum.ORDER;
       const isLogisticsFlow = cashflow.cashflow_type?.slug === 'logistics' && cashflow.logistics?.id;
       const isCustomsFlow = cashflow.cashflow_type?.slug === 'customs' && cashflow.customs?.id;
+
+      // ─── O'tkazma parent cancel — alohida oqim ─────────────────
+      const isTransferParent =
+        cashflow.is_static &&
+        cashflow.cashflow_type?.slug === 'transfer' &&
+        cashflow.type === CashFlowEnum.Consumption &&
+        !cashflow.parent;
+      if (isTransferParent) {
+        // Bog'liq orderlarni topish va return qilish (returned bo'lmaganlari)
+        const orderRepo = queryRunner.manager.getRepository(Order);
+        const linkedOrders = await orderRepo.find({
+          where: { transferCashflow: { id: cashflow.id } as any },
+          relations: { product: { bar_code: true } },
+        });
+        for (const o of linkedOrders) {
+          if (o.status === OrderEnum.Return) continue; // allaqachon qaytarilgan, skip
+          // Stock qaytarish
+          if (o.product) {
+            const product = o.product;
+            product.is_deleted = false;
+            product.deletedDate = null;
+            if (product.bar_code?.isMetric) {
+              product.y = +(Number(product.y || 0) + Number(o.x || 0) / 100).toFixed(3);
+              if (Number(product.y) > 0 && Number(product.count) <= 0) product.count = 1;
+            } else {
+              product.count = Number(product.count || 0) + Number(o.x || 0);
+            }
+            await queryRunner.manager.save(product);
+          }
+          o.status = OrderEnum.Return;
+          await queryRunner.manager.save(o);
+        }
+
+        // Child cashflow (report income) — kassa effekti yo'q, faqat report reverse
+        const child = (cashflow.child && cashflow.child[0]) || null;
+        const childPrice = Number(child?.price || cashflow.price);
+
+        // Kassa effekti reverse
+        if (kassa) {
+          kassa.expense = Number(kassa.expense || 0) - Number(cashflow.price);
+          kassa.sale = Number(kassa.sale || 0) - Number(cashflow.price);
+          await queryRunner.manager.save(kassa);
+        }
+
+        // Report effekti reverse
+        const kassaWithReport = await queryRunner.manager.findOne(Kassa, {
+          where: { id: kassa.id },
+          relations: { report: true },
+        });
+        if (kassaWithReport?.report) {
+          const oneReport = kassaWithReport.report;
+          oneReport.totalIncome = Number(oneReport.totalIncome || 0) - childPrice;
+          oneReport.accountantSum = Number(oneReport.accountantSum || 0) - childPrice;
+          await queryRunner.manager.save(oneReport);
+        }
+
+        // Child cashflowni cancel qilish
+        if (child) {
+          await queryRunner.manager.update(Cashflow, child.id, {
+            status: CashflowStatusEnum.CANCELLED,
+            isCancelled: true,
+          });
+        }
+
+        cashflow.status = CashflowStatusEnum.CANCELLED;
+        cashflow.isCancelled = true;
+        await queryRunner.manager.save(cashflow);
+        await queryRunner.commitTransaction();
+        return cashflow;
+      }
 
       if (cashflow.type === 'income') {
         if (isOrder) {

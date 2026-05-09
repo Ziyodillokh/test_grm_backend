@@ -15,6 +15,10 @@ export class CreateClientDto {
   @IsString()
   comment?: string;
 
+  @ApiProperty()
+  @IsString()
+  address: string;
+
   @ApiProperty({ example: 'UUID' })
   @IsUUID('4')
   filialId: string;

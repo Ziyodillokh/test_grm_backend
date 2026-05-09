@@ -44,6 +44,9 @@ export class Client extends BaseEntity {
   @Column({ type: 'text', nullable: true })
   comment: string;
 
+  @Column({ type: 'text', nullable: true })
+  address: string;
+
   @ManyToOne(() => Filial, (filial) => filial.clients)
   @JoinColumn({ name: 'filialId' })
   filial: Filial;

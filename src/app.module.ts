@@ -20,6 +20,7 @@ import { CashflowModule } from './modules/cashflow/cashflow.module';
 import { CashflowTypeModule } from './modules/cashflow-type/cashflow-type.module';
 import { ChatModule } from './modules/chatgpt/chatgpt.module';
 import { ClientModule } from './modules/client/client.module';
+import { VisitModule } from './modules/visit/visit.module';
 import { ClientOrderModule } from './modules/client-order/client-order.module';
 import { ClientOrderItemModule } from '@modules/client-order-item/client-order-item.module';
 import { ClientRequestModule } from './modules/client-request/client-request.module';
@@ -162,6 +163,7 @@ import { VideoMessageModule } from './modules/video-message/video-message.module
 
     // ─── CRM ──────────────────────────────────────────────────────
     ClientModule,
+    VisitModule,
     ClientRequestModule,
 
     // ─── Dealers ──────────────────────────────────────────────────

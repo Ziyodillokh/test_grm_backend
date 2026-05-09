@@ -90,6 +90,9 @@ export class Order extends BaseEntity {
   @Column({ type: 'boolean', default: false })
   isDebt: boolean;
 
+  @Column({ type: 'boolean', default: false })
+  isTransfer: boolean;
+
   @Column('numeric', {
     precision: 20,
     scale: 2,
@@ -105,6 +108,10 @@ export class Order extends BaseEntity {
     default: 0,
   })
   debtAmount: number;
+
+  @ManyToOne(() => Cashflow, { onDelete: 'SET NULL', nullable: true })
+  @JoinColumn({ name: 'transferCashflowId' })
+  transferCashflow: Cashflow;
 
   @ManyToOne(() => User, (user) => user.sellerOrders)
   @JoinColumn()

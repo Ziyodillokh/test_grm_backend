@@ -475,6 +475,8 @@ export class OrderService {
     isDebt?: boolean,
     clientId?: string,
     debtAmount?: number,
+    isTransfer?: boolean,
+    transferRemainder?: number,
   ): Promise<InsertResult> {
     return await this.entityManager.transaction(async (manager) => {
       if (!user.filial) {
@@ -482,10 +484,18 @@ export class OrderService {
       }
 
       const debt = Number(debtAmount || 0);
-      // Qarz holatida clientId majburiy
-      if (debt > 0 && !clientId) {
-        throw new BadRequestException('Qarzga sotish uchun mijoz tanlanmagan!');
+      const transferOn = !!isTransfer;
+      const transferRem = Math.max(Number(transferRemainder || 0), 0);
+
+      // Sotuvda Mijoz tanlash majburiy (statistika va tarix uchun)
+      if (!clientId) {
+        throw new BadRequestException('Mijoz tanlash majburiy!');
       }
+      // O'tkazma + Qarz birga taqiqlangan
+      if (transferOn && (isDebt || debt > 0)) {
+        throw new BadRequestException("O'tkazma va Qarzga sotish bir vaqtda bo'lmaydi");
+      }
+
       // Cek total = price + plasticSum + debtAmount
       const totalPrice = price + plasticSum + debt;
       const kassa = await this.kassaService.GetOpenKassa(user.filial.id);
@@ -501,9 +511,9 @@ export class OrderService {
 
       this.ensureStockAvailability(orderBaskets, productMap);
       const orders = await Promise.all(
-        orderBaskets.map((basket) => {
+        orderBaskets.map(async (basket) => {
           const basketDebt = Number((basket as any).debtAmount || 0);
-          return this.prepareOrderFromBasket(basket, productMap.get(basket.product), {
+          const orderObj: any = await this.prepareOrderFromBasket(basket, productMap.get(basket.product), {
             sellerId: user.id,
             kassaId: kassa.id,
             reportId: sellerReport.id,
@@ -512,6 +522,11 @@ export class OrderService {
             clientId,
             debtAmount: basketDebt,
           });
+          if (transferOn) {
+            orderObj.isTransfer = true;
+            orderObj.status = OrderEnum.Accept;
+          }
+          return orderObj;
         }),
       );
 
@@ -520,23 +535,95 @@ export class OrderService {
         chunk: Math.ceil(orders.length / 20),
       });
 
-      const cashflow_type = await this.cashFlowTypeService.getOneBySlug('order');
       const cashflowRepository = manager.getRepository(Cashflow);
-      for (const savedOrder of savedOrders) {
-        const cashflow = cashflowRepository.create({
-          tip: CashflowTipEnum.ORDER,
-          order: { id: (savedOrder as any).id },
-          cashflow_type: cashflow_type ? { id: cashflow_type.id } : null,
+
+      if (transferOn) {
+        // O'tkazma flow: orderlar APPROVED, PENDING order cashflow yaratilmaydi.
+        // 2 ta static slug='transfer' cashflow yaratiladi.
+        const ordersSum = savedOrders.reduce(
+          (acc: number, o: any) =>
+            acc + Number(o.price || 0) + Number(o.plastic || 0) + Number(o.debtAmount || 0),
+          0,
+        );
+        const childPrice = ordersSum + transferRem;
+
+        const transferType = await this.cashFlowTypeService.getOneBySlug('transfer');
+
+        // Parent: kassa expense
+        const parent = cashflowRepository.create({
+          tip: CashflowTipEnum.CASHFLOW,
+          type: CashFlowEnum.Consumption,
+          status: CashflowStatusEnum.APPROVED,
+          is_static: true,
+          price: ordersSum,
+          cashflow_type: transferType ? { id: transferType.id } : null,
           kassa: { id: kassa.id },
-          type: CashFlowEnum.InCome,
-          // Cek total = price + plastic + debtAmount
-          price: Number((savedOrder as any).price || 0) +
-                 Number((savedOrder as any).plastic || 0) +
-                 Number((savedOrder as any).debtAmount || 0),
+          filial: { id: user.filial.id } as any,
           createdBy: { id: user.id },
-          status: CashflowStatusEnum.PENDING,
+          comment: comment || "O'tkazma orqali sotuv",
+        } as any);
+        const savedParent = await cashflowRepository.save(parent);
+
+        // Child: report income (kassa yo'q)
+        const child = cashflowRepository.create({
+          tip: CashflowTipEnum.CASHFLOW,
+          type: CashFlowEnum.InCome,
+          status: CashflowStatusEnum.APPROVED,
+          is_static: true,
+          price: childPrice,
+          cashflow_type: transferType ? { id: transferType.id } : null,
+          parent: { id: (savedParent as any).id } as any,
+          filial: { id: user.filial.id } as any,
+          createdBy: { id: user.id },
+          comment: comment || "O'tkazma orqali sotuv (report)",
+        } as any);
+        await cashflowRepository.save(child);
+
+        // Orderlarni parent transfer cashflowga bog'lash
+        await orderRepository.update(
+          (savedOrders as any[]).map((o) => o.id),
+          { transferCashflow: { id: (savedParent as any).id } } as any,
+        );
+
+        // Kassa effekti: expense += ordersSum, sale += ordersSum (inHand'ga ta'sir yo'q)
+        const kassaRepo = manager.getRepository(Kassa);
+        const kassaFresh = await kassaRepo.findOne({ where: { id: kassa.id } });
+        if (kassaFresh) {
+          kassaFresh.expense = Number(kassaFresh.expense || 0) + ordersSum;
+          kassaFresh.sale = Number(kassaFresh.sale || 0) + ordersSum;
+          await kassaRepo.save(kassaFresh);
+        }
+
+        // Report effekti: totalIncome += childPrice, accountantSum += childPrice
+        const kassaWithReport = await manager.findOne(Kassa, {
+          where: { id: kassa.id },
+          relations: { report: true },
         });
-        await cashflowRepository.save(cashflow);
+        if (kassaWithReport?.report) {
+          const oneReport = kassaWithReport.report;
+          oneReport.totalIncome = Number(oneReport.totalIncome || 0) + childPrice;
+          oneReport.accountantSum = Number(oneReport.accountantSum || 0) + childPrice;
+          await manager.save(oneReport);
+        }
+      } else {
+        // Oddiy oqim: har order uchun PENDING slug='order' cashflow
+        const cashflow_type = await this.cashFlowTypeService.getOneBySlug('order');
+        for (const savedOrder of savedOrders) {
+          const cashflow = cashflowRepository.create({
+            tip: CashflowTipEnum.ORDER,
+            order: { id: (savedOrder as any).id },
+            cashflow_type: cashflow_type ? { id: cashflow_type.id } : null,
+            kassa: { id: kassa.id },
+            type: CashFlowEnum.InCome,
+            // Cek total = price + plastic + debtAmount
+            price: Number((savedOrder as any).price || 0) +
+                   Number((savedOrder as any).plastic || 0) +
+                   Number((savedOrder as any).debtAmount || 0),
+            createdBy: { id: user.id },
+            status: CashflowStatusEnum.PENDING,
+          });
+          await cashflowRepository.save(cashflow);
+        }
       }
 
       await this.orderBasketService.bulkDelete(user.id);
@@ -1210,7 +1297,7 @@ export class OrderService {
       bar_code: product.bar_code.id,
       isDebt: !!context.isDebt || debtAmount > 0,
       debtAmount,
-      client: ((!!context.isDebt || debtAmount > 0) && context.clientId) ? { id: context.clientId } : null,
+      client: context.clientId ? { id: context.clientId } : null,
     };
   }
 

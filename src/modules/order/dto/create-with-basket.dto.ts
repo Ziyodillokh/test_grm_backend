@@ -54,6 +54,24 @@ class CreateWithBasketOrderDto {
   @IsOptional()
   @IsNumber()
   readonly debtAmount?: number;
+
+  @ApiProperty({
+    description: `O'tkazma orqali sotuv (bank transfer)`,
+    example: false,
+    required: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  readonly isTransfer?: boolean;
+
+  @ApiProperty({
+    description: `O'tkazma qoldig'i — child cashflow.price = ordersSum + transferRemainder`,
+    example: 200,
+    required: false,
+  })
+  @IsOptional()
+  @IsNumber()
+  readonly transferRemainder?: number;
 }
 
 export default CreateWithBasketOrderDto;

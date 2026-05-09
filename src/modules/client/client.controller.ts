@@ -34,8 +34,9 @@ export class ClientController {
     @Query('page') page = 1,
     @Query('limit') limit = 10,
     @Query('filial') filial: string,
+    @Query('search') search?: string,
   ): Promise<Pagination<Client>> {
-    return this.clientService.findAll({ page: Number(page), limit: Number(limit) }, { filial });
+    return this.clientService.findAll({ page: Number(page), limit: Number(limit) }, { filial, search });
   }
 
   @Get('debt-report/filials')

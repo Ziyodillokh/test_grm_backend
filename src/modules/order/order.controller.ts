@@ -158,6 +158,8 @@ export class OrderController {
       data?.isDebt,
       data?.clientId,
       data?.debtAmount,
+      data?.isTransfer,
+      data?.transferRemainder,
     );
   }
 

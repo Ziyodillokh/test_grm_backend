@@ -39,7 +39,7 @@ export class ClientService {
   ) {}
 
   async create(dto: CreateClientDto): Promise<Client> {
-    const { fullName, phone, comment, filialId, userId } = dto;
+    const { fullName, phone, comment, address, filialId, userId } = dto;
 
     const filial = await this.filialRepo.findOneBy({ id: dto.filialId });
     if (!filial) {
@@ -55,6 +55,7 @@ export class ClientService {
       fullName,
       phone,
       comment,
+      address,
       filial,
       user,
       isDebtor: dto.isDebtor ?? false,
@@ -63,15 +64,23 @@ export class ClientService {
     return this.clientRepo.save(client);
   }
 
-  findAll(options: IPaginationOptions, query: { filial?: string }): Promise<Pagination<Client>> {
-    return paginate(this.clientRepo, options, {
-      where: {
-        ...(query.filial && { filial: { id: query.filial } }),
-      },
-      relations: {
-        filial: true,
-      },
-    });
+  findAll(options: IPaginationOptions, query: { filial?: string; search?: string }): Promise<Pagination<Client>> {
+    const qb = this.clientRepo
+      .createQueryBuilder('c')
+      .leftJoinAndSelect('c.filial', 'filial')
+      .leftJoinAndSelect('c.user', 'seller')
+      .where('c."deletedDate" IS NULL');
+
+    if (query.filial) {
+      qb.andWhere('c."filialId" = :filialId', { filialId: query.filial });
+    }
+    if (query.search && query.search.trim()) {
+      const term = `%${query.search.trim().toLowerCase()}%`;
+      qb.andWhere('(LOWER(c."fullName") LIKE :term OR c.phone LIKE :term OR LOWER(c.address) LIKE :term)', { term });
+    }
+    qb.orderBy('c."dateOne"', 'DESC');
+
+    return paginate(qb, options);
   }
 
   async findOne(id: string): Promise<Client> {
@@ -105,6 +114,7 @@ export class ClientService {
     if (dto.fullName !== undefined) client.fullName = dto.fullName;
     if (dto.phone !== undefined) client.phone = dto.phone;
     if (dto.comment !== undefined) client.comment = dto.comment;
+    if (dto.address !== undefined) client.address = dto.address;
 
     if (dto.filialId) {
       const filial = await this.filialRepo.findOneBy({ id: dto.filialId });
@@ -425,6 +435,7 @@ export class ClientService {
   ) {
     const qb = this.clientRepo
       .createQueryBuilder('c')
+      .leftJoinAndSelect('c.user', 'seller')
       .where('c."filialId" = :filialId', { filialId })
       .andWhere('(c.owed - c.given) > 0')
       .andWhere('c."deletedDate" IS NULL')
@@ -439,11 +450,18 @@ export class ClientService {
       id: c.id,
       fullName: c.fullName,
       phone: c.phone,
+      address: c.address,
       isDebtor: c.isDebtor,
       owed: Number(c.owed || 0),
       given: Number(c.given || 0),
       totalDebt: Number(c.owed || 0) - Number(c.given || 0),
       balance: Number(c.owed || 0) - Number(c.given || 0),
+      seller: c.user ? {
+        id: c.user.id,
+        firstName: c.user.firstName,
+        lastName: c.user.lastName,
+        phone: c.user.phone,
+      } : null,
     }));
 
     const summaryQb = this.clientRepo
