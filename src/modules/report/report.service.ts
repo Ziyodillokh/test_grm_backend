@@ -204,6 +204,9 @@ export class ReportService {
     accountantSum: number;
     managerSaldo: number;
     accountantSaldo: number;
+    totalFrozenOwed: number;
+    totalDebtSum: number;
+    totalDebtSize: number;
   }> {
     const qb = this.reportRepo.createQueryBuilder('report');
 
@@ -229,6 +232,9 @@ export class ReportService {
       .addSelect('SUM(report.accountantSum)', 'accountantSum')
       .addSelect('SUM(report.managerSaldo)', 'managerSaldo')
       .addSelect('SUM(report.accountantSaldo)', 'accountantSaldo')
+      .addSelect('SUM(report.totalFrozenOwed)', 'totalFrozenOwed')
+      .addSelect('SUM(report.totalDebtSum)', 'totalDebtSum')
+      .addSelect('SUM(report.totalDebtSize)', 'totalDebtSize')
       .getRawOne();
 
     return {
@@ -249,6 +255,9 @@ export class ReportService {
       accountantSum: parseFloat(result?.accountantSum || '0'),
       managerSaldo: parseFloat(result?.managerSaldo || '0'),
       accountantSaldo: parseFloat(result?.accountantSaldo || '0'),
+      totalFrozenOwed: parseFloat(result?.totalFrozenOwed || '0'),
+      totalDebtSum: parseFloat(result?.totalDebtSum || '0'),
+      totalDebtSize: parseFloat(result?.totalDebtSize || '0'),
     };
   }
 
