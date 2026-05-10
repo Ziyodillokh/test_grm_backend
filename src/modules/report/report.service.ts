@@ -1508,16 +1508,16 @@ export class ReportService {
         `COALESCE(SUM(ord."netProfit"), 0)::NUMERIC(20, 2) AS total_profit_sum`,
         `
       SUM(CASE
-        WHEN bar_code.isMetric = true THEN 1
+        WHEN bar_code."isMetric" = true THEN 1
         ELSE ord.x
       END)::NUMERIC(20, 2) as total_count
       `,
-        `COALESCE(SUM(CASE WHEN ord.isDebt = true then ord.price ELSE 0 END), 0)::NUMERIC(20, 2) as total_debtSum`,
-        `COALESCE(SUM(CASE WHEN ord.isDebt = true then ord.kv ELSE 0 END), 0)::NUMERIC(20, 2) as total_debtSize`,
-        `COALESCE(SUM(CASE WHEN ord.isDebt = true then ord."netProfit" ELSE 0 END), 0)::NUMERIC(20, 2) as total_debtProfitSum`,
+        `COALESCE(SUM(CASE WHEN ord."isDebt" = true then ord.price ELSE 0 END), 0)::NUMERIC(20, 2) as total_debtSum`,
+        `COALESCE(SUM(CASE WHEN ord."isDebt" = true then ord.kv ELSE 0 END), 0)::NUMERIC(20, 2) as total_debtSize`,
+        `COALESCE(SUM(CASE WHEN ord."isDebt" = true then ord."netProfit" ELSE 0 END), 0)::NUMERIC(20, 2) as total_debtProfitSum`,
         `
       SUM(CASE
-        WHEN ord.isDebt = true THEN CASE WHEN bar_code.isMetric = true THEN 1 ELSE ord.x END
+        WHEN ord."isDebt" = true THEN CASE WHEN bar_code."isMetric" = true THEN 1 ELSE ord.x END
         ELSE 0
       END)::NUMERIC(20, 2) as total_debtCount
       `,
@@ -2408,15 +2408,15 @@ export class ReportService {
         `COALESCE(SUM(ord.discount), 0)::NUMERIC(20, 2) AS total_discount`,
         `
       SUM(
-        CASE WHEN bar_code.isMetric = true THEN 1 ELSE ord.x END
+        CASE WHEN bar_code."isMetric" = true THEN 1 ELSE ord.x END
       )::NUMERIC(20, 2) as total_count
       `,
-        `COALESCE(SUM(CASE WHEN ord.isDebt = true then ord.price ELSE 0 END), 0)::NUMERIC(20, 2) as total_debtSum`,
-        `COALESCE(SUM(CASE WHEN ord.isDebt = true then ord.kv ELSE 0 END), 0)::NUMERIC(20, 2) as total_debtSize`,
-        `COALESCE(SUM(CASE WHEN ord.isDebt = true then ord."netProfit" ELSE 0 END), 0)::NUMERIC(20, 2) as total_debtProfitSum`,
+        `COALESCE(SUM(CASE WHEN ord."isDebt" = true then ord.price ELSE 0 END), 0)::NUMERIC(20, 2) as total_debtSum`,
+        `COALESCE(SUM(CASE WHEN ord."isDebt" = true then ord.kv ELSE 0 END), 0)::NUMERIC(20, 2) as total_debtSize`,
+        `COALESCE(SUM(CASE WHEN ord."isDebt" = true then ord."netProfit" ELSE 0 END), 0)::NUMERIC(20, 2) as total_debtProfitSum`,
         `
       SUM(
-        CASE WHEN ord.isDebt = true THEN (CASE WHEN bar_code.isMetric = true THEN 1 ELSE ord.x END)
+        CASE WHEN ord."isDebt" = true THEN (CASE WHEN bar_code."isMetric" = true THEN 1 ELSE ord.x END)
         ELSE 0 END
       )::NUMERIC(20, 2) as total_debtCount
       `,
@@ -3251,6 +3251,7 @@ export class ReportService {
 
   /**
    * column BETWEEN :startDate AND :endDate
+   * BaseEntity property → DB column auto-mapping (createdAt→dateOne, updatedAt→dateTwo).
    */
   private applyDateRangeFilter(
     qb: any,
@@ -3258,7 +3259,15 @@ export class ReportService {
     startDate: Date,
     endDate: Date,
   ) {
-    qb.andWhere(`${column} BETWEEN :startDate AND :endDate`, {
+    const propertyToColumn: Record<string, string> = {
+      createdAt: 'dateOne',
+      updatedAt: 'dateTwo',
+    };
+    const resolved = column.replace(
+      /(\w+)\.(createdAt|updatedAt)/g,
+      (_m, alias, prop) => `${alias}."${propertyToColumn[prop]}"`,
+    );
+    qb.andWhere(`${resolved} BETWEEN :startDate AND :endDate`, {
       startDate,
       endDate,
     });
