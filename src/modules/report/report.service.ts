@@ -2553,7 +2553,7 @@ export class ReportService {
     const report_summary_qb = this.reportRepo.createQueryBuilder('rs')
       .select([
         'COALESCE(SUM(rs."managerSum"), 0)::NUMERIC(20, 2) AS manager_sum',
-        'COALESCE(SUM(rs."accountantSum"), 0)::NUMERIC(20, 2) AS accountant_sum',
+        'COALESCE(SUM(rs."accauntantSum"), 0)::NUMERIC(20, 2) AS accountant_sum',
         'COALESCE(SUM(rs."managerSaldo"), 0)::NUMERIC(20, 2) AS manager_saldo',
         'COALESCE(SUM(rs."accountantSaldo"), 0)::NUMERIC(20, 2) AS accountant_saldo',
       ])
