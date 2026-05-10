@@ -893,6 +893,22 @@ export class CashflowService {
 
       const today = dayjs().format('YYYY-MM-DD');
 
+      // Qarz cashflowi (kassa-bound) — client.owed/given yangilash. Report-bound qarz allaqachon report blokida.
+      if (kassa && (value as any).clientId && cashflow.cashflow_type?.slug === 'debt') {
+        const client = await queryRunner.manager.findOne(Client, { where: { id: (value as any).clientId } });
+        if (!client) throw new BadRequestException('Mijoz topilmadi');
+        if (value.type === 'expense') {
+          if (!client.isDebtor) {
+            throw new BadRequestException('Mijoz uchun Qarz expense cashflow taqiqlanadi (faqat Qarzdor)');
+          }
+          client.owed = Number(client.owed) + price;
+        } else if (value.type === 'income') {
+          client.given = Number(client.given) + price;
+        }
+        client.totalDebt = Number(client.owed) - Number(client.given);
+        await queryRunner.manager.save(client);
+      }
+
       if (value.type === 'income' && kassa?.id && !isLogisticsFlow && !isCustomsFlow && !isShareProfitIncome) {
         if (!isOrder && cashflow.cashflow_type.slug !== 'transfer') {
           kassa.income += price;
