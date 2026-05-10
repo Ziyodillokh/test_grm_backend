@@ -2388,12 +2388,12 @@ export class ReportService {
     const dealer_report_qb = this.reportRepo.createQueryBuilder('dr')
       .select([
         'COALESCE(SUM(dr."totalSale"), 0)::NUMERIC(20, 2) AS total_sale',
-        'COALESCE(SUM(dr."totalSize"), 0)::NUMERIC(20, 2) AS total_size',
-        'COALESCE(SUM(dr."totalDiscount"), 0)::NUMERIC(20, 2) AS total_discount',
-        'COALESCE(SUM(dr."netProfitSum"), 0)::NUMERIC(20, 2) AS net_profit',
-        'COALESCE(SUM(dr.debtSum), 0)::NUMERIC(20, 2) AS debtSum',
-        'COALESCE(SUM(dr.debtSize), 0)::NUMERIC(20, 2) AS debtSize',
-        'COALESCE(SUM(dr.debtProfitSum), 0)::NUMERIC(20, 2) AS debtProfitSum',
+        'COALESCE(SUM(dr."totalSaleSize"), 0)::NUMERIC(20, 2) AS total_size',
+        'COALESCE(SUM(dr."totalDiscountSum"), 0)::NUMERIC(20, 2) AS total_discount',
+        'COALESCE(SUM(dr."totalNetProfitSum"), 0)::NUMERIC(20, 2) AS net_profit',
+        'COALESCE(SUM(dr."totalDebtSum"), 0)::NUMERIC(20, 2) AS debtSum',
+        'COALESCE(SUM(dr."totalDebtSize"), 0)::NUMERIC(20, 2) AS debtSize',
+        'COALESCE(SUM(dr."totalDebtProfitSum"), 0)::NUMERIC(20, 2) AS debtProfitSum',
       ])
       .where('dr."filialType" = :dealerType', { dealerType: 'dealer' });
 
