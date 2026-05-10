@@ -2676,12 +2676,13 @@ WHERE k.id = $1;
     }
 
     // === Prepare cashflow entries ===
+    // Parent (dealer kassa) is_static=false — D-Manager qo'l bilan kiritgan, tahrirlash mumkin.
+    // Child (filial report) is_static=true — faqat parent orqali update bo'ladi.
     const baseCashflow = {
       price: parsedPrice,
       type: CashFlowEnum.InCome,
       tip: CashflowTipEnum.CASHFLOW,
       date: now,
-      is_static: true,
       filial: filial.id,
       status: CashflowStatusEnum.APPROVED,
     };
@@ -2693,6 +2694,7 @@ WHERE k.id = $1;
       kassa: kassaEntity,
       createdBy: dManager,
       is_online,
+      is_static: false,
       filial: filial.id,
     } as unknown as Cashflow);
 
@@ -2706,6 +2708,7 @@ WHERE k.id = $1;
       report: filialReport,
       createdBy,
       is_online,
+      is_static: true,
       parent: kassaCashflowSaved,
     } as unknown as Cashflow);
     await this.cashflowRepository.save(filialCashflow);
@@ -3651,7 +3654,37 @@ WHERE k.id = $1;
                 if (oldSlug === 'manager') {
                   childReport.managerSum += priceDiff;
                 }
+                // Dealer / transfer parent → child report effekti (online → accountantSum, naqd → managerSum)
+                if (oldSlug === 'dealer' || oldSlug === 'transfer') {
+                  if (cashflow.is_online) {
+                    childReport.totalPlasticSum = Number(childReport.totalPlasticSum || 0) + priceDiff;
+                    childReport.accountantSum = Number(childReport.accountantSum || 0) + priceDiff;
+                  } else {
+                    childReport.managerSum = Number(childReport.managerSum || 0) + priceDiff;
+                  }
+                }
                 await queryRunner.manager.save(childReport);
+              }
+
+              // Dealer report (parent kassasi yil/oy bo'yicha) — alohida update
+              if ((oldSlug === 'dealer' || oldSlug === 'transfer') && kassa) {
+                const ky = (kassa as any).year;
+                const km = (kassa as any).month;
+                if (ky && km) {
+                  const dealerReport = await queryRunner.manager.findOne(Report, {
+                    where: { year: ky, month: km, filialType: FilialTypeEnum.DEALER },
+                  });
+                  if (dealerReport) {
+                    dealerReport.totalIncome = Number(dealerReport.totalIncome || 0) + priceDiff;
+                    if (cashflow.is_online) {
+                      dealerReport.totalPlasticSum = Number(dealerReport.totalPlasticSum || 0) + priceDiff;
+                      dealerReport.accountantSum = Number(dealerReport.accountantSum || 0) + priceDiff;
+                    } else {
+                      dealerReport.managerSum = Number(dealerReport.managerSum || 0) + priceDiff;
+                    }
+                    await queryRunner.manager.save(dealerReport);
+                  }
+                }
               }
             }
 
