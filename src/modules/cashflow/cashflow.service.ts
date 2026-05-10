@@ -2078,6 +2078,49 @@ export class CashflowService {
         }
       }
 
+      // Dealer / Transfer parent (D-Manager Income) — child filialReport + dealerReport reverse
+      const isDealerTransferIncome =
+        cashflow.type === 'income' &&
+        (cashflow.cashflow_type?.slug === 'dealer' || cashflow.cashflow_type?.slug === 'transfer') &&
+        cashflow.child?.length;
+      if (isDealerTransferIncome) {
+        // Filial report (child.report) reverse — totalIncome + (online → accountantSum, naqd → managerSum)
+        const childReportRef = cashflow.child[0]?.report;
+        if (childReportRef) {
+          const filialReport = await queryRunner.manager.findOne(Report, { where: { id: childReportRef.id } });
+          if (filialReport) {
+            filialReport.totalIncome = Number(filialReport.totalIncome || 0) - price;
+            if (cashflow.is_online) {
+              filialReport.accountantSum = Number(filialReport.accountantSum || 0) - price;
+            } else {
+              filialReport.managerSum = Number(filialReport.managerSum || 0) - price;
+            }
+            await queryRunner.manager.save(filialReport);
+          }
+        }
+
+        // Dealer report (parent kassa year/month) reverse
+        if (kassa) {
+          const ky = (kassa as any).year;
+          const km = (kassa as any).month;
+          if (ky && km) {
+            const dealerReport = await queryRunner.manager.findOne(Report, {
+              where: { year: ky, month: km, filialType: FilialTypeEnum.DEALER },
+            });
+            if (dealerReport) {
+              dealerReport.totalIncome = Number(dealerReport.totalIncome || 0) - price;
+              if (cashflow.is_online) {
+                dealerReport.totalPlasticSum = Number(dealerReport.totalPlasticSum || 0) - price;
+                dealerReport.accountantSum = Number(dealerReport.accountantSum || 0) - price;
+              } else {
+                dealerReport.managerSum = Number(dealerReport.managerSum || 0) - price;
+              }
+              await queryRunner.manager.save(dealerReport);
+            }
+          }
+        }
+      }
+
       // Factory to'lov reverse
       if (cashflow.factory?.id && cashflow.type === 'expense') {
         const factory = await queryRunner.manager.findOne(Factory, { where: { id: cashflow.factory.id } });
