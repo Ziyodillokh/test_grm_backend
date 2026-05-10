@@ -2440,12 +2440,12 @@ export class ReportService {
       ])
       .where('dr."filialType" = :dealerType', { dealerType: 'dealer' });
 
-    // Orderlar bo'yicha oborot
+    // Orderlar bo'yicha oborot — Savdo aylanmasi: price + plastic + debtAmount
     const order_qb = this.orderRepo.createQueryBuilder('ord')
       .leftJoin('ord.bar_code', 'bar_code')
       .leftJoin('ord.kassa', 'kassa')
       .select([
-        `COALESCE(SUM(ord.price + ord.plastic), 0)::NUMERIC(20, 2) AS total_sum`,
+        `COALESCE(SUM(ord.price + ord.plastic + COALESCE(ord."debtAmount", 0)), 0)::NUMERIC(20, 2) AS total_sum`,
         `COALESCE(SUM(ord.kv), 0)::NUMERIC(20, 2) AS total_kv`,
         `COALESCE(SUM(ord."netProfit"), 0)::NUMERIC(20, 2) AS total_profit_sum`,
         `COALESCE(SUM(ord.discount), 0)::NUMERIC(20, 2) AS total_discount`,
@@ -2453,15 +2453,6 @@ export class ReportService {
       SUM(
         CASE WHEN bar_code."isMetric" = true THEN 1 ELSE ord.x END
       )::NUMERIC(20, 2) as total_count
-      `,
-        `COALESCE(SUM(CASE WHEN ord."isDebt" = true then ord.price ELSE 0 END), 0)::NUMERIC(20, 2) as total_debtSum`,
-        `COALESCE(SUM(CASE WHEN ord."isDebt" = true then ord.kv ELSE 0 END), 0)::NUMERIC(20, 2) as total_debtSize`,
-        `COALESCE(SUM(CASE WHEN ord."isDebt" = true then ord."netProfit" ELSE 0 END), 0)::NUMERIC(20, 2) as total_debtProfitSum`,
-        `
-      SUM(
-        CASE WHEN ord."isDebt" = true THEN (CASE WHEN bar_code."isMetric" = true THEN 1 ELSE ord.x END)
-        ELSE 0 END
-      )::NUMERIC(20, 2) as total_debtCount
       `,
       ])
       .where('ord.status IN(:...status)', { status: [OrderEnum.Accept, OrderEnum.Return] });
@@ -2482,7 +2473,7 @@ export class ReportService {
       .leftJoin('cash.kassa', 'k')
       .where(`ct.slug IN ('manager', 'accountant') AND cash.type = 'expense'`);
 
-    // Kassa (plastik, inkassa, opening, inHand, qaytishlar, qo'shimcha foyda)
+    // Kassa (plastik, inkassa, opening, inHand, qaytishlar, qo'shimcha foyda, debt savdo)
     const plastic_cash_and_opening_qb = this.kassaRepo.createQueryBuilder('k')
       .select(`
       SUM("plasticSum") as price,
@@ -2493,7 +2484,9 @@ export class ReportService {
       SUM("saleReturn") as saleReturn,
       SUM("sizeReturn") as sizeReturn,
       SUM("netProfitSum") as net_profit_kassa,
-      SUM("discountSum") as discount_kassa
+      SUM("discountSum") as discount_kassa,
+      SUM("debtSum") as debt_sum_kassa,
+      SUM("debtSize") as debt_size_kassa
     `)
       .where(`k."filialType" = 'filial'`);
 
@@ -2530,13 +2523,13 @@ export class ReportService {
       .leftJoin('cash.cashflow_type', 'ct')
       .where(`ct.slug IN ('street')`);
 
-    // Business xarajatlar (logistika alohida)
+    // Business xarajatlar (logistika va navar alohida)
     const business_qb = this.cashflowRepository.createQueryBuilder('cash')
       .select(`SUM(price) as cash`)
       .leftJoin('cash.cashflow_type', 'ct')
       .leftJoin('cash.kassa', 'k')
       .where(
-        `ct.slug IN ('bank', 'credit', 'business', 'other', 'tax', 'rent', 'shop')
+        `ct.slug IN ('bank', 'credit', 'business', 'customs', 'debt', 'tax', 'rent', 'shop')
        AND cash.type = 'expense'`,
       );
 
@@ -2558,12 +2551,6 @@ export class ReportService {
       .leftJoin('cash.cashflow_type', 'ct')
       .where(`ct.slug = 'factory' AND cash.type = 'expense'`);
 
-    // Tamojnya
-    const customs_qb = this.cashflowRepository.createQueryBuilder('cash')
-      .select(`SUM(price) as cash`)
-      .leftJoin('cash.cashflow_type', 'ct')
-      .where(`ct.slug = 'customs' AND cash.type = 'expense'`);
-
     // Qo'shimcha foyda xarajatga ketgan qismi (navar, Расход)
     const add_profit_exp_qb = this.cashflowRepository.createQueryBuilder('cash')
       .select(`SUM(price) as cash`)
@@ -2571,25 +2558,71 @@ export class ReportService {
       .leftJoin('cash.kassa', 'k')
       .where(`ct.slug = 'markup' AND cash.type = 'expense'`);
 
+    // Terminal va o'tkazma — static slug='online' va 'transfer' cashflowlar (reportga bog'liq)
+    const online_terminal_qb = this.cashflowRepository.createQueryBuilder('cash')
+      .select(`SUM(cash.price) as cash`)
+      .leftJoin('cash.cashflow_type', 'ct')
+      .leftJoin('cash.report', 'r')
+      .where(`ct.slug IN ('online', 'transfer') AND cash.is_static = true AND cash.is_cancelled = false`);
+
+    // Sherikdan ulush (yangi qator) — faqat capital (tan) ulush incomelari kassaga ta'sir qiladi
+    const share_income_qb = this.cashflowRepository.createQueryBuilder('cash')
+      .select(`SUM(cash.price) as cash`)
+      .leftJoin('cash.cashflow_type', 'ct')
+      .leftJoin('cash.report', 'r')
+      .where(`ct.slug = 'share' AND cash.type = 'income' AND cash."shareKind" = 'capital' AND cash.is_cancelled = false`);
+
+    // Sherikka ulush (eski Bojxona o'rnida)
+    const share_expense_qb = this.cashflowRepository.createQueryBuilder('cash')
+      .select(`SUM(cash.price) as cash`)
+      .leftJoin('cash.cashflow_type', 'ct')
+      .leftJoin('cash.report', 'r')
+      .where(`ct.slug = 'share' AND cash.type = 'expense' AND cash.is_cancelled = false`);
+
+    // Boshqa chiqimlar (yangi qator)
+    const other_expense_qb = this.cashflowRepository.createQueryBuilder('cash')
+      .select(`SUM(cash.price) as cash`)
+      .leftJoin('cash.cashflow_type', 'ct')
+      .leftJoin('cash.report', 'r')
+      .where(`ct.slug = 'other' AND cash.type = 'expense' AND cash.is_cancelled = false`);
+
     // dealer report month/year filter
     this.applyKassaMonthYearFilter(dealer_report_qb, 'dr', month, normalizedYear);
 
-    this.applyDateRangeFilter(dealer_cash_qb, 'cash.date', startDate, endDate);
+    // Diller cashflow — kassa orqali (dealer kassasi year/month)
+    dealer_cash_qb.leftJoin('cash.kassa', 'dk')
+      .andWhere(`dk."filialType" = 'dealer'`);
+    this.applyKassaMonthYearFilter(dealer_cash_qb, 'dk', month, normalizedYear);
 
-    this.applyDateRangeFilter(kassa_cash_qb, 'k.createdAt', startDate, endDate);
+    // Cashflowlar — report.year/month yoki kassa.year/month bo'yicha (sana emas)
+    // Helper: cashflow report + kassa join va month/year filter
+    const applyCashflowMonthFilter = (qb: any, opts?: { hasReportJoin?: boolean; hasKassaJoin?: boolean; reportAlias?: string; kassaAlias?: string }) => {
+      const reportAlias = opts?.reportAlias || 'r';
+      const kassaAlias = opts?.kassaAlias || 'k';
+      if (!opts?.hasReportJoin) qb.leftJoin('cash.report', reportAlias);
+      if (!opts?.hasKassaJoin) qb.leftJoin('cash.kassa', kassaAlias);
+      qb.andWhere(`COALESCE(${reportAlias}.year, ${kassaAlias}.year) = :yearF`, { yearF: normalizedYear });
+      if (month) {
+        qb.andWhere(`COALESCE(${reportAlias}.month, ${kassaAlias}.month) = :monthF`, { monthF: Number(month) });
+      }
+    };
 
-    this.applyDateRangeFilter(kent_qb, 'cash.date', startDate, endDate);
-    this.applyDateRangeFilter(factory_qb, 'cash.date', startDate, endDate);
-    this.applyDateRangeFilter(customs_qb, 'cash.date', startDate, endDate);
-    this.applyDateRangeFilter(logistics_qb, 'cash.date', startDate, endDate);
-    this.applyDateRangeFilter(extra_income_qb, 'cash.date', startDate, endDate);
-
-    this.applyDateRangeFilter(add_profit_exp_qb, 'k.createdAt', startDate, endDate);
+    applyCashflowMonthFilter(kassa_cash_qb, { hasKassaJoin: true });
+    applyCashflowMonthFilter(kent_qb);
+    applyCashflowMonthFilter(factory_qb);
+    applyCashflowMonthFilter(logistics_qb);
+    applyCashflowMonthFilter(extra_income_qb);
+    applyCashflowMonthFilter(add_profit_exp_qb, { hasKassaJoin: true });
+    applyCashflowMonthFilter(online_terminal_qb, { hasReportJoin: true });
+    applyCashflowMonthFilter(share_income_qb, { hasReportJoin: true });
+    applyCashflowMonthFilter(share_expense_qb, { hasReportJoin: true });
+    applyCashflowMonthFilter(other_expense_qb, { hasReportJoin: true });
+    applyCashflowMonthFilter(business_qb, { hasKassaJoin: true });
+    applyCashflowMonthFilter(coming_debt_qb, { hasKassaJoin: true });
+    applyCashflowMonthFilter(openingBalance_qb, { hasKassaJoin: true });
+    applyCashflowMonthFilter(boss_qb, { hasKassaJoin: true });
 
     this.applyKassaMonthYearFilter(order_qb, 'kassa', month, normalizedYear);
-    this.applyKassaMonthYearFilter(business_qb, 'k', month, normalizedYear);
-    this.applyKassaMonthYearFilter(coming_debt_qb, 'k', month, normalizedYear);
-    this.applyKassaMonthYearFilter(openingBalance_qb, 'k', month, normalizedYear);
     this.applyKassaMonthYearFilter(plastic_cash_and_opening_qb, 'k', month, normalizedYear);
 
     // Report summary — manager/bugalter balans va saldo (o'tgan oydan)
@@ -2608,7 +2641,7 @@ export class ReportService {
       debt_trading: PriceKv;
       discount: PriceKv;
       profit: PriceKv;
-      profit_remaining: PriceKv;    // foyda qoldig'i = foyda - biznes rasxod
+      profit_remaining: PriceKv;
       cash: PriceKv;
       terminal: PriceKv;
       cashCollection: PriceKv;
@@ -2617,18 +2650,20 @@ export class ReportService {
       owed_debt: PriceKv;
       openingBalance: PriceKv;
       filial_balance: PriceKv;
-      manager_balance: PriceKv;     // manager balansi
-      accountant_balance: PriceKv;  // bugalter balansi
+      manager_balance: PriceKv;
+      accountant_balance: PriceKv;
       boss_income: PriceKv;
       kent_income: PriceKv;
       kent_expense: PriceKv;
       boss_expense: PriceKv;
       business_expense: PriceKv;
-      logistics: PriceKv;           // logistika (alohida)
-      extra_income: PriceKv;        // qo'shimcha prixodlar
+      logistics: PriceKv;
+      extra_income: PriceKv;
       factory: PriceKv;
       return_orders: PriceKv;
-      tamojniy: PriceKv;
+      share_income: PriceKv;     // Yangi: Sherikdan ulush (capital)
+      share_expense: PriceKv;    // Yangi: Sherikka ulush
+      other_expense: PriceKv;    // Yangi: Boshqa chiqimlar
       navar_expense: PriceKv;
       navar_income: PriceKv;
     };
@@ -2642,7 +2677,6 @@ export class ReportService {
 
       resultData = {
         turnover: {
-          // FIX: dealer turnover = debtSum (package qarz savdosi)
           price: Number(dealer_report?.debtSum ?? 0),
           kv: Number(dealer_report?.debtSize ?? 0),
         },
@@ -2655,11 +2689,10 @@ export class ReportService {
           kv: 0,
         },
         profit: {
-          // FIX: dealer profit = debtProfitSum (package qarz savdosi foydasi)
           price: Number(dealer_report?.debtProfitSum ?? 0),
           kv: 0,
         },
-        profit_remaining: { price: 0, kv: 0 },              // dillerda yo'q
+        profit_remaining: { price: 0, kv: 0 },
         cash: { price: 0, kv: 0 },
         terminal: { price: 0, kv: 0 },
         cashCollection: { price: 0, kv: 0 },
@@ -2685,18 +2718,17 @@ export class ReportService {
         extra_income: { price: 0, kv: 0 },
         factory: { price: 0, kv: 0 },
         return_orders: { price: 0, kv: 0 },
-        tamojniy: { price: 0, kv: 0 },
+        share_income: { price: 0, kv: 0 },
+        share_expense: { price: 0, kv: 0 },
+        other_expense: { price: 0, kv: 0 },
         navar_expense: { price: 0, kv: 0 },
         navar_income: { price: 0, kv: 0 },
       };
     }
 
     else if (filialId) {
-      // Filial rejimi
-      this.applyDateRangeFilter(boss_qb, 'k.createdAt', startDate, endDate);
+      // Filial rejimi — filterlarga filialId qo'shamiz
       boss_qb.andWhere('cash.filialId = :filialId', { filialId });
-
-      // Filial kesimlari — faqat shu filialga tegishli
       business_qb.andWhere('k.filialId = :filialId', { filialId });
       order_qb.andWhere('kassa.filialId = :filialId', { filialId });
       kassa_cash_qb.andWhere('cash.filialId = :filialId', { filialId });
@@ -2704,6 +2736,11 @@ export class ReportService {
       openingBalance_qb.andWhere('k.filialId = :filialId', { filialId });
       add_profit_exp_qb.andWhere('cash.filialId = :filialId', { filialId });
       plastic_cash_and_opening_qb.andWhere('k.filialId = :filialId', { filialId });
+      online_terminal_qb.andWhere('r.filialId = :filialId', { filialId });
+      share_income_qb.andWhere('r.filialId = :filialId', { filialId });
+      share_expense_qb.andWhere('r.filialId = :filialId', { filialId });
+      other_expense_qb.andWhere('r.filialId = :filialId', { filialId });
+      kent_qb.andWhere('cash.filialId = :filialId', { filialId });
       report_summary_qb.andWhere('rs."filialId" = :rsFilialId', { rsFilialId: filialId });
 
       const [
@@ -2716,6 +2753,11 @@ export class ReportService {
         add_profit_exp,
         openingBalance,
         report_summary,
+        online_terminal,
+        share_income,
+        share_expense,
+        other_expense,
+        kent,
       ] = await Promise.all([
         order_qb.getRawOne(),
         kassa_cash_qb.getRawOne(),
@@ -2726,105 +2768,125 @@ export class ReportService {
         add_profit_exp_qb.getRawOne(),
         openingBalance_qb.getRawOne(),
         report_summary_qb.getRawOne(),
+        online_terminal_qb.getRawOne(),
+        share_income_qb.getRawOne(),
+        share_expense_qb.getRawOne(),
+        other_expense_qb.getRawOne(),
+        kent_qb.getRawOne(),
       ]);
 
-      // FIX: O'tgan pul = faqat cashflow.slug='balance' AND type='income' yig'indisi
-      const openingTotal = Number(openingBalance?.cash ?? 0);
+      const businessTotal = Number(business?.cash ?? 0);
+      const profitTotal = Number(plastic_cash_and_opening?.net_profit_kassa ?? 0);
 
       resultData = {
         turnover: {
           price: Number(order_totals?.total_sum ?? 0),
           kv: Number(order_totals?.total_kv ?? 0),
-        }, // savdo aylanmasi
+        },
         debt_trading: {
-          price: Number(order_totals?.total_debtSum ?? 0),
-          kv: Number(order_totals?.total_debtSize ?? 0),
-        }, // qarz savdosi
+          price: Number(plastic_cash_and_opening?.debt_sum_kassa ?? 0),
+          kv: Number(plastic_cash_and_opening?.debt_size_kassa ?? 0),
+        },
         discount: {
-          // FIX: Kassa.discount (filial uchun)
           price: Number(plastic_cash_and_opening?.discount_kassa ?? 0),
           kv: 0,
-        }, // chegirma
+        },
         profit: {
-          // FIX: Kassa.netProfitSum (filial uchun)
-          price: Number(plastic_cash_and_opening?.net_profit_kassa ?? 0),
+          price: profitTotal,
           kv: 0,
-        }, // foyda hisobi
-        profit_remaining: { price: 0, kv: 0 }, // filialda ko'rinmaydi
+        },
+        profit_remaining: {
+          price: profitTotal - businessTotal,
+          kv: 0,
+        },
         cash: {
           price: Number(kassa_cash?.cash ?? 0),
           kv: 0,
-        }, // naqd kassa
+        },
         terminal: {
-          price: Number(plastic_cash_and_opening?.price ?? 0),
+          price: Number(online_terminal?.cash ?? 0),
           kv: 0,
-        }, // terminal
+        },
         cashCollection: {
           price: Number(plastic_cash_and_opening?.cashCollection ?? 0),
           kv: 0,
-        }, // inkassatsiya
-        dealer_cash: { price: 0, kv: 0 },     // filialda yo'q
-        dealer_terminal: { price: 0, kv: 0 }, // filialda yo'q
+        },
+        dealer_cash: { price: 0, kv: 0 },
+        dealer_terminal: { price: 0, kv: 0 },
         owed_debt: {
           price: Number(coming_debt?.cash ?? 0),
           kv: 0,
-        }, // kelgan qarzlar
+        },
         openingBalance: {
-          price: openingTotal,
+          price: Number(openingBalance?.cash ?? 0),
           kv: 0,
-        }, // o'tgan pul = kassa opening + saldo
+        },
         filial_balance: {
           price: Number(plastic_cash_and_opening?.inHand ?? 0),
           kv: 0,
-        }, // filial balansi
+        },
         manager_balance: {
           price: Number(report_summary?.manager_sum ?? 0),
           kv: 0,
-        }, // manager balansi
+        },
         accountant_balance: {
           price: Number(report_summary?.accountant_sum ?? 0),
           kv: 0,
-        }, // bugalter balansi
+        },
         boss_income: {
           price: Number(boss?.income ?? 0),
           kv: 0,
-        }, // boss prixod
-        kent_income: { price: 0, kv: 0 },     // filialda yo'q
-        kent_expense: { price: 0, kv: 0 },    // filialda yo'q
+        },
+        kent_income: {
+          price: Number(kent?.income ?? 0),
+          kv: 0,
+        },
+        kent_expense: {
+          price: Number(kent?.expense ?? 0),
+          kv: 0,
+        },
         boss_expense: {
           price: Number(boss?.expense ?? 0),
           kv: 0,
-        }, // boss rasxod
+        },
         business_expense: {
-          price: Number(business?.cash ?? 0),
+          price: businessTotal,
           kv: 0,
-        }, // biznes rasxod
-        logistics: { price: 0, kv: 0 },       // filialda yo'q
-        extra_income: { price: 0, kv: 0 },    // filialda yo'q
-        factory: { price: 0, kv: 0 },         // filialda yo'q
+        },
+        logistics: { price: 0, kv: 0 },
+        extra_income: { price: 0, kv: 0 },
+        factory: { price: 0, kv: 0 },
         return_orders: {
-          price: Number(plastic_cash_and_opening?.totalSaleReturn ?? 0),
+          price: Number(plastic_cash_and_opening?.saleReturn ?? 0),
           kv: Number(plastic_cash_and_opening?.sizeReturn ?? 0),
-        }, // qaytgan tavarlar
-        tamojniy: { price: 0, kv: 0 },        // filialda yo'q
+        },
+        share_income: {
+          price: Number(share_income?.cash ?? 0),
+          kv: 0,
+        },
+        share_expense: {
+          price: Number(share_expense?.cash ?? 0),
+          kv: 0,
+        },
+        other_expense: {
+          price: Number(other_expense?.cash ?? 0),
+          kv: 0,
+        },
         navar_expense: {
           price: Number(add_profit_exp?.cash ?? 0),
           kv: 0,
-        }, // navar rasxod
+        },
         navar_income: {
           price: Number(plastic_cash_and_opening?.add_profit ?? 0),
           kv: 0,
-        }, // navar kirim
+        },
       };
     }
 
     else {
       // Umumiy rejim — barcha filiallar + dillerlar yig'indisi
-      this.applyDateRangeFilter(boss_qb, 'cash.date', startDate, endDate);
-      this.applyDateRangeFilter(business_qb, 'cash.date', startDate, endDate);
-
       const [
-        dealer_report,   // DealerReport dan (PackageTransfer o'rniga)
+        dealer_report,
         dealer_cashs,
         order_totals,
         kassa_cash,
@@ -2834,12 +2896,15 @@ export class ReportService {
         kent,
         business,
         factory,
-        customs,
-        logistics,       // logistika (alohida)
-        extra_income,    // qo'shimcha prixodlar
-        add_profit_exp,  // navar rasxod (edi umumiyda 0 edi — BUG FIX)
-        report_summary,  // manager/bugalter balans + saldo
-        openingBalance, // saldo cashflowlari (slug='balance' AND type='income')
+        logistics,
+        extra_income,
+        add_profit_exp,
+        report_summary,
+        openingBalance,
+        online_terminal,
+        share_income,
+        share_expense,
+        other_expense,
       ] = await Promise.all([
         dealer_report_qb.getRawOne(),
         dealer_cash_qb.getRawOne(),
@@ -2851,26 +2916,25 @@ export class ReportService {
         kent_qb.getRawOne(),
         business_qb.getRawOne(),
         factory_qb.getRawOne(),
-        customs_qb.getRawOne(),
         logistics_qb.getRawOne(),
         extra_income_qb.getRawOne(),
         add_profit_exp_qb.getRawOne(),
         report_summary_qb.getRawOne(),
         openingBalance_qb.getRawOne(),
+        online_terminal_qb.getRawOne(),
+        share_income_qb.getRawOne(),
+        share_expense_qb.getRawOne(),
+        other_expense_qb.getRawOne(),
       ]);
 
-      // Biznes rasxod yig'indisi (foyda qoldig'i uchun)
       const businessTotal = Number(business?.cash ?? 0);
-      // Foyda hisobi: FIX — dealer.debtProfitSum + SUM(Kassa.netProfitSum)
       const profitTotal =
         Number(dealer_report?.debtProfitSum ?? 0) +
         Number(plastic_cash_and_opening?.net_profit_kassa ?? 0);
-      // O'tgan pul: FIX — faqat cashflow.slug='balance' AND type='income' yig'indisi
-      const openingTotal = Number(openingBalance?.cash ?? 0);
 
       resultData = {
         turnover: {
-          // FIX: dealer.debtSum (package qarz savdosi) + barcha kassa orderlari
+          // dealer.debtSum + barcha kassa orderlari (price+plastic+debtAmount)
           price:
             Number(dealer_report?.debtSum ?? 0) +
             Number(order_totals?.total_sum ?? 0),
@@ -2879,15 +2943,15 @@ export class ReportService {
             Number(order_totals?.total_kv ?? 0),
         },
         debt_trading: {
+          // dealer.debtSum + kassa.debtSum (order.isDebt o'rniga kassa)
           price:
             Number(dealer_report?.debtSum ?? 0) +
-            Number(order_totals?.total_debtSum ?? 0),
+            Number(plastic_cash_and_opening?.debt_sum_kassa ?? 0),
           kv:
             Number(dealer_report?.debtSize ?? 0) +
-            Number(order_totals?.total_debtSize ?? 0),
+            Number(plastic_cash_and_opening?.debt_size_kassa ?? 0),
         },
         discount: {
-          // FIX: Kassa.discount + dealer.totalDiscountSum (order.discountSum o'rniga)
           price:
             Number(dealer_report?.total_discount ?? 0) +
             Number(plastic_cash_and_opening?.discount_kassa ?? 0),
@@ -2898,7 +2962,7 @@ export class ReportService {
           kv: 0,
         },
         profit_remaining: {
-          price: profitTotal - businessTotal,            // foyda - biznes rasxod
+          price: profitTotal - businessTotal,
           kv: 0,
         },
         cash: {
@@ -2906,7 +2970,8 @@ export class ReportService {
           kv: 0,
         },
         terminal: {
-          price: Number(plastic_cash_and_opening?.price ?? 0),
+          // Yangi: static online + transfer cashflowlardan
+          price: Number(online_terminal?.cash ?? 0),
           kv: 0,
         },
         cashCollection: {
@@ -2926,7 +2991,7 @@ export class ReportService {
           kv: 0,
         },
         openingBalance: {
-          price: openingTotal,
+          price: Number(openingBalance?.cash ?? 0),
           kv: 0,
         },
         filial_balance: {
@@ -2962,11 +3027,11 @@ export class ReportService {
           kv: 0,
         },
         logistics: {
-          price: Number(logistics?.cash ?? 0),           // logistika alohida
+          price: Number(logistics?.cash ?? 0),
           kv: 0,
         },
         extra_income: {
-          price: Number(extra_income?.cash ?? 0),        // qo'shimcha prixodlar
+          price: Number(extra_income?.cash ?? 0),
           kv: 0,
         },
         factory: {
@@ -2974,19 +3039,27 @@ export class ReportService {
           kv: 0,
         },
         return_orders: {
-          price: Number(plastic_cash_and_opening?.totalSaleReturn ?? 0),
+          price: Number(plastic_cash_and_opening?.saleReturn ?? 0),
           kv: Number(plastic_cash_and_opening?.sizeReturn ?? 0),
         },
-        tamojniy: {
-          price: Number(customs?.cash ?? 0),
+        share_income: {
+          price: Number(share_income?.cash ?? 0),
+          kv: 0,
+        },
+        share_expense: {
+          price: Number(share_expense?.cash ?? 0),
+          kv: 0,
+        },
+        other_expense: {
+          price: Number(other_expense?.cash ?? 0),
           kv: 0,
         },
         navar_expense: {
-          price: Number(add_profit_exp?.cash ?? 0),      // BUG FIX: edi 0 edi
+          price: Number(add_profit_exp?.cash ?? 0),
           kv: 0,
         },
         navar_income: {
-          price: Number(plastic_cash_and_opening?.add_profit ?? 0), // BUG FIX: edi 0 edi
+          price: Number(plastic_cash_and_opening?.add_profit ?? 0),
           kv: 0,
         },
       };
