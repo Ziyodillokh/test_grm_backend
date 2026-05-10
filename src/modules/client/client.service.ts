@@ -439,7 +439,7 @@ export class ClientService {
       .where('c."filialId" = :filialId', { filialId })
       .andWhere('c."deletedDate" IS NULL')
       .orderBy('(c.owed - c.given)', 'DESC')
-      .addOrderBy('c."createdAt"', 'DESC');
+      .addOrderBy('c."dateOne"', 'DESC');
 
     // Mijoz tab — filial barcha mijozlari. Qarzdor tab — qarzi bor (oddiy qarz yoki sotuvdan qarz)
     if (type === 'qarzdor') {
