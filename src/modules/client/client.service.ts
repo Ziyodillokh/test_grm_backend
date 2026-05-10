@@ -542,13 +542,36 @@ export class ClientService {
 
     const paginatedOrders = await paginate(qb, options);
 
+    // Qarz tipidagi cashflowlar (slug='debt' yoki 'debt_repayment') — oddiy qarzdor uchun
+    const cashflowQb = this.cashflowRepository
+      .createQueryBuilder('c')
+      .leftJoinAndSelect('c.cashflow_type', 'ct')
+      .leftJoinAndSelect('c.createdBy', 'creator')
+      .leftJoinAndSelect('c.kassa', 'kassa')
+      .where('c."clientId" = :clientId', { clientId })
+      .andWhere('ct.slug IN (:...slugs)', { slugs: ['debt', 'debt_repayment'] })
+      .andWhere('c.is_cancelled = false');
+
+    if (query.year) {
+      cashflowQb.andWhere('EXTRACT(YEAR FROM c.date) = :year', { year: query.year });
+    }
+    if (query.month) {
+      cashflowQb.andWhere('EXTRACT(MONTH FROM c.date) = :month', { month: query.month });
+    }
+
+    cashflowQb.orderBy('c.date', 'DESC');
+    const cashflows = await cashflowQb.getMany();
+
     return {
       items: paginatedOrders.items,
       meta: paginatedOrders.meta,
+      cashflows,
       client: {
         id: client.id,
         fullName: client.fullName,
         phone: client.phone,
+        address: client.address,
+        isDebtor: client.isDebtor,
         owed: Number(client.owed || 0),
         given: Number(client.given || 0),
         balance: Number(client.owed || 0) - Number(client.given || 0),
