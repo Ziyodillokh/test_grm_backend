@@ -2382,8 +2382,10 @@ export class ReportService {
         .leftJoin('cash.createdBy', 'u')
         .leftJoin('u.position', 'p')
         .leftJoin('cash.report', 'r')
+        .leftJoin('cash.cashflow_type', 'ct')
         .select([
-          `COALESCE(SUM(CASE WHEN cash.type = 'income' THEN cash.price ELSE 0 END), 0)::NUMERIC(20, 2) AS income`,
+          // Detail sahifa bilan moslash: logistics va share-profit incomelar hisobga olinmaydi
+          `COALESCE(SUM(CASE WHEN cash.type = 'income' AND ct.slug <> 'logistics' AND NOT (ct.slug = 'share' AND cash."shareKind" = 'profit') THEN cash.price ELSE 0 END), 0)::NUMERIC(20, 2) AS income`,
           `COALESCE(SUM(CASE WHEN cash.type = 'expense' THEN cash.price ELSE 0 END), 0)::NUMERIC(20, 2) AS expense`,
         ])
         .where('p.role = :role', { role })
