@@ -2445,7 +2445,7 @@ export class ReportService {
       SUM("plasticSum") as price,
       SUM("cashCollection") as cashCollection,
       SUM("openingBalance") as openingBalance,
-      SUM(inHand) as inHand,
+      SUM("inHand") as inHand,
       SUM("additionalProfitSum") as add_profit,
       SUM("totalSaleReturn") as saleReturn,
       SUM("totalSaleSizeReturn") as sizeReturn,
