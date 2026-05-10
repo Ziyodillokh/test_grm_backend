@@ -2711,7 +2711,16 @@ WHERE k.id = $1;
     }
 
     // === Common reusable parts ===
-    const now = bodyDate || new Date().toISOString();
+    // Default date: agar bodyDate yo'q bo'lsa — kassa oyiga to'g'ri kelishi kerak.
+    // Agar bugungi sana kassa oyiga to'g'ri kelsa shuni ishlatamiz, aks holda kassa oyining oxirgi kuni.
+    let defaultDate: string;
+    const todayDayjs = dayjs();
+    if (todayDayjs.year() === Number(year) && todayDayjs.month() + 1 === Number(month)) {
+      defaultDate = todayDayjs.toISOString();
+    } else {
+      defaultDate = dayjs(`${year}-${String(month).padStart(2, '0')}-01`).endOf('month').toISOString();
+    }
+    const now = bodyDate || defaultDate;
     const cashflow_types = await this.cashflowTypeRepository.find({ where: { slug: In(['transfer', 'dealer']) } });
     const dealerType = cashflow_types.find(el => el.slug === 'dealer');
     const transferType = cashflow_types.find(el => el.slug === 'transfer');
