@@ -113,6 +113,11 @@ export class ReportReportController {
     return await this.reportService.bossCurrLeft({ year: query.year, month: query.month, filialId: query.filial_id });
   }
 
+  @Get('home-page/current-month')
+  async currentMonthRoleCashflow(@Query() query: HomePageCurrLeft) {
+    return await this.reportService.currentMonthRoleCashflow({ year: query.year, month: query.month, filialId: query.filial_id });
+  }
+
   @Get('/monthly/v2')
   async currentReportMonthlyV2(@Query() query: ReportMonthlyV2) {
     return this.reportService.bossMonthReport(query);
