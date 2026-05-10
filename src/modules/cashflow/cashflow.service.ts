@@ -2729,17 +2729,12 @@ WHERE k.id = $1;
         ...(is_online ? { plasticSum: Number(kassaEntity.plasticSum) + parsedPrice } : { inHand: Number(kassaEntity.inHand) + parsedPrice }),
       }),
 
-      // Filial report update
+      // Filial report update — child cashflow totalPlasticSum'ga qo'shilmaydi
       this.reportService.update(filialReport.id, {
         totalIncome: Number(filialReport?.totalIncome || 0) + parsedPrice,
         ...(is_online
-          ? {
-            totalPlasticSum: Number(filialReport?.totalPlasticSum || 0) + parsedPrice,
-            accountantSum: Number(filialReport?.accountantSum || 0) + parsedPrice,
-          }
-          : {
-            managerSum: Number(filialReport?.managerSum || 0) + parsedPrice,
-          }),
+          ? { accountantSum: Number(filialReport?.accountantSum || 0) + parsedPrice }
+          : { managerSum: Number(filialReport?.managerSum || 0) + parsedPrice }),
       }),
 
       // Dealer report update
@@ -2806,17 +2801,12 @@ WHERE k.id = $1;
           : { inHand: Number(kassaEntity.inHand || 0) - parsedPrice }),
       }),
 
-      // Filial report update
+      // Filial report update — child cashflow totalPlasticSum'dan ayrilmaydi
       this.reportService.update(filialReport.id, {
         totalIncome: Number(filialReport?.totalIncome || 0) - parsedPrice,
         ...(is_online
-          ? {
-            totalPlasticSum: Number(filialReport?.totalPlasticSum || 0) - parsedPrice,
-            accountantSum: Number(filialReport?.accountantSum || 0) - parsedPrice,
-          }
-          : {
-            managerSum: Number(filialReport?.managerSum || 0) - parsedPrice,
-          }),
+          ? { accountantSum: Number(filialReport?.accountantSum || 0) - parsedPrice }
+          : { managerSum: Number(filialReport?.managerSum || 0) - parsedPrice }),
       }),
 
       // Dealer report update — reverse totalIncome + totalPlasticSum/inHand + accountantSum
@@ -3654,10 +3644,9 @@ WHERE k.id = $1;
                 if (oldSlug === 'manager') {
                   childReport.managerSum += priceDiff;
                 }
-                // Dealer / transfer parent → child report effekti (online → accountantSum, naqd → managerSum)
+                // Dealer / transfer parent → child (filial) report effekti — totalPlasticSum'ga qo'shilmaydi
                 if (oldSlug === 'dealer' || oldSlug === 'transfer') {
                   if (cashflow.is_online) {
-                    childReport.totalPlasticSum = Number(childReport.totalPlasticSum || 0) + priceDiff;
                     childReport.accountantSum = Number(childReport.accountantSum || 0) + priceDiff;
                   } else {
                     childReport.managerSum = Number(childReport.managerSum || 0) + priceDiff;
