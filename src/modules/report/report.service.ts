@@ -2375,22 +2375,24 @@ export class ReportService {
   // Boss dashboard "Menejer kassasi" + "Hisobchi kassasi" cardlari uchun:
   // tanlangan oy/yilda M_MANAGER va ACCOUNTANT yaratgan cashflowlarning kirim/chiqim yig'indilari
   async currentMonthRoleCashflow({ month, year, filialId }: { month?: number | string; year?: number | string; filialId?: string }) {
-    const { normalizedYear, startDate, endDate } = this.getYearAndDateRange(month, year);
+    const { normalizedYear } = this.getYearAndDateRange(month, year);
 
     const build = (role: number) => {
       const qb = this.cashflowRepository.createQueryBuilder('cash')
         .leftJoin('cash.createdBy', 'u')
         .leftJoin('u.position', 'p')
+        .leftJoin('cash.report', 'r')
         .select([
           `COALESCE(SUM(CASE WHEN cash.type = 'income' THEN cash.price ELSE 0 END), 0)::NUMERIC(20, 2) AS income`,
           `COALESCE(SUM(CASE WHEN cash.type = 'expense' THEN cash.price ELSE 0 END), 0)::NUMERIC(20, 2) AS expense`,
         ])
         .where('p.role = :role', { role })
-        .andWhere('cash.is_cancelled = false');
+        .andWhere('cash.is_cancelled = false')
+        .andWhere('r.year = :year', { year: normalizedYear });
+      if (month) qb.andWhere('r.month = :month', { month: Number(month) });
       if (filialId && filialId !== '#dealers') {
         qb.leftJoin('cash.kassa', 'k').andWhere('k."filialId" = :filialId', { filialId });
       }
-      this.applyDateRangeFilter(qb, 'cash.date', startDate, endDate);
       return qb.getRawOne();
     };
 
