@@ -2447,10 +2447,10 @@ export class ReportService {
       SUM("openingBalance") as openingBalance,
       SUM("inHand") as inHand,
       SUM("additionalProfitSum") as add_profit,
-      SUM("totalSaleReturn") as saleReturn,
-      SUM("totalSaleSizeReturn") as sizeReturn,
+      SUM("saleReturn") as saleReturn,
+      SUM("sizeReturn") as sizeReturn,
       SUM("netProfitSum") as net_profit_kassa,
-      SUM("discount") as discount_kassa
+      SUM("discountSum") as discount_kassa
     `)
       .where(`k."filialType" = 'filial'`);
 
