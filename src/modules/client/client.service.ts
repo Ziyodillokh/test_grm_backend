@@ -437,12 +437,14 @@ export class ClientService {
       .createQueryBuilder('c')
       .leftJoinAndSelect('c.user', 'seller')
       .where('c."filialId" = :filialId', { filialId })
-      .andWhere('(c.owed - c.given) > 0')
       .andWhere('c."deletedDate" IS NULL')
-      .orderBy('(c.owed - c.given)', 'DESC');
+      .orderBy('(c.owed - c.given)', 'DESC')
+      .addOrderBy('c."createdAt"', 'DESC');
 
-    if (type === 'mijoz') qb.andWhere('c."isDebtor" = false');
-    if (type === 'qarzdor') qb.andWhere('c."isDebtor" = true');
+    // Mijoz tab — filial barcha mijozlari. Qarzdor tab — qarzi bor (oddiy qarz yoki sotuvdan qarz)
+    if (type === 'qarzdor') {
+      qb.andWhere('(c.owed - c.given) > 0');
+    }
 
     const paginatedClients = await paginate(qb, options);
 
@@ -470,11 +472,11 @@ export class ClientService {
       .addSelect('COALESCE(SUM(c.given), 0)', 'totalGiven')
       .addSelect('COALESCE(SUM(c.owed), 0) - COALESCE(SUM(c.given), 0)', 'balance')
       .where('c."filialId" = :filialId', { filialId })
-      .andWhere('(c.owed - c.given) > 0')
       .andWhere('c."deletedDate" IS NULL');
 
-    if (type === 'mijoz') summaryQb.andWhere('c."isDebtor" = false');
-    if (type === 'qarzdor') summaryQb.andWhere('c."isDebtor" = true');
+    if (type === 'qarzdor') {
+      summaryQb.andWhere('(c.owed - c.given) > 0');
+    }
 
     const summaryResult = await summaryQb.getRawOne();
 
