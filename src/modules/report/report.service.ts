@@ -3137,21 +3137,14 @@ export class ReportService {
       }
 
       case 'terminal': {
-        // Filiallar ro'yxati — plasticSum > 0 bo'lganlar
-        const qb = this.kassaRepo.createQueryBuilder('k')
-          .leftJoinAndSelect('k.filial', 'f')
-          .select([
-            'f.id AS "filialId"',
-            'f.title AS "filialTitle"',
-            'SUM(k."plasticSum") AS "plasticSum"',
-          ])
-          .where('k."filialType" = :ft', { ft: 'filial' })
-          .groupBy('f.id')
-          .addGroupBy('f.title')
-          .having('SUM(k."plasticSum") > 0')
-          .orderBy('"plasticSum"', 'DESC');
-        this.applyKassaMonthYearFilter(qb, 'k', month, normalizedYear);
-        items = await qb.getRawMany();
+        // Yangi: static online+transfer cashflowlar (report ichida)
+        const qb = makeCashflowQuery(['online', 'transfer'], 'income');
+        qb.andWhere('cash.is_static = true');
+        qb.andWhere('r.id IS NOT NULL');
+        qb.andWhere('r.year = :ty', { ty: normalizedYear });
+        if (month) qb.andWhere('r.month = :tm', { tm: Number(month) });
+        if (filialId) qb.andWhere('r."filialId" = :tfilialId', { tfilialId: filialId });
+        items = await qb.getMany();
         break;
       }
 
@@ -3291,8 +3284,30 @@ export class ReportService {
       }
 
       case 'tamojniy': {
-        // Bojxona: slug=tamojnya type=Расход (faqat umumiy)
+        // Eski: Bojxona. Hozir Biznes ichida (customs) — backwards compat
         const qb = makeCashflowByDate(['customs'], 'expense');
+        items = await qb.getMany();
+        break;
+      }
+
+      case 'share_income': {
+        // Sherikdan ulush: slug='share' AND type='income' AND shareKind='capital'
+        const qb = makeCashflowByDate(['share'], 'income');
+        qb.andWhere(`cash."shareKind" = 'capital'`);
+        items = await qb.getMany();
+        break;
+      }
+
+      case 'share_expense': {
+        // Sherikka ulush: slug='share' AND type='expense'
+        const qb = makeCashflowByDate(['share'], 'expense');
+        items = await qb.getMany();
+        break;
+      }
+
+      case 'other_expense': {
+        // Boshqa chiqimlar: slug='other' AND type='expense'
+        const qb = makeCashflowByDate(['other'], 'expense');
         items = await qb.getMany();
         break;
       }
