@@ -431,7 +431,8 @@ export class ClientService {
   async getDebtClientsByFilial(
     filialId: string,
     options: IPaginationOptions,
-    type?: 'mijoz' | 'qarzdor',
+    type?: 'mijoz' | 'qarzdor' | 'oddiy_qarzdor' | 'savdo_qarzdor',
+    search?: string,
   ) {
     const qb = this.clientRepo
       .createQueryBuilder('c')
@@ -441,9 +442,21 @@ export class ClientService {
       .orderBy('(c.owed - c.given)', 'DESC')
       .addOrderBy('c."dateOne"', 'DESC');
 
-    // Mijoz tab — filial barcha mijozlari. Qarzdor tab — qarzi bor (oddiy qarz yoki sotuvdan qarz)
+    // Mijoz tab — barcha mijozlar. Qarzdor tab — qarzi bor (oddiy + sotuvdan).
+    // F-manager kassa Qarz cashflowi → oddiy_qarzdor (isDebtor=true). Qoplash → savdo_qarzdor (isDebtor=false + debt>0).
     if (type === 'qarzdor') {
       qb.andWhere('(c.owed - c.given) > 0');
+    } else if (type === 'oddiy_qarzdor') {
+      qb.andWhere('c."isDebtor" = true');
+    } else if (type === 'savdo_qarzdor') {
+      qb.andWhere('c."isDebtor" = false').andWhere('(c.owed - c.given) > 0');
+    }
+
+    if (search?.trim()) {
+      qb.andWhere(
+        '(LOWER(c."fullName") LIKE :s OR c.phone LIKE :s)',
+        { s: `%${search.trim().toLowerCase()}%` },
+      );
     }
 
     const paginatedClients = await paginate(qb, options);
@@ -476,6 +489,10 @@ export class ClientService {
 
     if (type === 'qarzdor') {
       summaryQb.andWhere('(c.owed - c.given) > 0');
+    } else if (type === 'oddiy_qarzdor') {
+      summaryQb.andWhere('c."isDebtor" = true');
+    } else if (type === 'savdo_qarzdor') {
+      summaryQb.andWhere('c."isDebtor" = false').andWhere('(c.owed - c.given) > 0');
     }
 
     const summaryResult = await summaryQb.getRawOne();

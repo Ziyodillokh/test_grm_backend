@@ -51,12 +51,14 @@ export class ClientController {
     @Param('filialId') filialId: string,
     @Query('page') page = 1,
     @Query('limit') limit = 20,
-    @Query('type') type?: 'mijoz' | 'qarzdor',
+    @Query('type') type?: 'mijoz' | 'qarzdor' | 'oddiy_qarzdor' | 'savdo_qarzdor',
+    @Query('search') search?: string,
   ) {
     return this.clientService.getDebtClientsByFilial(
       filialId,
       { page: +page, limit: +limit },
       type,
+      search,
     );
   }
 
