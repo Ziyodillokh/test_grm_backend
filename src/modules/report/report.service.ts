@@ -2372,6 +2372,45 @@ export class ReportService {
 
 // service ichida
 
+  // Boss dashboard "Menejer kassasi" + "Hisobchi kassasi" cardlari uchun:
+  // tanlangan oy/yilda M_MANAGER va ACCOUNTANT yaratgan cashflowlarning kirim/chiqim yig'indilari
+  async currentMonthRoleCashflow({ month, year, filialId }: { month?: number | string; year?: number | string; filialId?: string }) {
+    const { normalizedYear, startDate, endDate } = this.getYearAndDateRange(month, year);
+
+    const build = (role: number) => {
+      const qb = this.cashflowRepository.createQueryBuilder('cash')
+        .leftJoin('cash.createdBy', 'u')
+        .leftJoin('u.position', 'p')
+        .select([
+          `COALESCE(SUM(CASE WHEN cash.type = 'income' THEN cash.price ELSE 0 END), 0)::NUMERIC(20, 2) AS income`,
+          `COALESCE(SUM(CASE WHEN cash.type = 'expense' THEN cash.price ELSE 0 END), 0)::NUMERIC(20, 2) AS expense`,
+        ])
+        .where('p.role = :role', { role })
+        .andWhere('cash.is_cancelled = false');
+      if (filialId && filialId !== '#dealers') {
+        qb.leftJoin('cash.kassa', 'k').andWhere('k."filialId" = :filialId', { filialId });
+      }
+      this.applyDateRangeFilter(qb, 'cash.date', startDate, endDate);
+      return qb.getRawOne();
+    };
+
+    const [manager, accountant] = await Promise.all([
+      build(UserRoleEnum.M_MANAGER),
+      build(UserRoleEnum.ACCOUNTANT),
+    ]);
+
+    return {
+      manager: {
+        income: Number(manager?.income || 0),
+        expense: Number(manager?.expense || 0),
+      },
+      accountant: {
+        income: Number(accountant?.income || 0),
+        expense: Number(accountant?.expense || 0),
+      },
+    };
+  }
+
   async bossMonthReport({ month, year, filialId }) {
     const { normalizedYear, startDate, endDate } = this.getYearAndDateRange(month, year);
 
