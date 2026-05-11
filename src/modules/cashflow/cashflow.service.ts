@@ -3088,7 +3088,7 @@ WHERE k.id = $1;
             if (oneReport) {
               oneReport.totalSale += price;
               oneReport.totalPlasticSum += order.plastic || 0;
-              oneReport.accountantSum += order.plastic || 0;
+              // accountantSum endi plastic ni o'z ichiga olmaydi — static `slug='online'` cashflow saqlaydi
               oneReport.totalDiscountSum += (order.discount || 0) + (order.managerDiscount || 0);
               oneReport.totalNetProfitSum += order.netProfit || 0;
               oneReport.totalAdditionalProfitSum += order.additionalProfit || 0;
@@ -3399,11 +3399,23 @@ WHERE k.id = $1;
             if (oneReport) {
               oneReport.totalSale += cashflowPriceDiff;
               oneReport.totalPlasticSum += plasticDiff;
-              oneReport.accountantSum += plasticDiff;
+              // accountantSum endi plastic ni o'z ichiga olmaydi — static `slug='online'` cashflow saqlaydi
               oneReport.totalAdditionalProfitSum += additionalProfitDiff;
               oneReport.totalNetProfitSum += netProfitDiff;
               oneReport.totalDiscountSum += discountDiff;
               await queryRunner.manager.save(oneReport);
+
+              // Static online cashflow plasticDiff bilan yangilash
+              if (plasticDiff !== 0 && kassa.filial?.id) {
+                const onlineCf = await this.ensureStaticOnlineCashflow(
+                  queryRunner,
+                  kassa.filial.id,
+                  oneReport.id,
+                  kassa.filial.title,
+                );
+                onlineCf.price = Number(onlineCf.price || 0) + plasticDiff;
+                await queryRunner.manager.save(onlineCf);
+              }
             }
             await queryRunner.manager.save(kassa);
           }
@@ -3900,7 +3912,7 @@ WHERE k.id = $1;
             if (oneReport) {
               oneReport.totalSale -= price;
               oneReport.totalPlasticSum -= order.plastic || 0;
-              oneReport.accountantSum -= order.plastic || 0;
+              // accountantSum endi plastic ni o'z ichiga olmaydi — static `slug='online'` cashflow saqlaydi
               oneReport.totalDiscountSum -= (order.discount || 0) + (order.managerDiscount || 0);
               oneReport.totalNetProfitSum -= order.netProfit || 0;
               oneReport.totalAdditionalProfitSum -= order.additionalProfit || 0;
@@ -3909,6 +3921,18 @@ WHERE k.id = $1;
                 oneReport.totalSaleCount -= barCode.isMetric ? 1 : order.x;
               }
               await this.reportService.save(oneReport);
+
+              // Static online cashflow plasticni teskari aylantirish
+              if (Number(order.plastic || 0) > 0 && kassa.filial?.id) {
+                const onlineCf = await this.ensureStaticOnlineCashflow(
+                  queryRunner,
+                  kassa.filial.id,
+                  oneReport.id,
+                  kassa.filial.title,
+                );
+                onlineCf.price = Math.max(0, Number(onlineCf.price || 0) - Number(order.plastic || 0));
+                await queryRunner.manager.save(onlineCf);
+              }
             }
           }
         }
