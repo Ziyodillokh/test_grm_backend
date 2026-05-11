@@ -2944,6 +2944,51 @@ WHERE k.id = $1;
     await this.cashflowRepository.update({ id: cashflowId }, { kassa: { id: kassaId } });
   }
 
+  /**
+   * Filial+report uchun static `slug='online'` cashflow ni topadi yoki yaratadi (price=0 bilan).
+   * "Terminal va o'tkazma" qatori uchun reportga real-time plasticSum yig'iladi.
+   */
+  async ensureStaticOnlineCashflow(
+    queryRunner: any,
+    filialId: string,
+    filialReportId: string,
+    filialTitle?: string,
+  ): Promise<Cashflow> {
+    const onlineType = await queryRunner.manager.findOne(CashflowType, { where: { slug: 'online' } });
+    if (!onlineType) throw new BadRequestException("cashflow_type slug='online' topilmadi");
+
+    const existing = await queryRunner.manager
+      .createQueryBuilder(Cashflow, 'c')
+      .leftJoin('c.cashflow_type', 'ct')
+      .where('ct.slug = :slug', { slug: 'online' })
+      .andWhere('c.is_static = true')
+      .andWhere('c.is_cancelled = false')
+      .andWhere('c."reportId" = :reportId', { reportId: filialReportId })
+      .andWhere('c."filialId" = :filialId', { filialId })
+      .getOne();
+    if (existing) return existing;
+
+    const accountant = await queryRunner.manager.findOne(User, {
+      where: { position: { role: UserRoleEnum.ACCOUNTANT } },
+      relations: ['position'],
+    });
+    const cf = queryRunner.manager.create(Cashflow, {
+      price: 0,
+      type: CashFlowEnum.InCome,
+      tip: CashflowTipEnum.CASHFLOW,
+      comment: `${filialTitle || ''} Terminal`,
+      cashflow_type: { id: onlineType.id },
+      date: new Date().toISOString(),
+      report: { id: filialReportId },
+      filial: { id: filialId },
+      createdBy: accountant ? { id: accountant.id } : undefined,
+      is_online: false,
+      is_static: true,
+      status: CashflowStatusEnum.APPROVED,
+    } as any);
+    return await queryRunner.manager.save(cf);
+  }
+
   async approveCashflow(cashflowId: string, createdById?: string): Promise<Cashflow> {
     const cashflow = await this.cashflowRepository.findOne({
       where: { id: cashflowId },
@@ -3052,6 +3097,18 @@ WHERE k.id = $1;
                 oneReport.totalSaleCount += barCode.isMetric ? 1 : order.x;
               }
               await this.reportService.save(oneReport);
+
+              // Static `slug='online'` cashflowga plastic qismni qo'shish (real-time)
+              if (Number(order.plastic || 0) > 0 && kassa.filial?.id) {
+                const onlineCf = await this.ensureStaticOnlineCashflow(
+                  queryRunner,
+                  kassa.filial.id,
+                  oneReport.id,
+                  kassa.filial.title,
+                );
+                onlineCf.price = Number(onlineCf.price || 0) + Number(order.plastic);
+                await queryRunner.manager.save(onlineCf);
+              }
             }
           }
         }

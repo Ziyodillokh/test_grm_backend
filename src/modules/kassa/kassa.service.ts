@@ -937,31 +937,8 @@ export class KassaService {
       kassa.isAccountantConfirmed = true;
       kassa.isAccountantRejected = false;
 
-      // Terminal cashflow yaratish
-      const accountant = await this.userRepository.findOne({
-        where: { position: { role: UserRoleEnum.ACCOUNTANT } },
-        relations: { avatar: true, position: true },
-      });
-      const report = await this.reportService.findOne(kassa.report?.id);
-      const slugTerminal = await this.getOneBySlug('online');
-
-      // plasticSum > 0 bo'lgandagina terminal cashflow yaratilsin, 0 bo'lsa ignore
-      if (slugTerminal && report && kassa.plasticSum > 0) {
-        await this.cashflowRepository.save(
-          this.cashflowRepository.create({
-            price: kassa.plasticSum,
-            type: CashFlowEnum.InCome,
-            tip: CashflowTipEnum.CASHFLOW,
-            comment: `${kassa.filial.title} terminal: ${this.getMonthName(kassa.month)} oyi ${kassa.year}`,
-            cashflow_type: slugTerminal,
-            date: new Date().toISOString(),
-            report: report,
-            createdBy: accountant,
-            is_online: false,
-            is_static: true,
-          }),
-        );
-      }
+      // Terminal cashflow endi order approve flowida (cashflow.service.approveCashflow → ensureStaticOnlineCashflow) real-time yaratiladi.
+      // Bu yerda alohida yaratish KERAK EMAS — duplicate bo'ladi.
     }
 
     // ─── ACCOUNTANT: qaytarish ──────────────────────────────────────
