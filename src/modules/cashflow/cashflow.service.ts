@@ -3088,7 +3088,8 @@ WHERE k.id = $1;
             if (oneReport) {
               oneReport.totalSale += price;
               oneReport.totalPlasticSum += order.plastic || 0;
-              // accountantSum endi plastic ni o'z ichiga olmaydi — static `slug='online'` cashflow saqlaydi
+              // accountantSum static online cashflow price o'zgarishi bilan birga yangilanadi
+              oneReport.accountantSum += order.plastic || 0;
               oneReport.totalDiscountSum += (order.discount || 0) + (order.managerDiscount || 0);
               oneReport.totalNetProfitSum += order.netProfit || 0;
               oneReport.totalAdditionalProfitSum += order.additionalProfit || 0;
@@ -3399,7 +3400,8 @@ WHERE k.id = $1;
             if (oneReport) {
               oneReport.totalSale += cashflowPriceDiff;
               oneReport.totalPlasticSum += plasticDiff;
-              // accountantSum endi plastic ni o'z ichiga olmaydi — static `slug='online'` cashflow saqlaydi
+              // accountantSum static online cashflow price o'zgarishi bilan birga yangilanadi
+              oneReport.accountantSum += plasticDiff;
               oneReport.totalAdditionalProfitSum += additionalProfitDiff;
               oneReport.totalNetProfitSum += netProfitDiff;
               oneReport.totalDiscountSum += discountDiff;
@@ -3912,7 +3914,8 @@ WHERE k.id = $1;
             if (oneReport) {
               oneReport.totalSale -= price;
               oneReport.totalPlasticSum -= order.plastic || 0;
-              // accountantSum endi plastic ni o'z ichiga olmaydi — static `slug='online'` cashflow saqlaydi
+              // accountantSum static online cashflow price o'zgarishi bilan birga yangilanadi
+              oneReport.accountantSum -= order.plastic || 0;
               oneReport.totalDiscountSum -= (order.discount || 0) + (order.managerDiscount || 0);
               oneReport.totalNetProfitSum -= order.netProfit || 0;
               oneReport.totalAdditionalProfitSum -= order.additionalProfit || 0;
